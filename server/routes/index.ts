@@ -1,0 +1,30 @@
+import { Router } from 'express';
+import { authRouter } from './authRoutes';
+import { userRouter } from './userRoutes';
+import { companyRouter } from './companyRoutes';
+import { contactRouter } from './contactRoutes';
+import { worksheetRouter } from './worksheetRoutes';
+import { jdRouter } from './jdRoutes';
+import { outreachRouter } from './outreachRoutes';
+import { campaignRouter } from './campaignRoutes';
+import { dashboardRouter } from './dashboardRoutes';
+import { attendanceRouter } from './attendanceRoutes';
+import { taskRouter } from './taskRoutes';
+import { leaveRouter } from './leaveRoutes';
+import { adminRouter } from './adminRoutes';
+
+export const apiRouter = Router();
+
+apiRouter.use(authRouter);
+apiRouter.use(userRouter);
+apiRouter.use(companyRouter);
+apiRouter.use(contactRouter);
+apiRouter.use(worksheetRouter);
+apiRouter.use(jdRouter);
+apiRouter.use(outreachRouter);
+apiRouter.use(campaignRouter);
+apiRouter.use(dashboardRouter);
+apiRouter.use(attendanceRouter);
+apiRouter.use(taskRouter);
+apiRouter.use(leaveRouter);
+apiRouter.use(adminRouter);

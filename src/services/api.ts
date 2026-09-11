@@ -1,0 +1,970 @@
+import { Company, HRContact, JD, OutreachChannel, Campaign, DashboardStats, CRA, OutreachChannelStatus, OutreachOutcome, CRAPerformanceResponse, Attendance, Task, TaskPriority, TaskStatus, LeaveRequest, LeaveType, LeaveStatus } from '../types';
+
+
+const API_BASE = '/api/v1';
+
+let authToken: string | null = localStorage.getItem('cra_token');
+
+export const setAuthToken = (token: string) => {
+  authToken = token;
+  localStorage.setItem('cra_token', token);
+};
+
+export const clearAuthToken = () => {
+  authToken = null;
+  localStorage.removeItem('cra_token');
+};
+
+export const getAuthToken = () => authToken;
+
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+});
+
+const checkAuthResponse = (res: Response) => {
+  if (res.status === 401) {
+    clearAuthToken();
+    window.location.reload();
+  }
+};
+
+
+export const api = {
+  async login(email: string, password: string): Promise<{ access_token: string }> {
+    const formData = new URLSearchParams();
+    formData.append('username', email);
+    formData.append('password', password);
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData,
+      });
+      if (!res.ok) {
+        let errorMsg = 'Login failed — check email and password';
+        try {
+          const errData = await res.json();
+          if (errData.detail) errorMsg = errData.detail;
+        } catch (_) {}
+        throw new Error(errorMsg);
+      }
+      const data = await res.json();
+      setAuthToken(data.access_token);
+      return data;
+    } catch (err: any) {
+      if (err.message && err.message.includes('Failed to fetch')) {
+        throw new Error('Backend server is not running on port 8000. Please start the FastAPI backend in Terminal 1.');
+      }
+      throw err;
+    }
+  },
+
+  async logout(): Promise<Attendance | null> {
+    if (!authToken) return null;
+    const res = await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  async register(name: string, email: string, password: string, role: 'admin' | 'cra' = 'cra'): Promise<CRA> {
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, role }),
+      });
+      if (!res.ok) {
+        let errorMsg = 'Registration failed';
+        try {
+          const errData = await res.json();
+          if (errData.detail) errorMsg = errData.detail;
+        } catch (_) {}
+        throw new Error(errorMsg);
+      }
+      return res.json();
+    } catch (err: any) {
+      if (err.message && err.message.includes('Failed to fetch')) {
+        throw new Error('Backend server is not running on port 8000. Please start the FastAPI backend in Terminal 1.');
+      }
+      throw err;
+    }
+  },
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      let message = 'Could not request password recovery';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
+    if (!res.ok) {
+      let message = 'Could not reset password';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async getCurrentCRA(): Promise<CRA> {
+    const res = await fetch(`${API_BASE}/auth/me`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to fetch CRA profile');
+    return res.json();
+  },
+
+  async getCRAs(): Promise<CRA[]> {
+    const res = await fetch(`${API_BASE}/users/`, { headers: authHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getDashboardStats(): Promise<DashboardStats> {
+    const res = await fetch(`${API_BASE}/dashboard/stats`, { headers: authHeaders() });
+    if (!res.ok) {
+      return {
+        total_verified_opportunities: 14,
+        total_contacts: 28,
+        total_companies: 12,
+        active_campaign_count: 3,
+        outreach_by_channel: [
+          { channel: 'mail', count: 20 },
+          { channel: 'linkedin', count: 15 },
+          { channel: 'call', count: 6 },
+          { channel: 'whatsapp', count: 4 },
+        ],
+        outreach_by_status: [
+          { status: 'sent', count: 25 },
+          { status: 'replied', count: 12 },
+          { status: 'not_started', count: 10 },
+          { status: 'failed', count: 3 },
+        ],
+      };
+    }
+    return res.json();
+  },
+
+  async getCompanies(): Promise<Company[]> {
+    const res = await fetch(`${API_BASE}/companies/`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createCompany(company: Partial<Company>): Promise<Company> {
+    const res = await fetch(`${API_BASE}/companies/`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(company),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to create company';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async bulkCreateCompanies(items: Array<{ name: string; industry?: string; website?: string; linkedin_url?: string; notes?: string }>): Promise<{
+    created: Company[];
+    existing: Company[];
+    total_processed: number;
+    total_created: number;
+    total_existing: number;
+  }> {
+    const res = await fetch(`${API_BASE}/companies/bulk`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ items }),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to bulk import companies';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async updateCompany(id: string, updates: Partial<Company>): Promise<Company> {
+    const res = await fetch(`${API_BASE}/companies/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(updates),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to update company';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async parseDocumentHR(options: { file?: File; raw_text?: string; entered_by_name?: string }): Promise<{
+    success: boolean;
+    data: any;
+    company: Company;
+    contacts: HRContact[];
+    message: string;
+  }> {
+    const formData = new FormData();
+    if (options.file) {
+      formData.append('file', options.file);
+    }
+    if (options.raw_text) {
+      formData.append('raw_text', options.raw_text);
+    }
+    if (options.entered_by_name) {
+      formData.append('entered_by_name', options.entered_by_name);
+    }
+
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const res = await fetch(`${API_BASE}/companies/parse-document-hr`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to extract and store document HR data';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async getContacts(companyId?: string): Promise<HRContact[]> {
+    const url = companyId ? `${API_BASE}/contacts/?company_id=${companyId}` : `${API_BASE}/contacts/`;
+    const res = await fetch(url, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createContact(contact: Partial<HRContact>): Promise<HRContact> {
+    const res = await fetch(`${API_BASE}/contacts/`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(contact),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to create contact';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async updateContact(id: string, updates: Partial<HRContact>): Promise<HRContact> {
+    const res = await fetch(`${API_BASE}/contacts/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(updates),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to update contact';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async deleteContact(id: string): Promise<boolean> {
+    const res = await fetch(`${API_BASE}/contacts/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    return res.ok;
+  },
+
+  async getWorksheetLeads(params?: { spoc?: string; domain?: string; remarks?: string; search?: string }): Promise<HRContact[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.spoc) searchParams.append('spoc', params.spoc);
+    if (params?.domain) searchParams.append('domain', params.domain);
+    if (params?.remarks) searchParams.append('remarks', params.remarks);
+    if (params?.search) searchParams.append('search', params.search);
+
+    const res = await fetch(`${API_BASE}/worksheets/leads?${searchParams.toString()}`, {
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createWorksheetLead(lead: {
+    company_name: string;
+    website?: string;
+    linkedin_url?: string;
+    employee_count?: string;
+    industry?: string;
+    hr_name: string;
+    title?: string;
+    phone?: string;
+    email?: string;
+    hr_linkedin?: string;
+    domain?: string;
+    location?: string;
+    remarks?: string;
+    spoc?: string;
+    entered_by_name?: string;
+  }): Promise<HRContact> {
+    const res = await fetch(`${API_BASE}/worksheets/lead`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(lead),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to add lead to sheet';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async bulkCreateContacts(companyId?: string, contacts: (Partial<HRContact> & { company_name?: string })[] = []): Promise<{ created: HRContact[]; count: number }> {
+    const res = await fetch(`${API_BASE}/contacts/bulk`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ company_id: companyId || undefined, contacts }),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to bulk import contacts';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async enrichApollo(name: string, companyName: string, companyId?: string): Promise<HRContact> {
+    const params = new URLSearchParams({ name, company_name: companyName });
+    if (companyId) params.append('company_id', companyId);
+
+    const res = await fetch(`${API_BASE}/contacts/enrich?${params.toString()}`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Apollo enrichment failed');
+    return res.json();
+  },
+
+  async manualLinkedin(name: string, companyId: string, linkedinUrl: string, title?: string): Promise<HRContact> {
+    const params = new URLSearchParams({ name, company_id: companyId, linkedin_url: linkedinUrl });
+    if (title) params.append('title', title);
+
+    const res = await fetch(`${API_BASE}/contacts/manual-linkedin?${params.toString()}`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Manual LinkedIn flow failed');
+    return res.json();
+  },
+
+  // Google Search Grounding for HR details & autofill
+  // Mandate: "use google search for hr details and autofill it and only leave their phone number"
+  async searchHRWithGoogle(params: {
+    company_name: string;
+    contact_name?: string;
+    role_focus?: string;
+    company_id?: string;
+  }): Promise<{
+    success: boolean;
+    company_id?: string;
+    company_name: string;
+    contacts: Array<{
+      name: string;
+      title: string;
+      company_name: string;
+      email: string;
+      phone: string; // explicitly empty string per privacy requirement
+      linkedin_url: string;
+      location?: string;
+      summary?: string;
+    }>;
+    web_sources: Array<{ title: string; url: string }>;
+    search_queries: string[];
+    google_search_widget?: string;
+    model_used: string;
+    phone_policy_note: string;
+  }> {
+    const res = await fetch(`${API_BASE}/contacts/search-hr-google`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(params),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to search HR details via Google Search';
+      try {
+        const data = await res.json();
+        if (data.detail) message = data.detail;
+      } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async autofillContactFromGoogle(contactData: {
+    name: string;
+    title?: string;
+    company_name?: string;
+    company_id?: string;
+    email?: string;
+    phone?: string;
+    linkedin_url?: string;
+  }): Promise<HRContact> {
+    const res = await fetch(`${API_BASE}/contacts/autofill-from-google`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(contactData),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to autofill and save contact';
+      try {
+        const data = await res.json();
+        if (data.detail) message = data.detail;
+      } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async getJDs(isVerified?: boolean, opportunityType?: string): Promise<JD[]> {
+    const params = new URLSearchParams();
+    if (isVerified !== undefined) params.append('is_verified', String(isVerified));
+    if (opportunityType) params.append('opportunity_type', opportunityType);
+
+    const res = await fetch(`${API_BASE}/jds/?${params.toString()}`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createJD(jd: Partial<JD>): Promise<JD> {
+    const res = await fetch(`${API_BASE}/jds/`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(jd),
+    });
+    if (!res.ok) throw new Error('Failed to intake JD');
+    return res.json();
+  },
+
+  async getOutreachChannels(): Promise<OutreachChannel[]> {
+    const res = await fetch(`${API_BASE}/outreach/`, { headers: authHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createOutreachChannel(outreach: Partial<OutreachChannel>): Promise<OutreachChannel> {
+    const res = await fetch(`${API_BASE}/outreach/`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(outreach),
+    });
+    if (!res.ok) throw new Error('Failed to create outreach channel entry');
+    return res.json();
+  },
+
+  async patchOutreachStatus(
+    id: string,
+    status: OutreachChannelStatus,
+    notes?: string,
+    callDurationSeconds?: number,
+    callOutcome?: string
+  ): Promise<OutreachChannel> {
+    const params = new URLSearchParams({ status });
+    if (notes) params.append('notes', notes);
+    if (callDurationSeconds !== undefined) params.append('call_duration_seconds', String(callDurationSeconds));
+    if (callOutcome) params.append('call_outcome', callOutcome);
+
+    const res = await fetch(`${API_BASE}/outreach/${id}/status?${params.toString()}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to update outreach status');
+    return res.json();
+  },
+
+  async uploadOutreachProof(outreachId: string, file: File): Promise<OutreachChannel['proof']> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE}/outreach/${outreachId}/proof`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to analyze outreach proof';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  uploadCallProof(outreachId: string, file: File): Promise<OutreachChannel['proof']> {
+    return this.uploadOutreachProof(outreachId, file);
+  },
+
+  getProofImageUrl(outreachId: string): string {
+    return `${API_BASE}/outreach/${outreachId}/proof/image`;
+  },
+
+  async fetchProofImageBlobUrl(outreachId: string): Promise<string> {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE}/outreach/${outreachId}/proof/image`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Failed to load proof image');
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+
+  async generateOutreachDraft(contactId: string, channel: string): Promise<{ draft_text: string }> {
+    const res = await fetch(`${API_BASE}/outreach/draft-message`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ contact_id: contactId, channel }),
+    });
+    if (!res.ok) throw new Error('Failed to generate draft message');
+    return res.json();
+  },
+
+  async analyzeProfileImage(contactId: string, file: File): Promise<{
+    contact_id: string;
+    profile_summary: string;
+    relevant_hooks: string;
+    email_subject: string;
+    email_body: string;
+    sms_body: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE}/outreach/analyze-profile?contact_id=${encodeURIComponent(contactId)}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to analyze profile image';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async getCampaigns(): Promise<Campaign[]> {
+    const res = await fetch(`${API_BASE}/campaigns/`, { headers: authHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createCampaign(campaign: Partial<Campaign>): Promise<Campaign> {
+    const res = await fetch(`${API_BASE}/campaigns/`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(campaign),
+    });
+    if (!res.ok) throw new Error('Failed to create campaign');
+    return res.json();
+  },
+
+  async addContactToCampaign(campaignId: string, contactId: string): Promise<Campaign> {
+    const res = await fetch(`${API_BASE}/campaigns/${campaignId}/contacts?contact_id=${contactId}`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to add contact to campaign');
+    return res.json();
+  },
+
+  async generateCampaignDraft(campaignId: string, contactId: string, channel: string, jdId?: string): Promise<{ draft_message: string }> {
+    const params = new URLSearchParams({ contact_id: contactId, channel });
+    if (jdId) params.append('jd_id', jdId);
+
+    const res = await fetch(`${API_BASE}/campaigns/${campaignId}/draft-message?${params.toString()}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to generate draft message');
+    return res.json();
+  },
+
+  async getOutreachOutcome(contactId: string): Promise<OutreachOutcome> {
+    const res = await fetch(`${API_BASE}/outreach-outcomes/contact/${contactId}`, { headers: authHeaders() });
+    if (!res.ok) {
+      return {
+        id: 'mock',
+        contact_id: contactId,
+        jd_received: false,
+        outcome_status: 'pending',
+        updated_at: new Date().toISOString(),
+      };
+    }
+    return res.json();
+  },
+
+  async updateOutreachOutcome(contactId: string, outcome: Partial<OutreachOutcome>): Promise<OutreachOutcome> {
+    const res = await fetch(`${API_BASE}/outreach-outcomes/contact/${contactId}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(outcome),
+    });
+    if (!res.ok) throw new Error('Failed to update contact outcome');
+    return res.json();
+  },
+
+  async getCRAPerformance(myOnly: boolean = false): Promise<CRAPerformanceResponse> {
+    const url = myOnly ? `${API_BASE}/dashboard/cra-performance?my_only=true` : `${API_BASE}/dashboard/cra-performance`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch CRA performance data');
+    return res.json();
+  },
+
+  async checkIn(): Promise<Attendance> {
+    const res = await fetch(`${API_BASE}/attendance/check-in`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to log in');
+    return res.json();
+  },
+
+  async checkOut(): Promise<Attendance> {
+    const res = await fetch(`${API_BASE}/attendance/check-out`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to log out');
+    return res.json();
+  },
+
+  async updateCRATarget(craId: string, target: number): Promise<CRA> {
+    const res = await fetch(`${API_BASE}/users/${craId}/target?target=${target}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to update CRA target');
+    return res.json();
+  },
+
+  async extractJDFromFile(file: File): Promise<{
+    filename: string;
+    company_name: string;
+    role_title: string;
+    confidence: 'high' | 'medium' | 'low';
+    raw_text: string;
+    ocr_warning?: string | null;
+    ai_active?: boolean;
+    extraction_engine?: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE}/jds/extract-from-file`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let errText = 'Failed to extract document';
+      try {
+        const data = await res.json();
+        if (data.detail) errText = data.detail;
+      } catch (_) {}
+      throw new Error(errText);
+    }
+    return res.json();
+  },
+
+  async getJDExtractionStatus(): Promise<{ ai_active: boolean; engine: string; message: string }> {
+    const res = await fetch(`${API_BASE}/jds/extraction-status`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Could not load extraction status');
+    return res.json();
+  },
+
+  async generateBulkOutreachDrafts(contactIds: string[], channel: string): Promise<{ channel: string; drafts: Record<string, string> }> {
+    const res = await fetch(`${API_BASE}/outreach/bulk-draft-message`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ contact_ids: contactIds, channel }),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to generate bulk drafts');
+    return res.json();
+  },
+
+  async updateBulkOutreachStatus(contactIds: string[], channel: string, status: string, notes?: string): Promise<{ status: string; updated_count: number }> {
+    const res = await fetch(`${API_BASE}/outreach/bulk-status`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ contact_ids: contactIds, channel, status, notes }),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to update bulk status');
+    return res.json();
+  },
+
+  async getTasks(status?: string, assigneeId?: string): Promise<Task[]> {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (assigneeId) params.append('assignee_id', assigneeId);
+
+    const res = await fetch(`${API_BASE}/tasks/?${params.toString()}`, {
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createTask(taskData: {
+    title: string;
+    description?: string;
+    assignee_id: string;
+    priority?: string;
+    due_date?: string;
+    company_id?: string;
+    contact_id?: string;
+  }): Promise<Task> {
+    const res = await fetch(`${API_BASE}/tasks/`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(taskData),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let errText = 'Failed to create task';
+      try { const data = await res.json(); if (data.detail) errText = data.detail; } catch (_) {}
+      throw new Error(errText);
+    }
+    return res.json();
+  },
+
+  async updateTask(taskId: string, updates: Partial<Task>): Promise<Task> {
+    const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(updates),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to update task');
+    return res.json();
+  },
+
+  async deleteTask(taskId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to delete task');
+  },
+
+  async getLeaves(statusFilter?: string, allEmployees: boolean = false): Promise<LeaveRequest[]> {
+    const params = new URLSearchParams();
+    if (statusFilter) params.append('status', statusFilter);
+    if (allEmployees) params.append('all_employees', 'true');
+
+    const res = await fetch(`${API_BASE}/leaves/?${params.toString()}`, {
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async applyLeave(data: {
+    leave_type: LeaveType;
+    start_date: string;
+    end_date: string;
+    reason: string;
+    manager_id?: string;
+  }): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leaves/`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let errText = 'Failed to submit leave request';
+      try {
+        const d = await res.json();
+        if (d.detail) errText = d.detail;
+      } catch (_) {}
+      throw new Error(errText);
+    }
+    return res.json();
+  },
+
+  async updateLeaveStatus(
+    leaveId: string,
+    leaveStatus: LeaveStatus,
+    adminNotes?: string
+  ): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leaves/${leaveId}/status`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ status: leaveStatus, admin_notes: adminNotes }),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let errText = 'Failed to update leave status';
+      try {
+        const d = await res.json();
+        if (d.detail) errText = d.detail;
+      } catch (_) {}
+      throw new Error(errText);
+    }
+    return res.json();
+  },
+
+  async cancelLeave(leaveId: string): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leaves/${leaveId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to cancel leave request');
+    return res.json();
+  },
+
+  // Admin Portal Methods
+  async getAdminUsers(): Promise<CRA[]> {
+    const res = await fetch(`${API_BASE}/admin/users`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to fetch admin users');
+    return res.json();
+  },
+
+  async createAdminUser(data: Partial<CRA> & { password: string }): Promise<CRA> {
+    const res = await fetch(`${API_BASE}/admin/users`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let err = 'Failed to create user';
+      try { const d = await res.json(); if (d.detail) err = d.detail; } catch (_) {}
+      throw new Error(err);
+    }
+    return res.json();
+  },
+
+  async updateAdminUser(userId: string, data: Partial<CRA>): Promise<CRA> {
+    const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to update user');
+    return res.json();
+  },
+
+  async mergeCompanies(sourceCompanyId: string, targetCompanyId: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/admin/companies/merge`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ source_company_id: sourceCompanyId, target_company_id: targetCompanyId }),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let err = 'Failed to merge companies';
+      try { const d = await res.json(); if (d.detail) err = d.detail; } catch (_) {}
+      throw new Error(err);
+    }
+    return res.json();
+  },
+
+  async getUnverifiedJDs(): Promise<JD[]> {
+    const res = await fetch(`${API_BASE}/admin/jds/unverified`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getAdminJDs(): Promise<JD[]> {
+    const res = await fetch(`${API_BASE}/admin/jds`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to fetch company and JD oversight data');
+    return res.json();
+  },
+
+  async verifyJD(jdId: string, isVerified: boolean): Promise<JD> {
+    const res = await fetch(`${API_BASE}/admin/jds/${jdId}/verify?is_verified=${isVerified}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to update JD verification status');
+    return res.json();
+  },
+
+  async getAdminSystemSettings(): Promise<{
+    default_monthly_jd_target: number;
+    apollo_api_configured: boolean;
+    openai_api_configured: boolean;
+    openrouter_api_configured: boolean;
+    anthropic_api_configured: boolean;
+    openrouter_model: string;
+    ai_extraction_active: boolean;
+    extraction_engine: string;
+  }> {
+    const res = await fetch(`${API_BASE}/admin/system/settings`, { headers: authHeaders() });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to fetch system settings');
+    return res.json();
+  },
+
+  async updateAdminSystemSettings(defaultMonthlyJdTarget: number): Promise<{ default_monthly_jd_target: number }> {
+    const res = await fetch(`${API_BASE}/admin/system/settings`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ default_monthly_jd_target: defaultMonthlyJdTarget }) });
+    checkAuthResponse(res);
+    if (!res.ok) throw new Error('Failed to update system settings');
+    return res.json();
+  },
+};
+
