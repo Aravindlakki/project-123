@@ -651,7 +651,16 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-amber-900/20 border border-amber-700/30 space-y-1">
+                <p className="text-amber-300 font-semibold">Tier & Licensing</p>
+                <p className="text-white font-bold flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  100% Free & Open
+                </p>
+                <p className="text-[11px] text-amber-200/60">No paid API key or subscription needed</p>
+              </div>
+
               <div className="p-4 rounded-2xl bg-amber-900/20 border border-amber-700/30 space-y-1">
                 <p className="text-amber-300 font-semibold">Google Search Grounding</p>
                 <p className="text-white font-bold flex items-center gap-1.5">

@@ -77,7 +77,7 @@ Return ONLY a valid JSON object without markdown formatting with these exact key
   if (contents) {
     const aiResult = await generateWithGeminiRetry({
       contents,
-      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash'],
     });
 
     if (aiResult?.text) {

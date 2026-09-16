@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>PLACEMEIN CRA Outreach</title>
+    <script>
+      // Single Page Apps for GitHub Pages
+      var l = window.location;
+      var repoName = l.pathname.split('/')[1] || 'project-123';
+      var rest = l.pathname.slice(repoName.length + 1) || '';
+      if (!rest.startsWith('/')) rest = '/' + rest;
+      if (rest === '/') rest = '/dashboard';
+      var redirectPath = '/' + repoName + '/#' + rest + (l.search || '');
+      window.location.replace(redirectPath);
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

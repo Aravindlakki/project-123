@@ -1,446 +1,640 @@
 import React, { useState } from 'react';
-import { api, setAuthToken } from '../services/api';
+import { api, clearAuthToken } from '../services/api';
 import {
   Lock,
   Mail,
   UserCheck,
   AlertCircle,
+  Info,
   ShieldCheck,
+  User,
   Eye,
   EyeOff,
   Sparkles,
+  CheckCircle,
+  Copy,
+  Check,
+  Search,
   Users,
   Key,
   LogIn,
   ChevronDown,
   ChevronUp,
-  Check,
-  Copy
+  Briefcase
 } from 'lucide-react';
 import {
   ALL_EMPLOYEE_CREDENTIALS,
   DEFAULT_EMPLOYEE_PASSWORD,
-  EmployeeCredential
+  EmployeeCredential,
+  getFormattedCredentialsText
 } from '../data/employeeCredentials';
-import { clientFallbackStore } from '../services/clientFallbackStore';
-import { CRA } from '../types';
 
 interface Props {
   onLoginSuccess: (role?: 'admin' | 'cra') => void;
 }
 
 export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
-  const [activeTab, setActiveTab] = useState<'admin' | 'cra'>('cra');
-  const [email, setEmail] = useState('charankumar.n@placemein.com');
-  const [password, setPassword] = useState(DEFAULT_EMPLOYEE_PASSWORD);
+  const [loginRole, setLoginRole] = useState<'CRA' | 'ADMIN'>(() =>
+    window.location.pathname.startsWith('/admin') ? 'ADMIN' : 'CRA'
+  );
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isForgotMode, setIsForgotMode] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState(() =>
+    window.location.pathname.startsWith('/admin') ? 'aravindreddy.l@placemein.com' : 'charankumar.n@placemein.com'
+  );
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const [showCredsList, setShowCredsList] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Employee Credentials Directory state
+  const [searchEmployee, setSearchEmployee] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'cra' | 'admin'>('all');
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [copiedPass, setCopiedPass] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
 
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const handleSelectEmployee = (cred: EmployeeCredential) => {
-    setEmail(cred.email);
-    setPassword(cred.passwordDefault || DEFAULT_EMPLOYEE_PASSWORD);
+  const handleRoleTabChange = (role: 'CRA' | 'ADMIN') => {
+    setLoginRole(role);
     setError(null);
-    if (cred.role === 'cra') {
-      setActiveTab('cra');
+    setSuccessMessage(null);
+    setPassword(DEFAULT_EMPLOYEE_PASSWORD);
+    if (role === 'ADMIN') {
+      setEmail('aravindreddy.l@placemein.com');
     } else {
-      setActiveTab('admin');
+      setEmail('charankumar.n@placemein.com');
     }
   };
 
-  const performLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performLogin = async (targetEmail: string, targetPass: string, expectedRole?: 'CRA' | 'ADMIN') => {
     setError(null);
-    setIsSubmitting(true);
+    setSuccessMessage(null);
+    setLoading(true);
 
     try {
-      const normalizedInput = email.trim().toLowerCase();
-      const cleanPassword = password.trim();
+      if (!targetEmail.trim() || !targetPass) {
+        throw new Error('Please enter both your email address and password to log in.');
+      }
 
-      // Find in credentials
-      const matchedCred = ALL_EMPLOYEE_CREDENTIALS.find(
-        (c) =>
-          c.email.toLowerCase() === normalizedInput ||
-          c.name.toLowerCase() === normalizedInput ||
-          c.empId.toLowerCase() === normalizedInput
-      );
+      await api.login(targetEmail.trim(), targetPass);
+      localStorage.setItem('placemein:login_timestamp', new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
 
-      const isCeo = normalizedInput === 'aravindaravind3953@gmail.com';
+      const currentUser = await api.getCurrentCRA();
+      const roleToCheck = expectedRole || loginRole;
 
-      if (
-        (matchedCred || isCeo) &&
-        (cleanPassword === 'Password123!' ||
-          cleanPassword === 'admin123' ||
-          cleanPassword === (matchedCred?.passwordDefault || ''))
-      ) {
-        const craUser: CRA = matchedCred
-          ? {
-              id: matchedCred.id,
-              email: matchedCred.email,
-              name: matchedCred.name,
-              role: matchedCred.role,
-              emp_id: matchedCred.empId,
-              monthly_jd_target: 20,
-              is_active: true,
-              phone: '+91 98765 43200',
-              avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-            }
-          : {
-              id: 'usr_admin_ceo',
-              email: 'aravindaravind3953@gmail.com',
-              name: 'Aravind Reddy',
-              role: 'admin',
-              emp_id: 'PM-CEO',
-              monthly_jd_target: 20,
-              is_active: true,
-              phone: '+91 98765 43200',
-              avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-            };
-
-        // 1. Save user & token in store
-        const token = `token_${craUser.id}_${Date.now()}`;
-        setAuthToken(token);
-        clientFallbackStore.setCurrentUser(craUser);
-
-        // 2. Set portal preferences
-        if (craUser.role === 'admin' && activeTab === 'admin') {
-          sessionStorage.setItem('placemein:admin_verified', 'true');
-          localStorage.setItem('placemein:preferred_portal', 'admin');
-          onLoginSuccess('admin');
-        } else {
-          sessionStorage.removeItem('placemein:admin_verified');
-          localStorage.setItem('placemein:preferred_portal', 'employee');
-          onLoginSuccess('cra');
-        }
-
-        setIsSubmitting(false);
+      if (roleToCheck === 'ADMIN' && currentUser.role !== 'admin') {
+        clearAuthToken();
+        sessionStorage.removeItem('placemein:admin_verified');
+        setError(`Access denied: "${currentUser.name}" has a CRA Employee account, which cannot access the Admin Portal. Please use an authorized Admin account.`);
         return;
       }
 
-      // Try API fallback
-      try {
-        await api.login(email, password);
-        const user = await api.getCurrentCRA();
-        if (user.role === 'admin' && activeTab === 'admin') {
-          sessionStorage.setItem('placemein:admin_verified', 'true');
-          onLoginSuccess('admin');
-        } else {
-          onLoginSuccess('cra');
-        }
-      } catch (err: any) {
-        setError(err.message || 'Login failed — check email and password');
+      if (currentUser.role === 'admin' && roleToCheck === 'ADMIN') {
+        sessionStorage.setItem('placemein:admin_verified', 'true');
+        localStorage.setItem('placemein:preferred_portal', 'admin');
+        onLoginSuccess('admin');
+      } else {
+        sessionStorage.removeItem('placemein:admin_verified');
+        localStorage.setItem('placemein:preferred_portal', 'employee');
+        onLoginSuccess('cra');
       }
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please verify email and password.');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const craEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((e) => e.role === 'cra');
-  const adminEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((e) => e.role === 'admin');
+  const handleSelectEmployee = (emp: EmployeeCredential, autoLogin: boolean = false) => {
+    setError(null);
+    setSuccessMessage(null);
+    const targetRole = emp.role === 'admin' ? 'ADMIN' : 'CRA';
+    setLoginRole(targetRole);
+    setEmail(emp.email);
+    setPassword(emp.passwordDefault);
 
-  const filteredCredentials = ALL_EMPLOYEE_CREDENTIALS.filter((c) => {
+    if (autoLogin) {
+      performLogin(emp.email, emp.passwordDefault, targetRole);
+    } else {
+      setSuccessMessage(`Loaded credentials for ${emp.name} (${emp.designation}). Click Login or Sign In.`);
+    }
+  };
+
+  const handleCopy = (text: string, type: 'email' | 'pass' | 'all') => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    if (type === 'email') {
+      setCopiedEmail(text);
+      setTimeout(() => setCopiedEmail(null), 1800);
+    } else if (type === 'pass') {
+      setCopiedPass(text);
+      setTimeout(() => setCopiedPass(null), 1800);
+    } else if (type === 'all') {
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2200);
+    }
+  };
+
+  const filteredEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((emp) => {
+    const matchesRole = filterRole === 'all' || emp.role === filterRole;
+    const query = searchEmployee.trim().toLowerCase();
     const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.empId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.spocDomain && c.spocDomain.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesRole =
-      filterRole === 'all'
-        ? true
-        : filterRole === 'cra'
-        ? c.role === 'cra'
-        : c.role !== 'cra';
-
-    return matchesSearch && matchesRole;
+      !query ||
+      emp.name.toLowerCase().includes(query) ||
+      emp.email.toLowerCase().includes(query) ||
+      emp.empId.toLowerCase().includes(query) ||
+      emp.designation.toLowerCase().includes(query) ||
+      emp.spocDomain.toLowerCase().includes(query);
+    return matchesRole && matchesSearch;
   });
 
-  return (
-    <div className="min-h-screen bg-[#0d0714] flex flex-col items-center justify-center p-4 selection:bg-purple-500 selection:text-white relative overflow-hidden">
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-600/20 rounded-full blur-[128px] pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-fuchsia-600/20 rounded-full blur-[128px] pointer-events-none" />
+  const activePortalEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((emp) =>
+    loginRole === 'ADMIN' ? emp.role === 'admin' : emp.role === 'cra'
+  );
 
-      <div className="w-full max-w-4xl z-10 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 p-0.5 shadow-xl shadow-purple-600/30">
-            <div className="w-full h-full bg-[#130d1d] rounded-2xl flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-purple-400" />
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+    setLoading(true);
+
+    try {
+      if (isForgotMode) {
+        if (resetToken.trim()) {
+          await api.resetPassword(resetToken.trim(), password);
+          setIsForgotMode(false);
+          setResetToken('');
+          setSuccessMessage('Password reset successfully. You can now log in.');
+        } else {
+          const result = await api.forgotPassword(email);
+          setSuccessMessage(result.message);
+        }
+      } else if (isRegisterMode) {
+        await api.register(
+          name || email.split('@')[0],
+          email.trim(),
+          password,
+          loginRole === 'ADMIN' ? 'admin' : 'cra'
+        );
+        setSuccessMessage(`Account registered as ${loginRole === 'ADMIN' ? 'Admin' : 'CRA Employee'}. Logging in...`);
+        await performLogin(email.trim(), password, loginRole);
+      } else {
+        await performLogin(email.trim(), password, loginRole);
+      }
+    } catch (err: any) {
+      setError(err.message || (isRegisterMode ? 'Registration failed' : 'Login failed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-gray-950 to-amber-950 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      <div className="max-w-4xl w-full bg-gray-900/90 border border-purple-800/60 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl shadow-black/80">
+        
+        {/* Header Branding */}
+        <div className="text-center space-y-3">
+          <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-xl shadow-purple-600/30 border border-purple-200 flex items-center justify-center">
+            <img
+              src="/placemein-logo.png"
+              alt="Placemein Logo"
+              className="h-12 w-12 object-contain"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.src.endsWith('placemein-symbol.svg')) {
+                  target.src = '/placemein-symbol.svg';
+                }
+              }}
+            />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">PLACEMEIN</h1>
+            <p className="text-xs sm:text-sm text-purple-200/80 font-medium">Recruitment Automation & CRA Sourcing CRM</p>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+              100% Free & Open Access • No Subscriptions
             </div>
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-white uppercase">
-            PLACEMEIN
-          </h1>
-          <p className="text-sm font-medium text-slate-400">
-            Recruitment Automation & CRA Sourcing CRM
-          </p>
         </div>
 
-        <div className="bg-[#170e24]/90 backdrop-blur-xl border border-purple-900/30 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6">
-          <div className="grid grid-cols-2 gap-2 p-1.5 bg-[#0e0717] rounded-xl border border-purple-900/40">
+        {/* Dual Portal Selection Tabs */}
+        {!isForgotMode && (
+          <div className="grid grid-cols-2 gap-2 bg-purple-900/30 p-1.5 rounded-2xl border border-purple-800/50">
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('admin');
-                setEmail('aravindreddy.l@placemein.com');
-                setError(null);
-              }}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                activeTab === 'admin'
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              onClick={() => handleRoleTabChange('ADMIN')}
+              className={`flex items-center justify-center gap-2 py-3 px-4 text-xs sm:text-sm font-extrabold rounded-xl transition-all ${
+                loginRole === 'ADMIN'
+                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/40 border border-amber-400/30'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
               }`}
             >
-              <ShieldCheck className="w-4 h-4" />
-              Admin Leadership Portal
+              <ShieldCheck className="h-4 w-4" />
+              <span>Admin Leadership Portal</span>
             </button>
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('cra');
-                setEmail('charankumar.n@placemein.com');
-                setError(null);
-              }}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                activeTab === 'cra'
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              onClick={() => handleRoleTabChange('CRA')}
+              className={`flex items-center justify-center gap-2 py-3 px-4 text-xs sm:text-sm font-extrabold rounded-xl transition-all ${
+                loginRole === 'CRA'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/40 border border-purple-400/30'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
               }`}
             >
-              <UserCheck className="w-4 h-4" />
-              CRA Employee Portal
+              <User className="h-4 w-4" />
+              <span>CRA Employee Portal</span>
             </button>
           </div>
+        )}
 
-          <div className="bg-[#0e0717]/80 rounded-xl p-3 border border-purple-900/20">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-semibold text-purple-300 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5" />
-                Quick Select {activeTab === 'cra' ? 'CRA Employee' : 'Admin Leadership'}:
+        {/* Quick Role Member Selector Bar */}
+        {!isForgotMode && !isRegisterMode && (
+          <div className="p-4 rounded-2xl bg-gray-950/70 border border-purple-800/40 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-purple-400" />
+                <span>
+                  Quick Select {loginRole === 'ADMIN' ? 'Administrator' : 'CRA Employee'} ({activePortalEmployees.length} available):
+                </span>
               </span>
-              <span className="text-amber-400 font-mono">
-                Password: <strong>Password123!</strong>
+              <span className="text-[11px] text-gray-400">
+                Default Password: <code className="text-amber-300 font-mono font-bold">{DEFAULT_EMPLOYEE_PASSWORD}</code>
               </span>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {(activeTab === 'cra' ? craEmployees : adminEmployees).map((emp) => (
-                <button
-                  key={emp.id}
-                  type="button"
-                  onClick={() => handleSelectEmployee(emp)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 font-medium transition-all ${
-                    email.toLowerCase() === emp.email.toLowerCase()
-                      ? 'bg-purple-600 text-white border-purple-400 shadow-sm'
-                      : 'bg-white/5 text-slate-300 border-white/5 hover:border-purple-500/50 hover:bg-white/10'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-purple-400" />
-                  {emp.name} <span className="text-[10px] opacity-70">({emp.empId})</span>
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {activePortalEmployees.map((emp) => {
+                const isSelected = email.toLowerCase() === emp.email.toLowerCase();
+                return (
+                  <button
+                    key={emp.id}
+                    type="button"
+                    onClick={() => handleSelectEmployee(emp, false)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                      isSelected
+                        ? loginRole === 'ADMIN'
+                          ? 'bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-600/30 ring-1 ring-amber-300'
+                          : 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30 ring-1 ring-purple-300'
+                        : 'bg-gray-900/80 text-gray-300 border-gray-700/70 hover:border-purple-500 hover:text-white hover:bg-gray-800'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${emp.avatarBg || 'bg-purple-500'}`} />
+                    <span>{emp.name}</span>
+                    <span className="text-[10px] opacity-75 font-mono">({emp.empId})</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          {error && (
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
-              <p>{error}</p>
-            </div>
-          )}
+        {/* Header Indicator Notice */}
+        <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between border ${
+          loginRole === 'ADMIN' 
+            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
+            : 'bg-purple-500/10 border-purple-500/30 text-purple-300'
+        }`}>
+          <span className="flex items-center gap-2 font-medium">
+            {loginRole === 'ADMIN' ? <ShieldCheck className="h-4 w-4 text-amber-400" /> : <User className="h-4 w-4 text-purple-400" />}
+            {loginRole === 'ADMIN' ? 'Admin Leadership Portal (User Mgmt, Settings, JDs Oversight)' : 'CRA Employee Portal (Outreach, Sourcing CRM, Task Board)'}
+          </span>
+          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-950 border border-purple-700/50">
+            {loginRole}
+          </span>
+        </div>
 
-          <form onSubmit={performLogin} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center justify-between">
-                <span>{activeTab === 'admin' ? 'Admin Email / ID' : 'Employee Email / ID'}</span>
-                <span className="text-slate-500 lowercase font-normal">e.g. harish.r@placemein.com or PM-101</span>
-              </label>
+        {error && (
+          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-semibold text-rose-300 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-semibold text-emerald-300 flex items-start gap-2">
+            <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegisterMode && !isForgotMode && (
+            <div>
+              <label className="block text-xs font-semibold text-purple-200 mb-1">Full Name *</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <UserCheck className="h-4 w-4 absolute left-3 top-3 text-purple-400" />
                 <input
                   type="text"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={activeTab === 'admin' ? 'aravindreddy.l@placemein.com' : 'harish.r@placemein.com'}
-                  className="w-full pl-10 pr-4 py-3 bg-[#0e0717] border border-purple-900/40 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm"
+                  placeholder="e.g. Aravind Reddy"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-purple-400/50"
                 />
               </div>
             </div>
+          )}
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                  Password
-                </label>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-purple-200">
+                {loginRole === 'ADMIN' ? 'Admin Email *' : 'Employee Email *'}
+              </label>
+              <span className="text-[11px] text-gray-400">
+                Default Password: <code className="text-amber-300 font-mono font-bold">Password123!</code>
+              </span>
+            </div>
+            <div className="relative">
+              <Mail className="h-4 w-4 absolute left-3 top-3 text-purple-400" />
+              <input
+                type="email"
+                required
+                placeholder={loginRole === 'ADMIN' ? 'aravindreddy.l@placemein.com' : 'charankumar.n@placemein.com'}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-purple-400/50 font-mono"
+              />
+            </div>
+          </div>
+
+          {!isForgotMode && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-purple-200">Password *</label>
                 <button
                   type="button"
-                  onClick={() => setPassword('Password123!')}
-                  className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors font-medium flex items-center gap-1"
+                  onClick={() => setPassword(DEFAULT_EMPLOYEE_PASSWORD)}
+                  className="text-[11px] text-amber-300 hover:text-amber-200 hover:underline flex items-center gap-1 font-medium"
                 >
-                  <Key className="w-3 h-3" /> Autofill "Password123!"
+                  <Key className="h-3 w-3" />
+                  <span>Autofill "Password123!"</span>
                 </button>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="h-4 w-4 absolute left-3 top-3 text-purple-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full pl-10 pr-10 py-3 bg-[#0e0717] border border-purple-900/40 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm"
+                  className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-purple-400/50 font-mono"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                  className="absolute right-3 top-3 text-gray-400 hover:text-white"
+                  title={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
+          )}
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-purple-600/30 transition-all transform active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing In...
-                </>
-              ) : (
-                <>
-                  <LogIn className="w-4 h-4" />
-                  Login to {activeTab === 'admin' ? 'Admin Leadership Portal' : 'CRA Employee Portal'}
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
-        <div className="bg-[#170e24]/90 border border-purple-900/30 rounded-2xl shadow-xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowCredsList(!showCredsList)}
-            className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
-          >
-            <div className="flex items-center gap-2.5">
-              <Users className="w-5 h-5 text-purple-400" />
-              <div>
-                <h3 className="text-sm font-bold text-white">All Employee & Admin Login Credentials</h3>
-                <p className="text-xs text-slate-400">Pre-provisioned accounts with password: Password123!</p>
-              </div>
+          {isForgotMode && (
+            <div>
+              <label className="block text-xs font-semibold text-purple-200 mb-1">Reset Token (optional)</label>
+              <input
+                type="text"
+                placeholder="Leave empty to request a reset link"
+                value={resetToken}
+                onChange={(e) => setResetToken(e.target.value)}
+                className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-purple-400/50 font-mono"
+              />
             </div>
-            {showCredsList ? (
-              <ChevronUp className="w-5 h-5 text-slate-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-slate-400" />
-            )}
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full font-extrabold py-3.5 rounded-xl transition shadow-xl disabled:opacity-50 mt-2 text-sm flex items-center justify-center gap-2 ${
+              loginRole === 'ADMIN' 
+                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30' 
+                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
+            }`}
+          >
+            <LogIn className="h-4 w-4" />
+            <span>
+              {loading 
+                ? 'Authenticating...' 
+                : isForgotMode 
+                ? (resetToken ? 'Reset Password' : 'Send Recovery Email') 
+                : isRegisterMode 
+                ? `Register as ${loginRole === 'ADMIN' ? 'Admin' : 'CRA Employee'}` 
+                : `Login to ${loginRole === 'ADMIN' ? 'Admin Leadership Portal' : 'CRA Employee Portal'}`
+              }
+            </span>
           </button>
+        </form>
 
-          {showCredsList && (
-            <div className="p-4 border-t border-purple-900/30 space-y-4">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by name, email, or employee ID..."
-                    className="w-full pl-9 pr-3 py-2 bg-[#0e0717] border border-purple-900/40 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setFilterRole('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      filterRole === 'all'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white/5 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    All ({ALL_EMPLOYEE_CREDENTIALS.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterRole('cra')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      filterRole === 'cra'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white/5 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    CRA
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterRole('admin')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      filterRole === 'admin'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white/5 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Admin
-                  </button>
-                </div>
-              </div>
+        {/* Comprehensive Employee Credentials Directory */}
+        <div className="bg-gray-950/80 border border-purple-800/50 rounded-2xl p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-purple-800/40">
+            <div>
+              <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
+                <Users className="h-4 w-4 text-purple-400" />
+                <span>All Employee & Admin Login Credentials</span>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-900/60 text-purple-200 border border-purple-700/40">
+                  {ALL_EMPLOYEE_CREDENTIALS.length} Accounts Active
+                </span>
+              </h3>
+              <p className="text-xs text-purple-300/80 mt-0.5">
+                Every employee account is pre-provisioned with password: <code className="text-amber-300 font-bold font-mono">Password123!</code>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleCopy(getFormattedCredentialsText(), 'all')}
+              className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 bg-purple-900/40 hover:bg-purple-800/50 text-purple-200 hover:text-white border border-purple-700/50 rounded-xl text-xs font-bold transition shrink-0"
+              title="Copy entire list to clipboard"
+            >
+              {copiedAll ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+              <span>{copiedAll ? 'Credentials Copied!' : 'Copy All Credentials'}</span>
+            </button>
+          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
-                {filteredCredentials.map((emp) => (
-                  <div
-                    key={emp.id}
-                    className="p-3 bg-[#0e0717] rounded-xl border border-purple-900/30 flex items-center justify-between gap-2 hover:border-purple-600/50 transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs text-white truncate">{emp.name}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 font-mono">
-                          {emp.empId}
-                        </span>
+          {/* Search & Filter Controls */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative w-full sm:flex-1">
+              <Search className="h-4 w-4 absolute left-3 top-2.5 text-gray-400" />
+              <input
+                type="text"
+                value={searchEmployee}
+                onChange={(e) => setSearchEmployee(e.target.value)}
+                placeholder="Search by name, email, employee ID (PM-101), or domain..."
+                className="w-full bg-gray-900/90 border border-purple-800/50 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-gray-400 focus:outline-none focus:border-purple-400"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+              <button
+                type="button"
+                onClick={() => setFilterRole('all')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition whitespace-nowrap ${
+                  filterRole === 'all'
+                    ? 'bg-purple-600 text-white border-purple-400'
+                    : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                }`}
+              >
+                All ({ALL_EMPLOYEE_CREDENTIALS.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterRole('cra')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition whitespace-nowrap ${
+                  filterRole === 'cra'
+                    ? 'bg-purple-600 text-white border-purple-400'
+                    : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                }`}
+              >
+                CRA Specialists (7)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterRole('admin')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition whitespace-nowrap ${
+                  filterRole === 'admin'
+                    ? 'bg-amber-600 text-white border-amber-400'
+                    : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
+                }`}
+              >
+                Leadership & Admins (5)
+              </button>
+            </div>
+          </div>
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1">
+            {filteredEmployees.map((emp) => {
+              const isSelected = email.toLowerCase() === emp.email.toLowerCase();
+              return (
+                <div
+                  key={emp.id}
+                  className={`p-3.5 rounded-2xl border transition-all space-y-2.5 ${
+                    isSelected
+                      ? emp.role === 'admin'
+                        ? 'bg-amber-950/40 border-amber-500/70 shadow-lg shadow-amber-950/40 ring-1 ring-amber-400'
+                        : 'bg-purple-950/40 border-purple-500/70 shadow-lg shadow-purple-950/40 ring-1 ring-purple-400'
+                      : 'bg-gray-900/70 border-gray-800 hover:border-purple-700/60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-xs shrink-0 ${emp.avatarBg}`}>
+                        {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </div>
-                      <p className="text-[11px] text-slate-400 truncate">{emp.email}</p>
+                      <div className="min-w-0">
+                        <h4 className="font-extrabold text-white text-xs truncate flex items-center gap-1.5">
+                          <span>{emp.name}</span>
+                          <span className="font-mono text-[10px] text-gray-400 font-normal">({emp.empId})</span>
+                        </h4>
+                        <p className="text-[11px] text-gray-400 truncate">{emp.designation}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
+                      emp.role === 'admin'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    }`}>
+                      {emp.role === 'admin' ? 'Admin' : 'CRA'}
+                    </span>
+                  </div>
+
+                  {/* Sourcing / Domain Note */}
+                  <div className="text-[11px] text-gray-300/90 flex items-center gap-1.5 bg-gray-950/50 p-2 rounded-xl border border-gray-800/60">
+                    <Briefcase className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                    <span className="truncate">{emp.spocDomain}</span>
+                  </div>
+
+                  {/* Credentials rows */}
+                  <div className="space-y-1.5 text-xs font-mono">
+                    <div className="flex items-center justify-between gap-2 bg-gray-950/60 px-2.5 py-1.5 rounded-xl border border-gray-800">
+                      <span className="text-[11px] text-gray-400 truncate select-all">{emp.email}</span>
                       <button
                         type="button"
-                        onClick={() => handleCopy(emp.email, emp.id)}
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors"
+                        onClick={() => handleCopy(emp.email, 'email')}
+                        className="text-gray-400 hover:text-white transition shrink-0 p-1"
                         title="Copy Email"
                       >
-                        {copiedId === emp.id ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
+                        {copiedEmail === emp.email ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 bg-gray-950/60 px-2.5 py-1.5 rounded-xl border border-gray-800">
+                      <div className="flex items-center gap-1 text-[11px]">
+                        <span className="text-gray-400 font-sans font-medium">Pass:</span>
+                        <span className="text-amber-300 font-bold select-all">{emp.passwordDefault}</span>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => handleSelectEmployee(emp)}
-                        className="px-2.5 py-1 rounded-lg bg-purple-600/80 hover:bg-purple-600 text-white text-[11px] font-semibold transition-colors"
+                        onClick={() => handleCopy(emp.passwordDefault, 'pass')}
+                        className="text-gray-400 hover:text-white transition shrink-0 p-1"
+                        title="Copy Password"
                       >
-                        Select
+                        {copiedPass === emp.passwordDefault ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectEmployee(emp, false)}
+                      className="flex-1 py-1.5 px-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white text-xs font-bold border border-gray-700 transition text-center"
+                    >
+                      Autofill Form
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectEmployee(emp, true)}
+                      className={`flex-1 py-1.5 px-2.5 rounded-xl text-white text-xs font-extrabold shadow transition flex items-center justify-center gap-1.5 ${
+                        emp.role === 'admin'
+                          ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/30'
+                          : 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+                      }`}
+                    >
+                      <LogIn className="h-3 w-3" />
+                      <span>1-Click Sign In</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {!isRegisterMode && !isForgotMode && (
+          <button
+            type="button"
+            onClick={() => { setIsForgotMode(true); setError(null); setSuccessMessage(null); }}
+            className="w-full text-xs text-purple-300 hover:text-white hover:underline font-semibold text-center block"
+          >
+            Forgot password? Reset password
+          </button>
+        )}
+
+        <div className="text-center pt-2 border-t border-purple-800/40">
+          <button
+            type="button"
+            onClick={() => {
+              if (isForgotMode) {
+                setIsForgotMode(false);
+                setResetToken('');
+                setError(null);
+                setSuccessMessage(null);
+                return;
+              }
+              setIsRegisterMode(!isRegisterMode);
+              setError(null);
+              setSuccessMessage(null);
+            }}
+            className="text-xs text-purple-300 hover:text-white hover:underline font-semibold"
+          >
+            {isForgotMode ? 'Back to login' : isRegisterMode ? 'Already registered? Login here' : 'Need a new account? Register here'}
+          </button>
         </div>
       </div>
     </div>

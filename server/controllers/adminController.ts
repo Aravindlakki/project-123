@@ -289,7 +289,7 @@ Output ONLY raw JSON array. If there are 10+ rows, extract as many complete rows
           { text: extractionPrompt },
         ],
       },
-      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash'],
     });
 
     if (aiResult?.text) {

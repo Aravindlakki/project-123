@@ -19,8 +19,10 @@ import {
   Award,
   Key,
   Briefcase,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Printer
 } from 'lucide-react';
+import { SystemReportModal } from '../components/SystemReportModal';
 
 interface Props {
   setActiveTab: (tab: string) => void;
@@ -33,6 +35,7 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
   const [myLeaves, setMyLeaves] = useState<LeaveRequest[]>([]);
   const [loginTime, setLoginTime] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     // Read login timestamp from localStorage or default to current IST time
@@ -289,6 +292,22 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
           </div>
         </button>
 
+        <button
+          onClick={() => setShowReportModal(true)}
+          className="bg-gradient-to-br from-indigo-900/60 to-purple-950/70 hover:from-indigo-800/70 hover:to-purple-900/80 border border-indigo-500/40 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] shadow-lg group flex items-center space-x-3 cursor-pointer"
+        >
+          <div className="p-3 bg-indigo-500/20 text-indigo-300 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-white group-hover:text-indigo-200">System Report</p>
+            <p className="text-[11px] text-indigo-300/80 font-semibold flex items-center gap-1">
+              <span>Export PDF</span>
+              <span className="text-[9px] bg-indigo-500/30 px-1 rounded text-indigo-200 uppercase font-black">PDF</span>
+            </p>
+          </div>
+        </button>
+
         {isUserAdmin && (
           <button
             onClick={() => setActiveTab('admin')}
@@ -420,6 +439,12 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
           View Company Directory →
         </button>
       </div>
+
+      {/* Printable System Report Modal */}
+      <SystemReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
     </div>
   );
 };

@@ -27,8 +27,8 @@ export async function generateWithGeminiRetry(params: {
   const gemini = getGeminiClient();
   if (!gemini) return null;
 
-  // Valid Gemini models with fallback chain for high-demand spikes (503/429)
-  const models = params.preferredModels || ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+  // Valid free-tier Gemini models with fallback chain for high-demand spikes (503/429)
+  const models = params.preferredModels || ['gemini-3.8-flash', 'gemini-2.5-flash'];
   const maxRetries = params.maxRetriesPerModel ?? 2;
   const timeoutMs = params.timeoutMs ?? 5000;
 
@@ -228,7 +228,7 @@ Return ONLY a valid JSON array of objects:
 
     const aiRes = await generateWithGeminiRetry({
       contents: aiDirectoryPrompt,
-      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash'],
     });
 
     if (aiRes?.text) {

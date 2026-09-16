@@ -96,7 +96,7 @@ Focus: Placement partnerships for pre-assessed graduating talent in Full-Stack, 
 
   const aiResult = await generateWithGeminiRetry({
     contents: prompt,
-    preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+    preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash'],
   });
 
   if (aiResult?.text) {
@@ -248,7 +248,7 @@ Focus: Placemein's pre-assessed, rigorously trained students in Full-Stack, AI, 
 
   const aiResult = await generateWithGeminiRetry({
     contents: prompt,
-    preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+    preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash'],
   });
 
   if (aiResult?.text) {

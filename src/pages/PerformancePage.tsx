@@ -177,7 +177,7 @@ export const PerformancePage: React.FC<PerformancePageProps> = ({ employeeMode =
             <div>
               <h2 className="text-lg font-bold text-white">Monthly Verified JD Target</h2>
               <p className="text-xs text-purple-300/70">
-                Target achievement for current billing period (
+                Target achievement for current monthly cycle (
                 {activeItem.cra_name || 'Team Total'})
               </p>
             </div>

@@ -11,25 +11,55 @@ import { TaskManagementPage } from './pages/TaskManagementPage';
 import { AdminPortalPage } from './pages/AdminPortalPage';
 import { TeamSheetsPage } from './pages/TeamSheetsPage';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import { SystemReportModal } from './components/SystemReportModal';
 import { api, getAuthToken, clearAuthToken } from './services/api';
+import { isSupabaseConfigured } from './services/supabase';
 import { CRA } from './types';
-import { ShieldCheck, User, Lock, LogIn, Menu } from 'lucide-react';
+import { ShieldCheck, User, Lock, LogIn, Menu, FileText, Database } from 'lucide-react';
 
-const routeToTab = (path: string) => ({
-  '/dashboard': 'dashboard',
-  '/team-sheets': 'team-sheets',
-  '/hr-sourcing': 'hr-sourcing',
-  '/jd-intake': 'jd-intake',
-  '/crm': 'crm',
-  '/outreach': 'outreach',
-  '/tasks': 'tasks',
-  '/performance': 'performance',
-  '/admin/users': 'admin-users',
-  '/admin/tasks': 'admin-tasks',
-  '/admin/companies': 'admin-companies',
-  '/admin/performance': 'admin-performance',
-  '/admin/settings': 'admin-settings',
-}[path] || (path.startsWith('/admin') ? 'admin-users' : 'dashboard'));
+const getRouteFromUrl = (): string => {
+  const hash = window.location.hash.replace(/^#\/?/, '/');
+  if (hash && hash !== '/') {
+    return hash;
+  }
+  let path = window.location.pathname;
+  const base = import.meta.env.BASE_URL || '/';
+  const cleanBase = base.replace(/\/$/, '');
+  if (cleanBase && path.startsWith(cleanBase)) {
+    path = path.slice(cleanBase.length);
+  }
+  return path || '/dashboard';
+};
+
+const routeToTab = (rawPath: string) => {
+  const clean = rawPath.replace(/\/$/, '');
+  const routes: Record<string, string> = {
+    '/dashboard': 'dashboard',
+    '/team-sheets': 'team-sheets',
+    '/hr-sourcing': 'hr-sourcing',
+    '/jd-intake': 'jd-intake',
+    '/crm': 'crm',
+    '/outreach': 'outreach',
+    '/tasks': 'tasks',
+    '/performance': 'performance',
+    '/admin/users': 'admin-users',
+    '/admin/tasks': 'admin-tasks',
+    '/admin/companies': 'admin-companies',
+    '/admin/performance': 'admin-performance',
+    '/admin/settings': 'admin-settings',
+  };
+
+  if (routes[clean]) return routes[clean];
+
+  for (const [route, tab] of Object.entries(routes)) {
+    if (clean.endsWith(route)) {
+      return tab;
+    }
+  }
+
+  if (clean.includes('/admin')) return 'admin-users';
+  return 'dashboard';
+};
 
 const tabToRoute: Record<string, string> = {
   dashboard: '/dashboard',
@@ -52,13 +82,24 @@ export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<CRA | null>(null);
   const [isAdminVerified, setIsAdminVerified] = useState(() => sessionStorage.getItem('placemein:admin_verified') === 'true');
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+  const [showSystemReportModal, setShowSystemReportModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState(() => routeToTab(window.location.pathname));
+  const [activeTab, setActiveTab] = useState(() => routeToTab(getRouteFromUrl()));
 
   useEffect(() => {
-    const listener = () => setActiveTab(routeToTab(window.location.pathname));
+    const listener = () => setActiveTab(routeToTab(getRouteFromUrl()));
     window.addEventListener('popstate', listener);
-    return () => window.removeEventListener('popstate', listener);
+    window.addEventListener('hashchange', listener);
+    return () => {
+      window.removeEventListener('popstate', listener);
+      window.removeEventListener('hashchange', listener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
+      window.location.hash = tabToRoute[activeTab] || '/dashboard';
+    }
   }, []);
 
   useEffect(() => {
@@ -74,10 +115,6 @@ export const App: React.FC = () => {
           setIsAdminVerified(true);
         } else {
           setIsAdminVerified(false);
-          // If in admin route but not verified as admin, don't allow direct bypass
-          if (window.location.pathname.startsWith('/admin') && (!adminVerified || user.role !== 'admin')) {
-            // Keep tab as admin to render the Admin Login gate
-          }
         }
       })
       .catch(() => {
@@ -92,7 +129,8 @@ export const App: React.FC = () => {
       setShowAdminLoginModal(true);
       return;
     }
-    window.history.pushState({}, '', tabToRoute[tab] || '/dashboard');
+    const targetRoute = tabToRoute[tab] || '/dashboard';
+    window.location.hash = targetRoute;
     setActiveTab(tab);
   };
 
@@ -104,14 +142,14 @@ export const App: React.FC = () => {
     setIsAdminVerified(false);
     sessionStorage.removeItem('placemein:admin_verified');
     localStorage.removeItem('placemein:preferred_portal');
-    window.history.replaceState({}, '', '/');
+    window.location.hash = '';
   };
 
   const handleExitAdmin = () => {
     setIsAdminVerified(false);
     sessionStorage.removeItem('placemein:admin_verified');
     localStorage.setItem('placemein:preferred_portal', 'employee');
-    window.history.pushState({}, '', '/dashboard');
+    window.location.hash = '/dashboard';
     setActiveTab('dashboard');
   };
 
@@ -121,7 +159,7 @@ export const App: React.FC = () => {
     sessionStorage.setItem('placemein:admin_verified', 'true');
     localStorage.setItem('placemein:preferred_portal', 'admin');
     setShowAdminLoginModal(false);
-    window.history.pushState({}, '', '/admin/users');
+    window.location.hash = '/admin/users';
     setActiveTab('admin-users');
   };
 
@@ -130,11 +168,11 @@ export const App: React.FC = () => {
     const verified = sessionStorage.getItem('placemein:admin_verified') === 'true';
     if (role === 'admin' && verified) {
       setIsAdminVerified(true);
-      window.history.replaceState({}, '', '/admin/users');
+      window.location.hash = '/admin/users';
       setActiveTab('admin-users');
     } else {
       setIsAdminVerified(false);
-      window.history.replaceState({}, '', '/dashboard');
+      window.location.hash = '/dashboard';
       setActiveTab('dashboard');
     }
   };
@@ -241,6 +279,44 @@ export const App: React.FC = () => {
                 <span>Admin Portal (Login)</span>
               </button>
             )}
+
+            {/* Quick System Report PDF Generator */}
+            <button
+              onClick={() => setShowSystemReportModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-purple-800/60 to-indigo-800/60 hover:from-purple-700 hover:to-indigo-700 text-white border border-purple-500/40 shadow-sm cursor-pointer"
+              title="Open System Architecture Report & Export PDF"
+            >
+              <FileText className="h-3.5 w-3.5 text-purple-300" />
+              <span className="hidden md:inline">System Report</span>
+              <span className="text-[10px] bg-purple-500/30 px-1.5 py-0.2 rounded text-purple-200 font-extrabold uppercase">PDF</span>
+            </button>
+
+            {/* Live Database Connection Indicator */}
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border ${
+                isSupabaseConfigured
+                  ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300'
+                  : 'bg-amber-950/70 border-amber-500/50 text-amber-300'
+              }`}
+              title={
+                isSupabaseConfigured
+                  ? 'Supabase Cloud Database connected and operational.'
+                  : 'Supabase credentials (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) are not set. App is running in LocalStorage mode.'
+              }
+            >
+              <Database className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">
+                {isSupabaseConfigured ? 'Supabase: Connected' : 'DB: Local (Supabase Not Configured)'}
+              </span>
+              <span className="lg:hidden">
+                {isSupabaseConfigured ? 'Supabase' : 'Local DB'}
+              </span>
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isSupabaseConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -298,6 +374,12 @@ export const App: React.FC = () => {
         onSuccess={handleAdminLoginSuccess}
         initialEmail={currentUser.role === 'admin' ? currentUser.email : 'aravindreddy.l@placemein.com'}
         onCancelToEmployee={handleExitAdmin}
+      />
+
+      {/* End-to-End System Report & PDF Modal */}
+      <SystemReportModal
+        isOpen={showSystemReportModal}
+        onClose={() => setShowSystemReportModal(false)}
       />
     </div>
   );

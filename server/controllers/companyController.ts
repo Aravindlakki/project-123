@@ -157,7 +157,7 @@ JSON Schema format (respond with ONLY this raw JSON object, no markdown outside)
   if (contents) {
     const aiResult = await generateWithGeminiRetry({
       contents,
-      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'],
+      preferredModels: ['gemini-3.8-flash', 'gemini-2.5-flash'],
     });
 
     if (aiResult?.text) {

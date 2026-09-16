@@ -25,12 +25,14 @@ import {
   MapPin,
   Tag,
   User,
+  FileText,
 } from 'lucide-react';
 import { HRContact, Company } from '../types';
 import { api } from '../services/api';
 import { SPOC_MEMBERS } from '../data/pdfLeadsData';
 import { CompanyDetailsModal } from '../components/CompanyDetailsModal';
 import { DocumentIntakeModal } from '../components/DocumentIntakeModal';
+import { SystemReportModal } from '../components/SystemReportModal';
 
 interface TeamSheetsPageProps {
   initialSpoc?: string;
@@ -65,6 +67,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Copy feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -392,6 +395,16 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             >
               <Download className="h-4 w-4 text-emerald-400" />
               <span className="hidden sm:inline">Export CSV</span>
+            </button>
+
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-950/80 hover:bg-indigo-900/90 text-indigo-200 text-xs font-bold rounded-xl border border-indigo-700/60 transition-all cursor-pointer shadow-sm"
+              title="View End-to-End System Report & Print as PDF"
+            >
+              <FileText className="h-4 w-4 text-indigo-400" />
+              <span className="hidden sm:inline">System Report</span>
+              <span className="text-[9px] bg-indigo-500/30 px-1 py-0.2 rounded text-indigo-200 font-extrabold uppercase">PDF</span>
             </button>
 
             <button
@@ -1073,6 +1086,12 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           setSelectedCompany(comp);
           setShowCompanyModal(true);
         }}
+      />
+
+      {/* End-to-End System Report & PDF Modal */}
+      <SystemReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
       />
     </div>
   );
