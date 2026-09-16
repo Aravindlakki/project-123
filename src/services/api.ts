@@ -730,7 +730,24 @@ export const api = {
     };
   },
 
-async updateOutreachOutcome(contactId: string, outcome: Partial<OutreachOutcome>): Promise<OutreachOutcome> {
+  async getOutreachOutcome(contactId: string): Promise<OutreachOutcome> {
+    try {
+      const res = await fetch(`${API_BASE}/outreach-outcomes/contact/${contactId}`, { headers: authHeaders() });
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
+        return await res.json();
+      }
+    } catch (_) {}
+    return {
+      id: 'mock',
+      contact_id: contactId,
+      jd_received: false,
+      outcome_status: 'pending',
+      updated_at: new Date().toISOString(),
+    };
+  },
+
+  async updateOutreachOutcome(contactId: string, outcome: Partial<OutreachOutcome>): Promise<OutreachOutcome> {
     try {
       const res = await fetch(`${API_BASE}/outreach-outcomes/contact/${contactId}`, {
         method: 'POST',
