@@ -95,11 +95,42 @@ export const PerformancePage: React.FC<PerformancePageProps> = ({ employeeMode =
     );
   }
 
+  const fallbackItem: CRAPerformanceItem = {
+    cra_id: 'default',
+    cra_name: 'Team Member',
+    cra_email: '',
+    monthly_jd_target: 20,
+    jds_this_month: 0,
+    target_progress_pct: 0,
+    contacts_sourced: 0,
+    outreach_sent: 0,
+    outreach_by_channel: {},
+    replies_received: 0,
+    jds_received: 0,
+    eligible_jds: 0,
+    conversion_rate: 0,
+    eligibility_rate: 0,
+    contact_to_jd_ratio: 0,
+    community_joins: 0,
+    community_funnel: [],
+    jd_funnel: [],
+    channel_performance: [],
+    attendance_status: 'logged_in',
+    hours_worked: 0,
+    sourced_roles_breakdown: [],
+    total_companies_worked: 0,
+    jds_sourced_all_time: 0,
+    jds_sourced_this_month: 0,
+    jds_received_this_month: 0,
+  };
+
   // Active item to display
   const activeItem: CRAPerformanceItem =
-    employeeMode || selectedCraId === 'all'
-      ? data.totals || data.cras[0]
-      : data.cras.find((c) => c.cra_id === selectedCraId) || data.totals;
+    (employeeMode
+      ? (currentUser ? data.cras?.find((c) => c.cra_id === currentUser.id || c.cra_email === currentUser.email) : null) || data.totals || data.cras?.[0]
+      : selectedCraId === 'all'
+        ? data.totals || data.cras?.[0]
+        : data.cras?.find((c) => c.cra_id === selectedCraId) || data.totals || data.cras?.[0]) || fallbackItem;
 
   const targetProgress = Math.min(100, Math.round(activeItem.target_progress_pct || 0));
 
