@@ -28,6 +28,18 @@ export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
     notes: 'Handles major IT & Cyber security corporate leads'
   },
   {
+    id: 'usr_cra_1_alt',
+    name: 'Harish Reddy',
+    email: 'harish.m@placemein.com',
+    role: 'cra',
+    empId: 'PM-101-ALT',
+    designation: 'CRA Specialist',
+    spocDomain: 'Cyber Security & IT Services',
+    avatarBg: 'bg-purple-600',
+    passwordDefault: DEFAULT_EMPLOYEE_PASSWORD,
+    notes: 'Alternative email alias for Harish Reddy'
+  },
+  {
     id: 'usr_cra_2',
     name: 'Namitha K',
     email: 'namitha.k@placemein.com',
@@ -38,6 +50,18 @@ export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
     avatarBg: 'bg-emerald-600',
     passwordDefault: DEFAULT_EMPLOYEE_PASSWORD,
     notes: 'Primary SPOC for Cyber Security enterprise leads'
+  },
+  {
+    id: 'usr_cra_2_alt',
+    name: 'Namitha S',
+    email: 'namitha.s@placemein.com',
+    role: 'cra',
+    empId: 'PM-102-ALT',
+    designation: 'CRA Specialist',
+    spocDomain: 'Cyber Security & AI',
+    avatarBg: 'bg-emerald-600',
+    passwordDefault: DEFAULT_EMPLOYEE_PASSWORD,
+    notes: 'Alternative email alias for Namitha'
   },
   {
     id: 'usr_cra_3',
