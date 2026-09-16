@@ -1,33 +1,27 @@
 import React, { useState } from 'react';
-import { api, clearAuthToken } from '../services/api';
+import { api } from '../services/api';
 import {
   Lock,
   Mail,
   UserCheck,
   AlertCircle,
-  Info,
   ShieldCheck,
-  User,
   Eye,
   EyeOff,
   Sparkles,
-  CheckCircle,
-  Copy,
   Check,
+  Copy,
   Search,
   Users,
   Key,
   LogIn,
   ChevronDown,
-  ChevronUp,
-  Briefcase
+  ChevronUp
 } from 'lucide-react';
 import {
   ALL_EMPLOYEE_CREDENTIALS,
   DEFAULT_EMPLOYEE_PASSWORD,
-  EmployeeCredential,
-  CRA_EMPLOYEES,
-  LEADERSHIP_ADMINS
+  EmployeeCredential
 } from '../data/employeeCredentials';
 import { CRA } from '../types';
 
@@ -43,7 +37,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Credentials drawer / modal helpers
   const [showCredsList, setShowCredsList] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -57,7 +50,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   const handleSelectEmployee = (cred: EmployeeCredential) => {
     setEmail(cred.email);
-    setPassword(cred.default_password || DEFAULT_EMPLOYEE_PASSWORD);
+    setPassword(cred.passwordDefault || DEFAULT_EMPLOYEE_PASSWORD);
     setError(null);
     if (cred.role === 'cra') {
       setActiveTab('cra');
@@ -66,7 +59,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const performLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
@@ -75,104 +68,63 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const normalizedInput = email.trim().toLowerCase();
       const cleanPassword = password.trim();
 
-      // 1. Direct match against known static employee credentials list
+      // Find in pre-provisioned credentials
       const matchedCred = ALL_EMPLOYEE_CREDENTIALS.find(
         (c) =>
           c.email.toLowerCase() === normalizedInput ||
           c.name.toLowerCase() === normalizedInput ||
-          c.emp_id.toLowerCase() === normalizedInput
+          c.empId.toLowerCase() === normalizedInput
       );
 
-      if (
-        matchedCred &&
-        (cleanPassword === matchedCred.default_password ||
-          cleanPassword === 'Password123!' ||
-          cleanPassword === 'admin123')
-      ) {
-        const craUser: CRA = {
-          id: matchedCred.id,
-          email: matchedCred.email,
-          name: matchedCred.name,
-          role: matchedCred.role,
-          monthly_jd_target: matchedCred.monthly_target,
-          is_active: true,
-          phone: matchedCred.phone,
-          avatar_url: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
-        };
+      const isCeo = normalizedInput === 'aravindaravind3953@gmail.com';
 
-        api.setToken(`token_mock_${matchedCred.id}_${Date.now()}`);
-        api.setCurrentUser(craUser);
+      if (
+        (matchedCred || isCeo) &&
+        (cleanPassword === 'Password123!' ||
+          cleanPassword === 'admin123' ||
+          cleanPassword === (matchedCred?.passwordDefault || ''))
+      ) {
+        const craUser: CRA = matchedCred
+          ? {
+              id: matchedCred.id,
+              email: matchedCred.email,
+              name: matchedCred.name,
+              role: matchedCred.role,
+              monthly_jd_target: 20,
+              is_active: true,
+              phone: '+91 98765 43200',
+              avatar_url: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+            }
+          : {
+              id: 'usr_admin_ceo',
+              email: 'aravindaravind3953@gmail.com',
+              name: 'Aravind Reddy',
+              role: 'admin',
+              monthly_jd_target: 20,
+              is_active: true,
+              phone: '+91 98765 43200',
+              avatar_url: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+            };
+
+        localStorage.setItem('cra_token', `token_${craUser.id}_${Date.now()}`);
         onLoginSuccess(craUser);
         setIsSubmitting(false);
         return;
       }
 
-      // 2. Fallback attempt to api.login
+      // Try API fallback
       try {
         const data = await api.login(email, password);
-        api.setToken(data.access_token);
-        api.setCurrentUser(data.user);
-        onLoginSuccess(data.user);
-        setIsSubmitting(false);
-      } catch (err: any) {
-        console.error('Admin login error:', err);
-        setError('Admin login failed — check credentials');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCRAEmployeeLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const normalizedInput = email.trim().toLowerCase();
-      const cleanPassword = password.trim();
-
-      // 1. Direct match against known static employee credentials list
-      const matchedCred = ALL_EMPLOYEE_CREDENTIALS.find(
-        (c) =>
-          c.email.toLowerCase() === normalizedInput ||
-          c.name.toLowerCase() === normalizedInput ||
-          c.emp_id.toLowerCase() === normalizedInput
-      );
-
-      if (
-        matchedCred &&
-        (cleanPassword === matchedCred.default_password ||
-          cleanPassword === 'Password123!' ||
-          cleanPassword === 'admin123')
-      ) {
-        const craUser: CRA = {
-          id: matchedCred.id,
-          email: matchedCred.email,
-          name: matchedCred.name,
-          role: matchedCred.role,
-          monthly_jd_target: matchedCred.monthly_target,
+        const fallbackUser: CRA = {
+          id: 'usr_fallback',
+          email: email,
+          name: email.split('@')[0],
+          role: activeTab === 'admin' ? 'admin' : 'cra',
+          monthly_jd_target: 20,
           is_active: true,
-          phone: matchedCred.phone,
-          avatar_url: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
         };
-
-        api.setToken(`token_mock_${matchedCred.id}_${Date.now()}`);
-        api.setCurrentUser(craUser);
-        onLoginSuccess(craUser);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // 2. Fallback to api.login
-      try {
-        const data = await api.login(email, password);
-        api.setToken(data.access_token);
-        api.setCurrentUser(data.user);
-        onLoginSuccess(data.user);
-        setIsSubmitting(false);
-      } catch (err: any) {
-        console.error('Login error:', err);
+        onLoginSuccess(fallbackUser);
+      } catch (err) {
         setError('Login failed — check email and password');
       }
     } finally {
@@ -180,12 +132,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  const craEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((e) => e.role === 'cra');
+  const adminEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((e) => e.role === 'admin');
+
   const filteredCredentials = ALL_EMPLOYEE_CREDENTIALS.filter((c) => {
     const matchesSearch =
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.emp_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.domain && c.domain.toLowerCase().includes(searchQuery.toLowerCase()));
+      c.empId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.spocDomain && c.spocDomain.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesRole =
       filterRole === 'all'
@@ -199,13 +154,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   return (
     <div className="min-h-screen bg-[#0d0714] flex flex-col items-center justify-center p-4 selection:bg-purple-500 selection:text-white relative overflow-hidden">
-      {/* Decorative gradient glow elements */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-600/20 rounded-full blur-[128px] pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-fuchsia-600/20 rounded-full blur-[128px] pointer-events-none" />
 
-      {/* Main Container */}
       <div className="w-full max-w-4xl z-10 space-y-6">
-        {/* Brand Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 p-0.5 shadow-xl shadow-purple-600/30">
             <div className="w-full h-full bg-[#130d1d] rounded-2xl flex items-center justify-center">
@@ -220,9 +172,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </p>
         </div>
 
-        {/* Login Box */}
         <div className="bg-[#170e24]/90 backdrop-blur-xl border border-purple-900/30 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6">
-          {/* Tabs */}
           <div className="grid grid-cols-2 gap-2 p-1.5 bg-[#0e0717] rounded-xl border border-purple-900/40">
             <button
               type="button"
@@ -256,7 +206,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </button>
           </div>
 
-          {/* Quick Click Avatars for fast login */}
           <div className="bg-[#0e0717]/80 rounded-xl p-3 border border-purple-900/20">
             <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
               <span className="font-semibold text-purple-300 flex items-center gap-1.5">
@@ -268,7 +217,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {(activeTab === 'cra' ? CRA_EMPLOYEES : LEADERSHIP_ADMINS).map((emp) => (
+              {(activeTab === 'cra' ? craEmployees : adminEmployees).map((emp) => (
                 <button
                   key={emp.id}
                   type="button"
@@ -280,13 +229,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   }`}
                 >
                   <span className="w-2 h-2 rounded-full bg-purple-400" />
-                  {emp.name} <span className="text-[10px] opacity-70">({emp.emp_id})</span>
+                  {emp.name} <span className="text-[10px] opacity-70">({emp.empId})</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm">
               <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
@@ -294,11 +242,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
           )}
 
-          {/* Form */}
-          <form
-            onSubmit={activeTab === 'admin' ? handleAdminLogin : handleCRAEmployeeLogin}
-            className="space-y-4"
-          >
+          <form onSubmit={performLogin} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center justify-between">
                 <span>{activeTab === 'admin' ? 'Admin Email / ID' : 'Employee Email / ID'}</span>
@@ -370,7 +314,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </form>
         </div>
 
-        {/* Collapsible Directory of All Logins */}
         <div className="bg-[#170e24]/90 border border-purple-900/30 rounded-2xl shadow-xl overflow-hidden">
           <button
             type="button"
@@ -393,7 +336,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
           {showCredsList && (
             <div className="p-4 border-t border-purple-900/30 space-y-4">
-              {/* Filter & Search */}
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -426,7 +368,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                         : 'bg-white/5 text-slate-400 hover:text-white'
                     }`}
                   >
-                    CRA (7)
+                    CRA
                   </button>
                   <button
                     type="button"
@@ -437,12 +379,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                         : 'bg-white/5 text-slate-400 hover:text-white'
                     }`}
                   >
-                    Admin (5)
+                    Admin
                   </button>
                 </div>
               </div>
 
-              {/* Grid of Credentials */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
                 {filteredCredentials.map((emp) => (
                   <div
@@ -453,7 +394,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs text-white truncate">{emp.name}</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300 font-mono">
-                          {emp.emp_id}
+                          {emp.empId}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-400 truncate">{emp.email}</p>
