@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '../services/api';
+import { api, setAuthToken } from '../services/api';
 import {
   Lock,
   Mail,
@@ -9,30 +9,30 @@ import {
   Eye,
   EyeOff,
   Sparkles,
-  Check,
-  Copy,
-  Search,
   Users,
   Key,
   LogIn,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Check,
+  Copy
 } from 'lucide-react';
 import {
   ALL_EMPLOYEE_CREDENTIALS,
   DEFAULT_EMPLOYEE_PASSWORD,
   EmployeeCredential
 } from '../data/employeeCredentials';
+import { clientFallbackStore } from '../services/clientFallbackStore';
 import { CRA } from '../types';
 
-interface LoginPageProps {
-  onLoginSuccess: (user: CRA) => void;
+interface Props {
+  onLoginSuccess: (role?: 'admin' | 'cra') => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   const [activeTab, setActiveTab] = useState<'admin' | 'cra'>('cra');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('charankumar.n@placemein.com');
+  const [password, setPassword] = useState(DEFAULT_EMPLOYEE_PASSWORD);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +68,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const normalizedInput = email.trim().toLowerCase();
       const cleanPassword = password.trim();
 
-      // Find in pre-provisioned credentials
+      // Find in credentials
       const matchedCred = ALL_EMPLOYEE_CREDENTIALS.find(
         (c) =>
           c.email.toLowerCase() === normalizedInput ||
@@ -90,42 +90,56 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               email: matchedCred.email,
               name: matchedCred.name,
               role: matchedCred.role,
+              emp_id: matchedCred.empId,
               monthly_jd_target: 20,
               is_active: true,
               phone: '+91 98765 43200',
-              avatar_url: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+              avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
             }
           : {
               id: 'usr_admin_ceo',
               email: 'aravindaravind3953@gmail.com',
               name: 'Aravind Reddy',
               role: 'admin',
+              emp_id: 'PM-CEO',
               monthly_jd_target: 20,
               is_active: true,
               phone: '+91 98765 43200',
-              avatar_url: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+              avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
             };
 
-        localStorage.setItem('cra_token', `token_${craUser.id}_${Date.now()}`);
-        onLoginSuccess(craUser);
+        // 1. Save user & token in store
+        const token = `token_${craUser.id}_${Date.now()}`;
+        setAuthToken(token);
+        clientFallbackStore.setCurrentUser(craUser);
+
+        // 2. Set portal preferences
+        if (craUser.role === 'admin' && activeTab === 'admin') {
+          sessionStorage.setItem('placemein:admin_verified', 'true');
+          localStorage.setItem('placemein:preferred_portal', 'admin');
+          onLoginSuccess('admin');
+        } else {
+          sessionStorage.removeItem('placemein:admin_verified');
+          localStorage.setItem('placemein:preferred_portal', 'employee');
+          onLoginSuccess('cra');
+        }
+
         setIsSubmitting(false);
         return;
       }
 
       // Try API fallback
       try {
-        const data = await api.login(email, password);
-        const fallbackUser: CRA = {
-          id: 'usr_fallback',
-          email: email,
-          name: email.split('@')[0],
-          role: activeTab === 'admin' ? 'admin' : 'cra',
-          monthly_jd_target: 20,
-          is_active: true,
-        };
-        onLoginSuccess(fallbackUser);
-      } catch (err) {
-        setError('Login failed — check email and password');
+        await api.login(email, password);
+        const user = await api.getCurrentCRA();
+        if (user.role === 'admin' && activeTab === 'admin') {
+          sessionStorage.setItem('placemein:admin_verified', 'true');
+          onLoginSuccess('admin');
+        } else {
+          onLoginSuccess('cra');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Login failed — check email and password');
       }
     } finally {
       setIsSubmitting(false);
@@ -178,6 +192,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               type="button"
               onClick={() => {
                 setActiveTab('admin');
+                setEmail('aravindreddy.l@placemein.com');
                 setError(null);
               }}
               className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
@@ -193,6 +208,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               type="button"
               onClick={() => {
                 setActiveTab('cra');
+                setEmail('charankumar.n@placemein.com');
                 setError(null);
               }}
               className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
@@ -338,7 +354,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <div className="p-4 border-t border-purple-900/30 space-y-4">
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
                     value={searchQuery}
