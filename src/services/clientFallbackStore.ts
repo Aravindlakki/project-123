@@ -6,7 +6,8 @@ import {
   HRContact, 
   Task, 
   LeaveRequest, 
-  DashboardStats 
+  DashboardStats,
+  JD
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -16,6 +17,7 @@ const STORAGE_KEYS = {
   TASKS: 'placemein_mock_tasks',
   LEAVES: 'placemein_mock_leaves',
   CURRENT_USER: 'placemein_current_user',
+  JDS: 'placemein_mock_jds',
 };
 
 // Initial setup from seed data
@@ -138,6 +140,34 @@ function initializeMockData() {
     ];
     localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify(initialLeaves));
   }
+
+  if (!localStorage.getItem(STORAGE_KEYS.JDS)) {
+    const initialJDs: JD[] = [
+      {
+        id: 'jd-seed-1',
+        title: 'Data Engineer',
+        company_id: 'comp_1',
+        raw_text: 'Responsibilities include designing, building, and maintaining robust data pipelines and analytics systems.',
+        is_verified: true,
+        verification_source: 'file_ai_extract',
+        opportunity_type: 'existing_post',
+        date_found: new Date().toISOString().slice(0, 10),
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'jd-seed-2',
+        title: 'Senior Fullstack Engineer',
+        company_id: 'comp_2',
+        raw_text: 'Seeking a fullstack developer proficient in React, Node.js, and TypeScript with 3+ years experience.',
+        is_verified: true,
+        verification_source: 'file_ai_extract',
+        opportunity_type: 'existing_post',
+        date_found: new Date().toISOString().slice(0, 10),
+        created_at: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(initialJDs));
+  }
 }
 
 try {
@@ -226,6 +256,36 @@ export const clientFallbackStore = {
 
   saveLeaves(leaves: LeaveRequest[]) {
     localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify(leaves));
+  },
+
+  getJDs(isVerified?: boolean, opportunityType?: string): JD[] {
+    try {
+      let jds: JD[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.JDS) || '[]');
+      const companies = this.getCompanies();
+      jds = jds.map((j) => ({
+        ...j,
+        company: j.company || companies.find((c) => c.id === j.company_id),
+      }));
+      if (isVerified !== undefined) {
+        jds = jds.filter((j) => j.is_verified === isVerified);
+      }
+      if (opportunityType) {
+        jds = jds.filter((j) => j.opportunity_type === opportunityType);
+      }
+      return jds;
+    } catch {
+      return [];
+    }
+  },
+
+  saveJDs(jds: JD[]) {
+    localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(jds));
+  },
+
+  saveJD(newJD: JD) {
+    const existing = this.getJDs();
+    const updated = [newJD, ...existing.filter((j) => j.id !== newJD.id)];
+    this.saveJDs(updated);
   },
 
   getStats(): DashboardStats {

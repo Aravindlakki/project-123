@@ -62,6 +62,28 @@ export const JDIntakePage: React.FC = () => {
   const [extractedFilename, setExtractedFilename] = useState<string>('');
   const [htmlVerification, setHtmlVerification] = useState<boolean | null>(null);
   const [extractionStatus, setExtractionStatus] = useState<{ ai_active: boolean; message: string } | null>(null);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [formErrors, setFormErrors] = useState<{ company?: string; title?: string }>({});
+
+  const handleQuickFillSample = () => {
+    setCompanyInput('NStarX Technologies');
+    setIndustryInput('Information Technology');
+    setJdTitle('Data Engineer');
+    setRawText(`Role: Data Engineer
+Location: Bengaluru / Remote
+Requirements:
+- 2+ years experience building data pipelines with Python and SQL
+- Familiarity with PostgreSQL, Apache Airflow, and Cloud Data Warehouses
+- Passion for analytics and high-volume data engineering
+- Good communication and collaboration skills`);
+    setOpportunityType('existing_post');
+    setIsVerified(true);
+    setFormErrors({});
+    setMessage({
+      type: 'success',
+      text: 'Sample opportunity filled! Click "Submit & Save Opportunity to CRM" below to test saving.',
+    });
+  };
 
   const loadJDs = async () => {
     try {
@@ -241,10 +263,25 @@ export const JDIntakePage: React.FC = () => {
     e.preventDefault();
     setMessage(null);
 
+    const errors: { company?: string; title?: string } = {};
     if (!companyInput.trim()) {
-      setMessage({ type: 'error', text: 'Please enter or choose a Company Name.' });
+      errors.company = 'Please enter or select a Company Name.';
+    }
+    if (!jdTitle.trim()) {
+      errors.title = 'Please enter a Job Title (e.g. Senior Fullstack Engineer).';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      setMessage({
+        type: 'error',
+        text: 'Please fill in Company Name and Job Title before saving the opportunity.',
+      });
       return;
     }
+
+    setFormErrors({});
+    setSubmitting(true);
 
     try {
       let companyId: string | undefined;
@@ -265,10 +302,12 @@ export const JDIntakePage: React.FC = () => {
         setCompanies((prev) => [...prev, createdComp]);
       }
 
+      const textToSave = rawText.trim() || `Job opportunity for ${jdTitle.trim()} at ${companyInput.trim()}. Verified by CRA.`;
+
       const createdJD = await api.createJD({
         company_id: companyId,
-        title: jdTitle,
-        raw_text: rawText,
+        title: jdTitle.trim(),
+        raw_text: textToSave,
         opportunity_type: opportunityType,
         is_verified: isVerified,
         verification_source: intakeMethod,
@@ -284,7 +323,7 @@ export const JDIntakePage: React.FC = () => {
 
       setMessage({
         type: 'success',
-        text: `Opportunity '${createdJD.title}' for '${savedCompName}' logged successfully!`,
+        text: `Opportunity '${createdJD.title}' for '${savedCompName}' logged & saved to CRM successfully!`,
       });
 
       setCompanyInput('');
@@ -295,10 +334,11 @@ export const JDIntakePage: React.FC = () => {
       setExtractionConfidence(null);
       setExtractedFilename('');
       setHtmlVerification(null);
-      setIntakeMethod('file_ai_extract');
       loadJDs();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to submit JD intake.' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -374,7 +414,7 @@ export const JDIntakePage: React.FC = () => {
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-6 shadow-sm">
+      <form noValidate onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-6 shadow-sm">
         {/* File Upload Zone if File AI Extract mode */}
         {intakeMethod === 'file_ai_extract' && (
           <div className="space-y-3">
@@ -444,26 +484,38 @@ export const JDIntakePage: React.FC = () => {
 
         {/* Company Selection Mode Toggle & Inputs */}
         <div className="space-y-3 bg-gray-900/40 p-4 rounded-xl border border-gray-700/60">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="text-sm font-semibold text-gray-200 flex items-center gap-1.5">
               <Building2 className="h-4 w-4 text-indigo-400" />
               Company Details *
             </label>
-            <label className="inline-flex items-center cursor-pointer text-xs text-indigo-300 font-medium space-x-2">
-              <input
-                type="checkbox"
-                checked={useExistingCompany}
-                onChange={(e) => {
-                  setUseExistingCompany(e.target.checked);
-                  if (e.target.checked && companies.length > 0) {
-                    setCompanyInput(companies[0].name);
-                    setIndustryInput(companies[0].industry || '');
-                  }
-                }}
-                className="rounded border-gray-600 bg-gray-800 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-              />
-              <span>Select Existing Company in System</span>
-            </label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleQuickFillSample}
+                className="text-xs px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg flex items-center gap-1 transition"
+                title="Click to populate demo company & job details"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Fill Demo Sample</span>
+              </button>
+              <label className="inline-flex items-center cursor-pointer text-xs text-indigo-300 font-medium space-x-2">
+                <input
+                  type="checkbox"
+                  checked={useExistingCompany}
+                  onChange={(e) => {
+                    setUseExistingCompany(e.target.checked);
+                    if (e.target.checked && companies.length > 0) {
+                      setCompanyInput(companies[0].name);
+                      setIndustryInput(companies[0].industry || '');
+                      setFormErrors((prev) => ({ ...prev, company: undefined }));
+                    }
+                  }}
+                  className="rounded border-gray-600 bg-gray-800 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span>Select Existing Company</span>
+              </label>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
@@ -478,6 +530,9 @@ export const JDIntakePage: React.FC = () => {
                       const selectedComp = companies.find((c) => c.name === e.target.value);
                       if (selectedComp) {
                         setIndustryInput(selectedComp.industry || '');
+                      }
+                      if (e.target.value) {
+                        setFormErrors((prev) => ({ ...prev, company: undefined }));
                       }
                     }}
                     className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm font-semibold"
@@ -495,16 +550,27 @@ export const JDIntakePage: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Company Name</label>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1">Company Name *</label>
                   <input
                     type="text"
-                    required
                     list="existing-companies-list"
                     placeholder="e.g. Google, Stripe, Acme Corp..."
                     value={companyInput}
-                    onChange={(e) => setCompanyInput(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm"
+                    onChange={(e) => {
+                      setCompanyInput(e.target.value);
+                      if (e.target.value.trim()) {
+                        setFormErrors((prev) => ({ ...prev, company: undefined }));
+                      }
+                    }}
+                    className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none text-sm ${
+                      formErrors.company
+                        ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/50'
+                        : 'border-gray-700 focus:border-indigo-500'
+                    }`}
                   />
+                  {formErrors.company && (
+                    <p className="text-xs text-rose-400 mt-1">{formErrors.company}</p>
+                  )}
                   <datalist id="existing-companies-list">
                     {companies.map((c) => (
                       <option key={c.id} value={c.name} />
@@ -534,12 +600,23 @@ export const JDIntakePage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-300 mb-1">Job / Opportunity Title *</label>
             <input
               type="text"
-              required
               placeholder="e.g. Senior Fullstack Engineer"
               value={jdTitle}
-              onChange={(e) => setJdTitle(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              onChange={(e) => {
+                setJdTitle(e.target.value);
+                if (e.target.value.trim()) {
+                  setFormErrors((prev) => ({ ...prev, title: undefined }));
+                }
+              }}
+              className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none text-sm ${
+                formErrors.title
+                  ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/50'
+                  : 'border-gray-700 focus:border-indigo-500'
+              }`}
             />
+            {formErrors.title && (
+              <p className="text-xs text-rose-400 mt-1">{formErrors.title}</p>
+            )}
           </div>
 
           <div>
@@ -547,7 +624,7 @@ export const JDIntakePage: React.FC = () => {
             <select
               value={opportunityType}
               onChange={(e: any) => setOpportunityType(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm"
             >
               <option value="cold_outreach">Cold Outreach Target</option>
               <option value="existing_post">Existing Job Post</option>
@@ -555,15 +632,15 @@ export const JDIntakePage: React.FC = () => {
           </div>
         </div>
 
-
-
         {/* Raw Text */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Job Description Text *</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-300">Job Description Text (Optional)</label>
+            <span className="text-xs text-gray-500">Auto-generated summary used if left empty</span>
+          </div>
           <textarea
-            required
-            rows={6}
-            placeholder="Paste full job specification, responsibilities, requirements, and tech stack..."
+            rows={5}
+            placeholder="Paste full job specification, responsibilities, requirements, or tech stack (optional)..."
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
             className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm font-mono"
@@ -572,10 +649,20 @@ export const JDIntakePage: React.FC = () => {
 
         <button
           type="submit"
-          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-lg flex items-center justify-center space-x-2 transition shadow-md"
+          disabled={submitting}
+          className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg flex items-center justify-center space-x-2 transition shadow-md cursor-pointer"
         >
-          <Sparkles className="h-5 w-5" />
-          <span>Submit & Save Opportunity to CRM</span>
+          {submitting ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Saving Opportunity to CRM...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-5 w-5" />
+              <span>Submit & Save Opportunity to CRM</span>
+            </>
+          )}
         </button>
       </form>
 

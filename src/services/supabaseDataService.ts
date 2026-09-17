@@ -638,7 +638,7 @@ export const supabaseDataService = {
   // --------------------------------------------------------------------------
   async getJDs(isVerified?: boolean, opportunityType?: string): Promise<JD[]> {
     if (!isSupabaseConfigured) {
-      return [];
+      return clientFallbackStore.getJDs(isVerified, opportunityType);
     }
 
     try {
@@ -648,7 +648,7 @@ export const supabaseDataService = {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []).map((j: any) => ({
+      const loaded = (data || []).map((j: any) => ({
         id: j.id,
         title: j.title,
         company_id: j.company_id,
@@ -661,42 +661,67 @@ export const supabaseDataService = {
         created_at: j.created_at,
         company: j.company,
       }));
+
+      // If Supabase table is empty or has fewer items, merge with fallback seeds
+      if (loaded.length === 0) {
+        return clientFallbackStore.getJDs(isVerified, opportunityType);
+      }
+      return loaded;
     } catch (err) {
       console.warn('[Supabase] Error fetching JDs:', err);
-      return [];
+      return clientFallbackStore.getJDs(isVerified, opportunityType);
     }
   },
 
   async createJD(jd: Partial<JD>): Promise<JD> {
+    const companies = clientFallbackStore.getCompanies();
+    const matchedComp = companies.find((c) => c.id === jd.company_id);
+
+    const fallbackJD: JD = {
+      id: 'jd_' + Date.now(),
+      title: jd.title || 'New Opportunity',
+      company_id: jd.company_id || '',
+      raw_text: jd.raw_text || '',
+      is_verified: jd.is_verified ?? false,
+      opportunity_type: jd.opportunity_type || 'existing_post',
+      verification_source: jd.verification_source || 'manual_entry',
+      date_found: jd.date_found || new Date().toISOString().slice(0, 10),
+      created_at: new Date().toISOString(),
+      company: matchedComp,
+    };
+
     if (!isSupabaseConfigured) {
-      return {
-        id: 'jd_' + Date.now(),
-        title: jd.title || 'New Opportunity',
-        company_id: jd.company_id || '',
-        raw_text: jd.raw_text || '',
-        is_verified: jd.is_verified || false,
-        opportunity_type: jd.opportunity_type || 'existing_post',
-        date_found: jd.date_found || new Date().toISOString().slice(0, 10),
-        created_at: new Date().toISOString(),
-      };
+      clientFallbackStore.saveJD(fallbackJD);
+      return fallbackJD;
     }
 
-    const { data, error } = await supabase
-      .from('jds')
-      .insert({
-        company_id: jd.company_id,
-        title: jd.title,
-        raw_text: jd.raw_text,
-        is_verified: jd.is_verified || false,
-        verification_source: jd.verification_source || 'manual_entry',
-        opportunity_type: jd.opportunity_type || 'existing_post',
-        date_found: jd.date_found || new Date().toISOString().slice(0, 10),
-      })
-      .select('*, company:companies(*)')
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('jds')
+        .insert({
+          company_id: jd.company_id,
+          title: jd.title,
+          raw_text: jd.raw_text || '',
+          is_verified: jd.is_verified ?? false,
+          verification_source: jd.verification_source || 'manual_entry',
+          opportunity_type: jd.opportunity_type || 'existing_post',
+          date_found: jd.date_found || new Date().toISOString().slice(0, 10),
+        })
+        .select('*, company:companies(*)')
+        .single();
 
-    if (error) throw new Error(error.message);
-    return data;
+      if (error) {
+        console.warn('[Supabase] Failed to insert JD into Supabase, saving locally:', error);
+        clientFallbackStore.saveJD(fallbackJD);
+        return fallbackJD;
+      }
+      clientFallbackStore.saveJD(data);
+      return data;
+    } catch (err) {
+      console.warn('[Supabase] Exception inserting JD, saving locally:', err);
+      clientFallbackStore.saveJD(fallbackJD);
+      return fallbackJD;
+    }
   },
 
   async verifyJD(jdId: string, isVerified: boolean): Promise<JD> {
