@@ -261,25 +261,61 @@ Requirements:
     }
   };
 
-  const handleAddFiles = async (incoming: FileList | File[]) => {
+  const handleFilesSelected = (files: FileList | File[] | null | undefined) => {
+    if (!files || files.length === 0) return;
+    const fileArray = Array.from(files);
+    handleAddFiles(fileArray);
+  };
+
+  const handleAddFiles = async (incoming: FileList | File[] | null | undefined) => {
+    if (!incoming) return;
     const fileArray = Array.from(incoming);
-    if (!fileArray || fileArray.length === 0) return;
+    if (fileArray.length === 0) return;
 
     setMessage(null);
-    const newItems: StagedFileItem[] = [];
 
+    // 1. Deduplicate within the incoming selection itself by filename
+    const seenIncoming = new Set<string>();
+    const uniqueIncoming: File[] = [];
     for (const file of fileArray) {
-      // Avoid duplicate file entries by name + size
-      const alreadyStaged = stagedFiles.some(
-        (sf) => sf.file.name === file.name && sf.file.size === file.size
-      );
-      if (alreadyStaged) continue;
+      const normalized = file.name.trim().toLowerCase();
+      if (!seenIncoming.has(normalized)) {
+        seenIncoming.add(normalized);
+        uniqueIncoming.push(file);
+      }
+    }
 
+    // 2. Deduplicate against files already in the upload queue by filename
+    const currentQueueNames = new Set(
+      stagedFiles.map((sf) => sf.file.name.trim().toLowerCase())
+    );
+    const filesToStage = uniqueIncoming.filter(
+      (file) => !currentQueueNames.has(file.name.trim().toLowerCase())
+    );
+    const duplicateCount = uniqueIncoming.length - filesToStage.length;
+
+    if (filesToStage.length === 0) {
+      setMessage({
+        type: 'error',
+        text: duplicateCount === 1
+          ? `'${uniqueIncoming[0].name}' is already in the upload queue.`
+          : `All ${uniqueIncoming.length} selected file(s) are already in the upload queue.`,
+      });
+      return;
+    }
+
+    // 3. Extract metadata for each newly accepted file
+    const newItems: StagedFileItem[] = [];
+    for (const file of filesToStage) {
       let detectedTitle = '';
       let detectedCompany = '';
       let isVerified = false;
 
-      if (file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm') || file.type === 'text/html') {
+      if (
+        file.name.toLowerCase().endsWith('.html') ||
+        file.name.toLowerCase().endsWith('.htm') ||
+        file.type === 'text/html'
+      ) {
         try {
           const html = await file.text();
           const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
@@ -288,7 +324,7 @@ Requirements:
           detectedCompany = meta.company;
           isVerified = true;
         } catch {
-          // ignore parsing error
+          // ignore parsing errors
         }
       }
 
@@ -300,7 +336,7 @@ Requirements:
       }
 
       newItems.push({
-        id: `${file.name}-${Date.now()}-${Math.random()}`,
+        id: `${file.name}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         file,
         title: detectedTitle || 'Software Engineer',
         company: detectedCompany || 'Hiring Company',
@@ -309,21 +345,30 @@ Requirements:
       });
     }
 
-    if (newItems.length === 0) {
-      setMessage({ type: 'error', text: 'Selected file(s) are already in the upload queue.' });
-      return;
-    }
+    // 4. Safely append to queue using functional updater to avoid state loss
+    setStagedFiles((prev) => {
+      const prevNames = new Set(prev.map((item) => item.file.name.trim().toLowerCase()));
+      const filteredNew = newItems.filter((item) => !prevNames.has(item.file.name.trim().toLowerCase()));
+      const combined = [...prev, ...filteredNew];
 
-    const updated = [...stagedFiles, ...newItems];
-    setStagedFiles(updated);
+      // If only 1 file in total, also sync with single form view
+      if (combined.length === 1 && filteredNew.length > 0) {
+        handleSingleFileFormSync(filteredNew[0].file);
+      }
+      return combined;
+    });
 
-    // If exactly 1 file staged in total, also sync to single form
-    if (updated.length === 1) {
-      handleSingleFileFormSync(updated[0].file);
-    } else {
+    // 5. Notify user with clear status
+    const totalQueued = stagedFiles.length + newItems.length;
+    if (duplicateCount > 0) {
       setMessage({
         type: 'success',
-        text: `Queued ${newItems.length} file(s). Total ${updated.length} file(s) ready for batch upload. Click "Process & Save All to CRM" below.`,
+        text: `Added ${newItems.length} file(s) to queue (${duplicateCount} duplicate skipped). Total ${totalQueued} file(s) ready for batch upload.`,
+      });
+    } else if (totalQueued > 1) {
+      setMessage({
+        type: 'success',
+        text: `Queued ${newItems.length} file(s). Total ${totalQueued} file(s) ready in queue. Click "Process & Save All to CRM" below.`,
       });
     }
   };
@@ -627,40 +672,57 @@ Requirements:
               </span>
             </div>
 
-            {/* Hidden Input for File Selection */}
+            {/* Native Multi-File Selection Input */}
             <input
+              id="jd-bulk-file-input"
               ref={fileInputRef}
               type="file"
-              multiple={true}
+              multiple
               accept=".html,.htm,.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp"
               onChange={(e) => {
                 if (e.target.files && e.target.files.length > 0) {
-                  handleAddFiles(e.target.files);
-                  e.target.value = '';
+                  handleFilesSelected(e.target.files);
                 }
+                e.target.value = '';
               }}
               className="hidden"
             />
 
             {/* Drag & Drop Box */}
             <div
+              id="jd-dropzone"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               onDragOver={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'copy';
                 setIsDragging(true);
               }}
               onDragEnter={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 setIsDragging(true);
               }}
               onDragLeave={(e) => {
                 e.preventDefault();
-                setIsDragging(false);
+                e.stopPropagation();
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setIsDragging(false);
+                }
               }}
               onDrop={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 setIsDragging(false);
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                  handleAddFiles(e.dataTransfer.files);
+                  handleFilesSelected(e.dataTransfer.files);
                 }
               }}
               onClick={() => fileInputRef.current?.click()}
@@ -671,16 +733,16 @@ Requirements:
               }`}
             >
               {extracting ? (
-                <div className="flex flex-col items-center space-y-2 text-indigo-400 py-3">
+                <div className="pointer-events-none flex flex-col items-center space-y-2 text-indigo-400 py-3">
                   <Loader2 className="h-8 w-8 animate-spin" />
                   <p className="text-sm font-semibold">Reading document & extracting metadata...</p>
                   <p className="text-xs text-gray-400">Extracting company name, job title, and requirements</p>
                 </div>
               ) : (
-                <div className="flex flex-col items-center space-y-2 py-3">
+                <div className="pointer-events-none flex flex-col items-center space-y-2 py-3">
                   <UploadCloud className="h-10 w-10 text-indigo-400" />
                   <p className="text-sm font-medium text-white">
-                    Drop one or multiple JD files here, or <span className="text-indigo-400 underline font-semibold">browse files</span>
+                    Drop one or multiple JD files here, or <span className="text-indigo-400 underline font-semibold pointer-events-auto">browse files</span>
                   </p>
                   <p className="text-xs text-gray-400">
                     Supports LinkedIn HTML downloads, PDF resumes/JDs, Word (.docx), and screenshots (.png, .jpg)
