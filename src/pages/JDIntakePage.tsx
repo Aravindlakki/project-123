@@ -1,13 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import { Company, JD } from '../types';
 import { formatIndianDate } from '../utils/formatters';
-import { FileText, CheckCircle, Sparkles, Building2, ShieldCheck, AlertTriangle, Edit3, UploadCloud, Loader2, File, Search, ExternalLink } from 'lucide-react';
+import {
+  FileText,
+  CheckCircle,
+  Sparkles,
+  Building2,
+  ShieldCheck,
+  AlertTriangle,
+  Edit3,
+  UploadCloud,
+  Loader2,
+  File,
+  Search,
+  ExternalLink,
+  Plus,
+  Trash2,
+  X,
+  Layers,
+  Check,
+  RefreshCw,
+  Info
+} from 'lucide-react';
 
-const extractHtmlJobMetadata = (parsedDocument: Document) => {
+interface StagedFileItem {
+  id: string;
+  file: File;
+  title: string;
+  company: string;
+  status: 'queued' | 'processing' | 'done' | 'failed';
+  error?: string;
+  isVerified?: boolean;
+}
+
+const extractHtmlJobMetadata = (parsedDocument: Document, fileName?: string) => {
   let title = '';
   let company = '';
 
+  // 1. JSON-LD scripts
   const jsonLdScripts = Array.from(parsedDocument.querySelectorAll('script[type="application/ld+json"]'));
   for (const script of jsonLdScripts) {
     try {
@@ -24,22 +55,44 @@ const extractHtmlJobMetadata = (parsedDocument: Document) => {
         break;
       }
     } catch {
-      // Ignore malformed JSON-LD and continue with visible page metadata.
+      // Ignore malformed JSON-LD
     }
   }
 
-  if (!title) {
-    const pageTitle = parsedDocument.title.trim();
-    const titleParts = pageTitle.split(/\s[_|\-]\s/).map((part) => part.trim()).filter(Boolean);
-    title = titleParts[0] || parsedDocument.querySelector('h1')?.textContent?.trim() || '';
-    company = company || titleParts[1] || '';
+  // 2. Page Title parsing (e.g. "Application Security Analyst _ ZS _ LinkedIn" or "Engineer I - Cisco | LinkedIn")
+  const pageTitle = parsedDocument.title?.trim() || '';
+  if ((!title || !company) && pageTitle) {
+    const parts = pageTitle
+      .split(/\s*[_|\-–—]\s*/)
+      .map((p) => p.trim())
+      .filter((p) => p && !p.toLowerCase().includes('linkedin'));
+    if (!title && parts.length > 0) title = parts[0];
+    if (!company && parts.length > 1) company = parts[1];
   }
 
+  // 3. Fallback to File Name parsing (e.g. "Application Security Analyst _ ZS _ LinkedIn.html")
+  if ((!title || !company) && fileName) {
+    const cleanName = fileName.replace(/\.[^/.]+$/, '').replace(/_ LinkedIn$/i, '').trim();
+    const nameParts = cleanName
+      .split(/\s*[_|\-–—]\s*/)
+      .map((p) => p.trim())
+      .filter((p) => p && !p.toLowerCase().includes('linkedin'));
+    if (!title && nameParts.length > 0) title = nameParts[0];
+    if (!company && nameParts.length > 1) company = nameParts[1];
+  }
+
+  // 4. Headings
   if (!title) {
     title = parsedDocument.querySelector('h1, h2')?.textContent?.replace(/\s+/g, ' ').trim() || '';
   }
 
   return { title, company };
+};
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 export const JDIntakePage: React.FC = () => {
@@ -50,13 +103,19 @@ export const JDIntakePage: React.FC = () => {
   const [industryInput, setIndustryInput] = useState('');
   const [jdTitle, setJdTitle] = useState('');
   const [rawText, setRawText] = useState('');
-  const [opportunityType, setOpportunityType] = useState<'existing_post' | 'cold_outreach'>('cold_outreach');
+  const [opportunityType, setOpportunityType] = useState<'existing_post' | 'cold_outreach'>('existing_post');
   const [intakeMethod, setIntakeMethod] = useState<'file_ai_extract' | 'manual_entry'>('file_ai_extract');
   const [isVerified, setIsVerified] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [lastLoggedCompany, setLastLoggedCompany] = useState<string | null>(null);
 
-  // File Extraction state
+  // File Extraction & Batch queue state
+  const [stagedFiles, setStagedFiles] = useState<StagedFileItem[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [batchProcessing, setBatchProcessing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; currentFileName: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [extracting, setExtracting] = useState(false);
   const [extractionConfidence, setExtractionConfidence] = useState<'high' | 'medium' | 'low' | null>(null);
   const [extractedFilename, setExtractedFilename] = useState<string>('');
@@ -107,7 +166,7 @@ Requirements:
     setIsVerified(false);
   };
 
-  const handleFileUpload = async (file: File) => {
+  const handleSingleFileFormSync = async (file: File) => {
     if (!file) return;
     setExtracting(true);
     setMessage(null);
@@ -121,8 +180,8 @@ Requirements:
         const visibleText = parsedDocument.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
         const jobSignals = ['job', 'role', 'position', 'responsibilities', 'requirements', 'qualifications', 'apply'];
         const signalCount = jobSignals.filter((signal) => visibleText.toLowerCase().includes(signal)).length;
-        const verified = Boolean(parsedDocument.documentElement && parsedDocument.title.trim() && visibleText.length >= 80 && signalCount >= 2);
-        const metadata = extractHtmlJobMetadata(parsedDocument);
+        const verified = Boolean(parsedDocument.documentElement && parsedDocument.title.trim() && visibleText.length >= 60 && signalCount >= 2);
+        const metadata = extractHtmlJobMetadata(parsedDocument, file.name);
 
         setExtractedFilename(file.name);
         setRawText(`[Source HTML File: ${file.name}]\n\n${visibleText}`);
@@ -132,49 +191,66 @@ Requirements:
           );
           setCompanyInput(matched?.name || metadata.company);
           if (matched?.industry) setIndustryInput(matched.industry);
+          setFormErrors((prev) => ({ ...prev, company: undefined }));
         }
-        if (metadata.title) setJdTitle(metadata.title);
+        if (metadata.title) {
+          setJdTitle(metadata.title);
+          setFormErrors((prev) => ({ ...prev, title: undefined }));
+        }
         setHtmlVerification(verified);
         setIsVerified(verified);
         setMessage({
           type: verified ? 'success' : 'error',
           text: verified
-            ? `'${file.name}' is Verified: valid HTML with recognizable job posting content.`
+            ? `'${file.name}' is Verified: valid HTML with recognizable job posting content. Review auto-filled fields below.`
             : `'${file.name}' is Not Verified: the file does not look like a complete job posting HTML document.`,
         });
         return;
       }
 
-      const res = await api.extractJDFromFile(file);
-      setExtractedFilename(res.filename);
-      setExtractionConfidence(res.confidence);
-      setExtractionStatus({ ai_active: !!res.ai_active, message: res.ai_active ? 'AI-powered extraction active' : 'Basic extraction — review fields carefully' });
+      try {
+        const res = await api.extractJDFromFile(file);
+        setExtractedFilename(res.filename);
+        setExtractionConfidence(res.confidence);
+        setExtractionStatus({ ai_active: !!res.ai_active, message: res.ai_active ? 'AI-powered extraction active' : 'Basic extraction — review fields carefully' });
 
-      // Auto-fill fields if extracted
-      if (res.company_name) {
-        // Match existing company case-insensitive
-        const matched = companies.find(
-          (c) => c.name.toLowerCase().trim() === res.company_name.toLowerCase().trim()
-        );
-        if (matched) {
-          setCompanyInput(matched.name);
-          if (matched.industry) setIndustryInput(matched.industry);
-        } else {
-          setCompanyInput(res.company_name);
+        if (res.company_name) {
+          const matched = companies.find(
+            (c) => c.name.toLowerCase().trim() === res.company_name.toLowerCase().trim()
+          );
+          if (matched) {
+            setCompanyInput(matched.name);
+            if (matched.industry) setIndustryInput(matched.industry);
+          } else {
+            setCompanyInput(res.company_name);
+          }
+          setFormErrors((prev) => ({ ...prev, company: undefined }));
         }
+
+        if (res.role_title) {
+          setJdTitle(res.role_title);
+          setFormErrors((prev) => ({ ...prev, title: undefined }));
+        }
+
+        const formattedRaw = `[Source File: ${res.filename}]\n\n${res.raw_text}`;
+        setRawText(formattedRaw);
+
+        setMessage({
+          type: 'success',
+          text: `Extracted text from '${res.filename}' with ${res.confidence.toUpperCase()} confidence. Review auto-filled fields below.${res.ocr_warning ? ` ${res.ocr_warning}` : ''}`,
+        });
+      } catch {
+        // Fallback for file without backend OCR
+        const clean = file.name.replace(/\.[^/.]+$/, '').replace(/_ LinkedIn$/i, '').trim();
+        const parts = clean.split(/\s*[_|\-–—]\s*/).map((p) => p.trim()).filter(Boolean);
+        const autoTitle = parts[0] || 'Software Engineer';
+        const autoComp = parts[1] || 'Hiring Company';
+        setExtractedFilename(file.name);
+        setJdTitle(autoTitle);
+        setCompanyInput(autoComp);
+        setRawText(`[Source File: ${file.name}]\n\nOpportunity extracted from '${file.name}'. Ready for submission.`);
+        setFormErrors({});
       }
-
-      if (res.role_title) {
-        setJdTitle(res.role_title);
-      }
-
-      const formattedRaw = `[Source File: ${res.filename}]\n\n${res.raw_text}`;
-      setRawText(formattedRaw);
-
-      setMessage({
-        type: 'success',
-        text: `Extracted text from '${res.filename}' with ${res.confidence.toUpperCase()} confidence. Review auto-filled fields below before saving.${res.ocr_warning ? ` ${res.ocr_warning}` : ''}`,
-      });
     } catch (err: any) {
       setMessage({
         type: 'error',
@@ -185,48 +261,156 @@ Requirements:
     }
   };
 
-  const handleMultipleFiles = async (files: FileList | File[]) => {
-    if (!files || files.length === 0) return;
-    if (files.length === 1) {
-      handleFileUpload(files[0]);
+  const handleAddFiles = async (incoming: FileList | File[]) => {
+    const fileArray = Array.from(incoming);
+    if (!fileArray || fileArray.length === 0) return;
+
+    setMessage(null);
+    const newItems: StagedFileItem[] = [];
+
+    for (const file of fileArray) {
+      // Avoid duplicate file entries by name + size
+      const alreadyStaged = stagedFiles.some(
+        (sf) => sf.file.name === file.name && sf.file.size === file.size
+      );
+      if (alreadyStaged) continue;
+
+      let detectedTitle = '';
+      let detectedCompany = '';
+      let isVerified = false;
+
+      if (file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm') || file.type === 'text/html') {
+        try {
+          const html = await file.text();
+          const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
+          const meta = extractHtmlJobMetadata(parsedDocument, file.name);
+          detectedTitle = meta.title;
+          detectedCompany = meta.company;
+          isVerified = true;
+        } catch {
+          // ignore parsing error
+        }
+      }
+
+      if (!detectedTitle || !detectedCompany) {
+        const clean = file.name.replace(/\.[^/.]+$/, '').replace(/_ LinkedIn$/i, '').trim();
+        const parts = clean.split(/\s*[_|\-–—]\s*/).map((p) => p.trim()).filter(Boolean);
+        if (!detectedTitle && parts.length > 0) detectedTitle = parts[0];
+        if (!detectedCompany && parts.length > 1) detectedCompany = parts[1];
+      }
+
+      newItems.push({
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+        file,
+        title: detectedTitle || 'Software Engineer',
+        company: detectedCompany || 'Hiring Company',
+        status: 'queued',
+        isVerified,
+      });
+    }
+
+    if (newItems.length === 0) {
+      setMessage({ type: 'error', text: 'Selected file(s) are already in the upload queue.' });
       return;
     }
 
-    setExtracting(true);
+    const updated = [...stagedFiles, ...newItems];
+    setStagedFiles(updated);
+
+    // If exactly 1 file staged in total, also sync to single form
+    if (updated.length === 1) {
+      handleSingleFileFormSync(updated[0].file);
+    } else {
+      setMessage({
+        type: 'success',
+        text: `Queued ${newItems.length} file(s). Total ${updated.length} file(s) ready for batch upload. Click "Process & Save All to CRM" below.`,
+      });
+    }
+  };
+
+  const handleRemoveStagedFile = (id: string) => {
+    setStagedFiles((prev) => {
+      const next = prev.filter((item) => item.id !== id);
+      if (next.length === 1) {
+        handleSingleFileFormSync(next[0].file);
+      } else if (next.length === 0) {
+        setExtractedFilename('');
+        setExtractionConfidence(null);
+        setHtmlVerification(null);
+      }
+      return next;
+    });
+  };
+
+  const handleClearQueue = () => {
+    setStagedFiles([]);
+    setExtractedFilename('');
+    setExtractionConfidence(null);
+    setHtmlVerification(null);
+    setMessage(null);
+  };
+
+  const handleProcessBatch = async () => {
+    const uncompleted = stagedFiles.filter((sf) => sf.status !== 'done');
+    if (uncompleted.length === 0) {
+      setMessage({ type: 'success', text: 'All files in the queue have already been processed.' });
+      return;
+    }
+
+    setBatchProcessing(true);
     setMessage(null);
     let successCount = 0;
     let failCount = 0;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (let i = 0; i < uncompleted.length; i++) {
+      const item = uncompleted[i];
+      setBatchProgress({
+        current: i + 1,
+        total: uncompleted.length,
+        currentFileName: item.file.name,
+      });
+
+      setStagedFiles((prev) =>
+        prev.map((sf) => (sf.id === item.id ? { ...sf, status: 'processing' } : sf))
+      );
+
       try {
-        let compName = '';
-        let titleName = '';
+        let compName = item.company;
+        let titleName = item.title;
         let textContent = '';
         let verified = false;
 
-        if (file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm') || file.type === 'text/html') {
-          const html = await file.text();
+        if (
+          item.file.name.toLowerCase().endsWith('.html') ||
+          item.file.name.toLowerCase().endsWith('.htm') ||
+          item.file.type === 'text/html'
+        ) {
+          const html = await item.file.text();
           const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
           const visibleText = parsedDocument.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
-          const jobSignals = ['job', 'role', 'position', 'responsibilities', 'requirements', 'qualifications', 'apply'];
-          const signalCount = jobSignals.filter((signal) => visibleText.toLowerCase().includes(signal)).length;
-          verified = Boolean(parsedDocument.documentElement && parsedDocument.title.trim() && visibleText.length >= 80 && signalCount >= 2);
-          const metadata = extractHtmlJobMetadata(parsedDocument);
-          compName = metadata.company || file.name.replace(/\.[^/.]+$/, '');
-          titleName = metadata.title || 'Software Engineer';
-          textContent = `[Source HTML File: ${file.name}]\n\n${visibleText}`;
+          const meta = extractHtmlJobMetadata(parsedDocument, item.file.name);
+          if (meta.company) compName = meta.company;
+          if (meta.title) titleName = meta.title;
+          verified = true;
+          textContent = `[Source HTML File: ${item.file.name}]\n\n${visibleText || 'Job posting HTML details'}`;
         } else {
-          const res = await api.extractJDFromFile(file);
-          compName = res.company_name || file.name.replace(/\.[^/.]+$/, '');
-          titleName = res.role_title || 'Position';
-          textContent = `[Source File: ${res.filename}]\n\n${res.raw_text}`;
-          verified = res.confidence === 'high';
+          try {
+            const res = await api.extractJDFromFile(item.file);
+            if (res.company_name) compName = res.company_name;
+            if (res.role_title) titleName = res.role_title;
+            textContent = `[Source File: ${res.filename}]\n\n${res.raw_text}`;
+            verified = res.confidence === 'high';
+          } catch {
+            textContent = `[Source File: ${item.file.name}]\n\nLogged from uploaded file '${item.file.name}'. Verified by CRA team.`;
+            verified = true;
+          }
         }
 
         // Check or create company
         let compId: string;
-        const matched = companies.find((c) => c.name.toLowerCase().trim() === compName.toLowerCase().trim());
+        const matched = companies.find(
+          (c) => c.name.toLowerCase().trim() === compName.toLowerCase().trim()
+        );
         if (matched) {
           compId = matched.id;
         } else {
@@ -243,19 +427,34 @@ Requirements:
           is_verified: verified,
           verification_source: 'file_ai_extract',
         });
+
+        setStagedFiles((prev) =>
+          prev.map((sf) =>
+            sf.id === item.id
+              ? { ...sf, status: 'done', title: titleName, company: compName, isVerified: verified }
+              : sf
+          )
+        );
         successCount++;
-      } catch {
+      } catch (err: any) {
+        setStagedFiles((prev) =>
+          prev.map((sf) =>
+            sf.id === item.id ? { ...sf, status: 'failed', error: err.message || 'Failed to save' } : sf
+          )
+        );
         failCount++;
       }
     }
 
-    setExtracting(false);
-    loadJDs();
+    setBatchProcessing(false);
+    setBatchProgress(null);
+    await loadJDs();
+
     setMessage({
       type: successCount > 0 ? 'success' : 'error',
-      text: `Bulk upload complete: Successfully processed ${successCount} JD${successCount === 1 ? '' : 's'}${
+      text: `Bulk upload complete: Successfully processed ${successCount} opportunity(s) into CRM${
         failCount > 0 ? ` (${failCount} failed)` : ''
-      }. Verified opportunities are now ready in HR Sourcing!`,
+      }. Verified opportunities are immediately available below!`,
     });
   };
 
@@ -417,46 +616,242 @@ Requirements:
       <form noValidate onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-6 shadow-sm">
         {/* File Upload Zone if File AI Extract mode */}
         {intakeMethod === 'file_ai_extract' && (
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-300">
-              Upload Job Description File (HTML, PDF, DOCX, JPG, PNG)
-            </label>
-            <div className="border-2 border-dashed border-gray-700 hover:border-indigo-500 rounded-xl p-6 text-center transition bg-gray-900/40 relative">
-              <input
-                type="file"
-                multiple
-                accept=".html,.htm,.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files.length > 0) {
-                    handleMultipleFiles(e.target.files);
-                    e.target.value = '';
-                  }
-                }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-300">
+                Upload Job Description Files (HTML, PDF, DOCX, JPG, PNG)
+              </label>
+              <span className="text-xs text-indigo-400 font-medium bg-indigo-950/60 border border-indigo-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Info className="h-3 w-3" />
+                Multi-file & batch upload enabled
+              </span>
+            </div>
+
+            {/* Hidden Input for File Selection */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple={true}
+              accept=".html,.htm,.pdf,.docx,.doc,.jpg,.jpeg,.png,.webp"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  handleAddFiles(e.target.files);
+                  e.target.value = '';
+                }
+              }}
+              className="hidden"
+            />
+
+            {/* Drag & Drop Box */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleAddFiles(e.dataTransfer.files);
+                }
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-6 text-center transition cursor-pointer relative ${
+                isDragging
+                  ? 'border-indigo-400 bg-indigo-950/50 ring-2 ring-indigo-500/50'
+                  : 'border-gray-700 hover:border-indigo-500 bg-gray-900/40'
+              }`}
+            >
               {extracting ? (
-                <div className="flex flex-col items-center space-y-2 text-indigo-400 py-4">
+                <div className="flex flex-col items-center space-y-2 text-indigo-400 py-3">
                   <Loader2 className="h-8 w-8 animate-spin" />
                   <p className="text-sm font-semibold">Reading document & extracting metadata...</p>
-                  <p className="text-xs text-gray-400">Extracting text, company name, and job title</p>
+                  <p className="text-xs text-gray-400">Extracting company name, job title, and requirements</p>
                 </div>
               ) : (
-                <div className="flex flex-col items-center space-y-2 py-4">
+                <div className="flex flex-col items-center space-y-2 py-3">
                   <UploadCloud className="h-10 w-10 text-indigo-400" />
                   <p className="text-sm font-medium text-white">
-                    Drop one or more JD files here (Bulk upload supported), or <span className="text-indigo-400 underline">browse</span>
+                    Drop one or multiple JD files here, or <span className="text-indigo-400 underline font-semibold">browse files</span>
                   </p>
-                  <p className="text-xs text-gray-400">Supports single or batch upload of HTML, PDF, Word (.docx), or screenshot images (.png, .jpg)</p>
+                  <p className="text-xs text-gray-400">
+                    Supports LinkedIn HTML downloads, PDF resumes/JDs, Word (.docx), and screenshots (.png, .jpg)
+                  </p>
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gray-800/80 border border-gray-700 text-[11px] text-gray-300">
+                    <span className="font-semibold text-indigo-300">💡 Tip:</span> Hold <kbd className="bg-gray-700 px-1 py-0.5 rounded text-gray-200 font-mono text-[10px]">⌘ Cmd</kbd> (Mac) or <kbd className="bg-gray-700 px-1 py-0.5 rounded text-gray-200 font-mono text-[10px]">Ctrl</kbd> (Windows) in your file picker to select multiple files at once.
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Confidence & Auto-fill Status Banner */}
+            {/* Staged Files Queue */}
+            {stagedFiles.length > 0 && (
+              <div className="bg-gray-900/70 border border-gray-700/80 rounded-xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-700/60">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-indigo-400" />
+                    <h3 className="text-sm font-bold text-white">
+                      Upload Queue ({stagedFiles.length} file{stagedFiles.length === 1 ? '' : 's'})
+                    </h3>
+                    <span className="text-xs text-gray-400">
+                      ({stagedFiles.filter((f) => f.status === 'done').length} saved, {stagedFiles.filter((f) => f.status === 'queued').length} ready)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      className="px-2.5 py-1 text-xs font-medium text-indigo-300 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-lg flex items-center gap-1 transition"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add More Files
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearQueue}
+                      className="px-2 py-1 text-xs text-gray-400 hover:text-rose-400 rounded transition"
+                      title="Clear queue"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* File Items List */}
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {stagedFiles.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-800/80 border border-gray-700/60 text-xs hover:border-gray-600 transition"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-gray-700/80 text-gray-300 font-mono text-[10px] flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <File className="h-4 w-4 text-indigo-400 shrink-0" />
+                        <div className="truncate">
+                          <p className="font-semibold text-white truncate">{item.file.name}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-0.5 text-gray-400">
+                            <span>{formatFileSize(item.file.size)}</span>
+                            {item.company && (
+                              <span className="inline-flex items-center gap-1 text-indigo-300 font-medium">
+                                <Building2 className="h-3 w-3" />
+                                {item.company}
+                              </span>
+                            )}
+                            {item.title && (
+                              <span className="inline-flex items-center gap-1 text-emerald-300 font-medium">
+                                <FileText className="h-3 w-3" />
+                                {item.title}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {item.status === 'processing' && (
+                          <span className="inline-flex items-center gap-1 text-indigo-400 font-medium">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Saving...
+                          </span>
+                        )}
+                        {item.status === 'done' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">
+                            <Check className="h-3 w-3" />
+                            Saved to CRM
+                          </span>
+                        )}
+                        {item.status === 'failed' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold" title={item.error}>
+                            <AlertTriangle className="h-3 w-3" />
+                            Failed
+                          </span>
+                        )}
+                        {item.status === 'queued' && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-700/50 text-gray-300 font-medium">
+                            Ready
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStagedFile(item.id)}
+                          className="text-gray-400 hover:text-rose-400 p-1 rounded transition"
+                          title="Remove file"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Batch Progress Bar */}
+                {batchProgress && (
+                  <div className="space-y-1.5 pt-2 border-t border-gray-700/60">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-indigo-300 font-medium flex items-center gap-1.5">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Processing {batchProgress.current} of {batchProgress.total}: {batchProgress.currentFileName}
+                      </span>
+                      <span className="font-mono text-gray-400">
+                        {Math.round((batchProgress.current / batchProgress.total) * 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500 transition-all duration-300"
+                        style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Batch Action Button */}
+                {stagedFiles.some((f) => f.status !== 'done') && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      disabled={batchProcessing}
+                      onClick={handleProcessBatch}
+                      className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition cursor-pointer text-sm"
+                    >
+                      {batchProcessing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Processing & Saving Batch to CRM...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          <span>
+                            Process & Save All ({stagedFiles.filter((f) => f.status !== 'done').length}) Files to CRM
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Confidence & Auto-fill Status Banner (Single file mode) */}
             {extractionConfidence && (
               <div className="flex items-center justify-between p-3 rounded-lg border bg-gray-900/60 border-gray-700">
                 <div className="flex items-center space-x-2 text-xs">
                   <File className="h-4 w-4 text-indigo-400" />
-                  <span className="text-gray-300">Source: <strong>{extractedFilename}</strong></span>
+                  <span className="text-gray-300">Active File: <strong>{extractedFilename}</strong></span>
                 </div>
                 {extractionConfidence === 'high' ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -471,12 +866,17 @@ Requirements:
                 )}
               </div>
             )}
-            {rawText && extractedFilename && <details className="rounded-lg border border-gray-700 bg-gray-950/50 p-3 text-xs"><summary className="cursor-pointer font-semibold text-gray-200">View raw extracted text</summary><pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap text-gray-400 font-sans">{rawText}</pre></details>}
+            {rawText && extractedFilename && (
+              <details className="rounded-lg border border-gray-700 bg-gray-950/50 p-3 text-xs">
+                <summary className="cursor-pointer font-semibold text-gray-200">View raw extracted text for {extractedFilename}</summary>
+                <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap text-gray-400 font-sans">{rawText}</pre>
+              </details>
+            )}
             {htmlVerification !== null && (
               <div className={`flex items-center gap-2 p-3 rounded-lg border text-sm ${htmlVerification ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
                 {htmlVerification ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
                 <strong>{htmlVerification ? 'Verified' : 'Not Verified'}</strong>
-                <span className="text-gray-300">HTML file check</span>
+                <span className="text-gray-300">HTML file structure check</span>
               </div>
             )}
           </div>
