@@ -681,7 +681,7 @@ export const supabaseDataService = {
       id: 'jd_' + Date.now(),
       title: jd.title || 'New Opportunity',
       company_id: jd.company_id || '',
-      raw_text: jd.raw_text || '',
+      raw_text: (jd.raw_text || '').slice(0, 4000),
       is_verified: jd.is_verified ?? false,
       opportunity_type: jd.opportunity_type || 'existing_post',
       verification_source: jd.verification_source || 'manual_entry',
@@ -691,7 +691,11 @@ export const supabaseDataService = {
     };
 
     if (!isSupabaseConfigured) {
-      clientFallbackStore.saveJD(fallbackJD);
+      try {
+        clientFallbackStore.saveJD(fallbackJD);
+      } catch (e) {
+        console.warn('[Storage] Fallback store error:', e);
+      }
       return fallbackJD;
     }
 
@@ -701,7 +705,7 @@ export const supabaseDataService = {
         .insert({
           company_id: jd.company_id,
           title: jd.title,
-          raw_text: jd.raw_text || '',
+          raw_text: (jd.raw_text || '').slice(0, 4000),
           is_verified: jd.is_verified ?? false,
           verification_source: jd.verification_source || 'manual_entry',
           opportunity_type: jd.opportunity_type || 'existing_post',
@@ -712,14 +716,14 @@ export const supabaseDataService = {
 
       if (error) {
         console.warn('[Supabase] Failed to insert JD into Supabase, saving locally:', error);
-        clientFallbackStore.saveJD(fallbackJD);
+        try { clientFallbackStore.saveJD(fallbackJD); } catch (_) {}
         return fallbackJD;
       }
-      clientFallbackStore.saveJD(data);
+      try { clientFallbackStore.saveJD(data); } catch (_) {}
       return data;
     } catch (err) {
       console.warn('[Supabase] Exception inserting JD, saving locally:', err);
-      clientFallbackStore.saveJD(fallbackJD);
+      try { clientFallbackStore.saveJD(fallbackJD); } catch (_) {}
       return fallbackJD;
     }
   },

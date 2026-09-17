@@ -141,38 +141,68 @@ function initializeMockData() {
     localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify(initialLeaves));
   }
 
-  if (!localStorage.getItem(STORAGE_KEYS.JDS)) {
-    const initialJDs: JD[] = [
-      {
-        id: 'jd-seed-1',
-        title: 'Data Engineer',
-        company_id: 'comp_1',
-        raw_text: 'Responsibilities include designing, building, and maintaining robust data pipelines and analytics systems.',
-        is_verified: true,
-        verification_source: 'file_ai_extract',
-        opportunity_type: 'existing_post',
-        date_found: new Date().toISOString().slice(0, 10),
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'jd-seed-2',
-        title: 'Senior Fullstack Engineer',
-        company_id: 'comp_2',
-        raw_text: 'Seeking a fullstack developer proficient in React, Node.js, and TypeScript with 3+ years experience.',
-        is_verified: true,
-        verification_source: 'file_ai_extract',
-        opportunity_type: 'existing_post',
-        date_found: new Date().toISOString().slice(0, 10),
-        created_at: new Date().toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(initialJDs));
+  // Self-healing check for JDs storage to prevent quota overflow
+  try {
+    const existingJDsRaw = localStorage.getItem(STORAGE_KEYS.JDS);
+    if (!existingJDsRaw) {
+      const initialJDs: JD[] = [
+        {
+          id: 'jd-seed-1',
+          title: 'Data Engineer',
+          company_id: 'comp_1',
+          raw_text: 'Responsibilities include designing, building, and maintaining robust data pipelines and analytics systems.',
+          is_verified: true,
+          verification_source: 'file_ai_extract',
+          opportunity_type: 'existing_post',
+          date_found: new Date().toISOString().slice(0, 10),
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'jd-seed-2',
+          title: 'Senior Fullstack Engineer',
+          company_id: 'comp_2',
+          raw_text: 'Seeking a fullstack developer proficient in React, Node.js, and TypeScript with 3+ years experience.',
+          is_verified: true,
+          verification_source: 'file_ai_extract',
+          opportunity_type: 'existing_post',
+          date_found: new Date().toISOString().slice(0, 10),
+          created_at: new Date().toISOString(),
+        },
+      ];
+      localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(initialJDs));
+    } else {
+      // Existing data check: if oversized (e.g. from previously pasted raw HTML), compact immediately
+      try {
+        const parsed = JSON.parse(existingJDsRaw);
+        if (Array.isArray(parsed)) {
+          let modified = false;
+          const cleaned = parsed.slice(0, 80).map((j: any) => {
+            if (typeof j?.raw_text === 'string' && j.raw_text.length > 4000) {
+              modified = true;
+              return { ...j, raw_text: j.raw_text.slice(0, 4000) };
+            }
+            return j;
+          });
+          if (modified || existingJDsRaw.length > 250000) {
+            localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(cleaned));
+          }
+        }
+      } catch {
+        // If unparseable or corrupted, clear and re-initialize
+        localStorage.removeItem(STORAGE_KEYS.JDS);
+      }
+    }
+  } catch (e) {
+    console.warn('[Storage] Quota check/initialization error:', e);
   }
 }
 
 try {
   initializeMockData();
 } catch (_) {}
+
+// In-memory fallback in case localStorage quota is exceeded
+let inMemoryJDs: JD[] = [];
 
 export const clientFallbackStore = {
   getUsers(): CRA[] {
@@ -261,6 +291,9 @@ export const clientFallbackStore = {
   getJDs(isVerified?: boolean, opportunityType?: string): JD[] {
     try {
       let jds: JD[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.JDS) || '[]');
+      if (jds.length === 0 && inMemoryJDs.length > 0) {
+        jds = inMemoryJDs;
+      }
       const companies = this.getCompanies();
       jds = jds.map((j) => ({
         ...j,
@@ -274,12 +307,33 @@ export const clientFallbackStore = {
       }
       return jds;
     } catch {
-      return [];
+      return inMemoryJDs;
     }
   },
 
   saveJDs(jds: JD[]) {
-    localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(jds));
+    // Sanitize: limit to most recent 80 JDs and truncate raw_text to 4000 characters
+    const sanitized = jds.slice(0, 80).map((jd) => ({
+      ...jd,
+      raw_text: typeof jd.raw_text === 'string' ? jd.raw_text.slice(0, 4000) : '',
+    }));
+    inMemoryJDs = sanitized;
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(sanitized));
+    } catch (err) {
+      console.warn('[Storage] Quota exceeded saving JDs, compacting storage...', err);
+      try {
+        // High compaction: keep 30 JDs and truncate raw_text to 500 chars
+        const compacted = sanitized.slice(0, 30).map((jd) => ({
+          ...jd,
+          raw_text: typeof jd.raw_text === 'string' ? jd.raw_text.slice(0, 500) : '',
+        }));
+        localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(compacted));
+      } catch (err2) {
+        console.warn('[Storage] Secondary quota error, using in-memory store:', err2);
+      }
+    }
   },
 
   saveJD(newJD: JD) {

@@ -89,6 +89,41 @@ const extractHtmlJobMetadata = (parsedDocument: Document, fileName?: string) => 
   return { title, company };
 };
 
+const extractCleanJobText = (parsedDocument: Document, maxChars: number = 4000): string => {
+  try {
+    const clone = parsedDocument.cloneNode(true) as Document;
+    // Strip scripts, styles, metadata, media, telemetry
+    const tagsToRemove = clone.querySelectorAll(
+      'script, style, noscript, svg, iframe, link, meta, object, embed, canvas'
+    );
+    tagsToRemove.forEach((el) => el.remove());
+
+    // Prefer specific job posting content containers if present
+    const selectors = [
+      '.description__text',
+      '.job-description',
+      '.show-more-less-html__markup',
+      '[data-job-description]',
+      '.jobs-description-content__text',
+      '.jobs-box__html-content',
+      'article',
+      'main',
+    ];
+
+    for (const sel of selectors) {
+      const match = clone.querySelector(sel);
+      if (match && match.textContent && match.textContent.trim().length > 60) {
+        return match.textContent.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+      }
+    }
+
+    const bodyText = clone.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
+    return bodyText.slice(0, maxChars);
+  } catch {
+    return (parsedDocument.body?.textContent?.replace(/\s+/g, ' ').trim() || '').slice(0, maxChars);
+  }
+};
+
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -177,14 +212,14 @@ Requirements:
       if (file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm') || file.type === 'text/html') {
         const html = await file.text();
         const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
-        const visibleText = parsedDocument.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
+        const cleanText = extractCleanJobText(parsedDocument, 4000);
         const jobSignals = ['job', 'role', 'position', 'responsibilities', 'requirements', 'qualifications', 'apply'];
-        const signalCount = jobSignals.filter((signal) => visibleText.toLowerCase().includes(signal)).length;
-        const verified = Boolean(parsedDocument.documentElement && parsedDocument.title.trim() && visibleText.length >= 60 && signalCount >= 2);
+        const signalCount = jobSignals.filter((signal) => cleanText.toLowerCase().includes(signal)).length;
+        const verified = Boolean(parsedDocument.documentElement && parsedDocument.title.trim() && cleanText.length >= 50 && signalCount >= 1);
         const metadata = extractHtmlJobMetadata(parsedDocument, file.name);
 
         setExtractedFilename(file.name);
-        setRawText(`[Source HTML File: ${file.name}]\n\n${visibleText}`);
+        setRawText(`[Source HTML: ${file.name}]\n\n${cleanText}`);
         if (metadata.company) {
           const matched = companies.find(
             (company) => company.name.toLowerCase().trim() === metadata.company.toLowerCase().trim()
@@ -432,18 +467,18 @@ Requirements:
         ) {
           const html = await item.file.text();
           const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
-          const visibleText = parsedDocument.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
+          const cleanText = extractCleanJobText(parsedDocument, 4000);
           const meta = extractHtmlJobMetadata(parsedDocument, item.file.name);
           if (meta.company) compName = meta.company;
           if (meta.title) titleName = meta.title;
           verified = true;
-          textContent = `[Source HTML File: ${item.file.name}]\n\n${visibleText || 'Job posting HTML details'}`;
+          textContent = `[Source HTML: ${item.file.name}]\n\n${cleanText || 'Job posting details'}`;
         } else {
           try {
             const res = await api.extractJDFromFile(item.file);
             if (res.company_name) compName = res.company_name;
             if (res.role_title) titleName = res.role_title;
-            textContent = `[Source File: ${res.filename}]\n\n${res.raw_text}`;
+            textContent = `[Source File: ${res.filename}]\n\n${(res.raw_text || '').slice(0, 4000)}`;
             verified = res.confidence === 'high';
           } catch {
             textContent = `[Source File: ${item.file.name}]\n\nLogged from uploaded file '${item.file.name}'. Verified by CRA team.`;
@@ -546,7 +581,7 @@ Requirements:
         setCompanies((prev) => [...prev, createdComp]);
       }
 
-      const textToSave = rawText.trim() || `Job opportunity for ${jdTitle.trim()} at ${companyInput.trim()}. Verified by CRA.`;
+      const textToSave = (rawText.trim() || `Job opportunity for ${jdTitle.trim()} at ${companyInput.trim()}. Verified by CRA.`).slice(0, 4000);
 
       const createdJD = await api.createJD({
         company_id: companyId,
@@ -557,10 +592,12 @@ Requirements:
         verification_source: intakeMethod,
       });
 
-      localStorage.setItem('placemein:hr-sourcing-prefill', JSON.stringify({
-        company: companyInput.trim(),
-        title: jdTitle.trim(),
-      }));
+      try {
+        localStorage.setItem('placemein:hr-sourcing-prefill', JSON.stringify({
+          company: companyInput.trim(),
+          title: jdTitle.trim(),
+        }));
+      } catch (_) {}
 
       const savedCompName = companyInput.trim();
       setLastLoggedCompany(savedCompName);
