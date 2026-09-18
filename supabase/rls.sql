@@ -326,3 +326,17 @@ create policy "Only Admins can approve, reject, or update leaves"
 create policy "Only Admins can delete leaves"
   on public.leaves for delete
   using (public.is_admin());
+
+-- ==============================================================================
+-- 14. AI USAGE & RATE LIMITING LOGS POLICIES
+-- ==============================================================================
+alter table public.ai_usage_logs enable row level security;
+
+create policy "Users view own AI usage logs; Admins view all"
+  on public.ai_usage_logs for select
+  using (auth.uid() = user_id or public.is_admin());
+
+create policy "Authenticated users can log own AI usage"
+  on public.ai_usage_logs for insert
+  with check (auth.uid() = user_id or public.is_admin());
+

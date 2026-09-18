@@ -1,10 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { verifyAuthAndRateLimit, logAiUsage, corsHeaders } from '../_shared/auth.ts'
 
 async function callGemini(prompt: string | object, apiKey: string): Promise<{text: string | null, modelUsed: string}> {
   const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
@@ -29,10 +25,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // 1. Verify caller identity via JWT and check rate limit (5 batch PDF uploads / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'upload-pdf-leads', 5);
+  if (errorResponse) return errorResponse;
+
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Missing Authorization header')
-    
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     if (!file) throw new Error('No file provided')
@@ -105,7 +102,7 @@ serve(async (req) => {
             company_id: companyId,
             name: row.hr_name,
             title: row.title,
-            phone: row.phone,
+            phone: '', // Strict privacy: phone numbers strictly blank
             email: row.email,
             linkedin_url: row.hr_linkedin,
             remarks: row.remarks,
@@ -114,6 +111,14 @@ serve(async (req) => {
           })
       }
       importedCount++;
+    }
+
+    if (auth?.user) {
+      await logAiUsage(auth.supabase, auth.user.id, 'upload-pdf-leads', {
+        filename: file.name,
+        extracted_rows: extractedData.length,
+        imported_count: importedCount,
+      });
     }
 
     return new Response(JSON.stringify({

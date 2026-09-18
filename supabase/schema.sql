@@ -208,3 +208,15 @@ alter publication supabase_realtime add table public.tasks;
 alter publication supabase_realtime add table public.attendance;
 alter publication supabase_realtime add table public.outreach_records;
 alter publication supabase_realtime add table public.leaves;
+
+-- 17. AI USAGE & RATE LIMITING LOGS
+create table if not exists public.ai_usage_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  feature text not null,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_ai_usage_user_feature_date on public.ai_usage_logs (user_id, feature, created_at);
+

@@ -1,10 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { verifyAuthAndRateLimit, logAiUsage, corsHeaders } from '../_shared/auth.ts'
 
 async function callGemini(prompt: string | object, apiKey: string): Promise<{text: string | null, modelUsed: string}> {
   const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
@@ -29,10 +24,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // 1. Verify caller identity via JWT and check rate limit (25 drafts / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'draft-outreach-message', 25);
+  if (errorResponse) return errorResponse;
+
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Missing Authorization header')
-    
     const { contact_name, company_name, channel } = await req.json()
     const apiKey = Deno.env.get('GEMINI_API_KEY')
     if (!apiKey) throw new Error('Missing GEMINI_API_KEY')
@@ -52,6 +48,14 @@ serve(async (req) => {
         } else {
             draft_text = `Subject: Placement Partnership\n\nHi ${contact_name},\n\nI'm reaching out from Placemein...`;
         }
+    }
+
+    if (auth?.user) {
+      await logAiUsage(auth.supabase, auth.user.id, 'draft-outreach-message', {
+        contact_name,
+        company_name,
+        channel,
+      });
     }
 
     return new Response(JSON.stringify({ draft_text }), {

@@ -1,10 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { verifyAuthAndRateLimit, logAiUsage, corsHeaders } from '../_shared/auth.ts'
 
 async function callGemini(prompt: string | object, apiKey: string): Promise<{text: string | null, modelUsed: string}> {
   const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
@@ -29,10 +24,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // 1. Verify caller identity via JWT and check rate limit (10 parses / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'parse-document-hr', 10);
+  if (errorResponse) return errorResponse;
+
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Missing Authorization header')
-    
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const rawText = formData.get('raw_text') as string || ''
@@ -92,16 +88,23 @@ serve(async (req) => {
       const phones = rawText.match(phoneRegex) || [];
       const linkedins = rawText.match(linkedinRegex) || [];
       
-      if (emails.length > 0 || phones.length > 0 || linkedins.length > 0) {
+      if (emails.length > 0 || linkedins.length > 0) {
         extractedData.hr_contacts.push({
           name: '', title: '',
           email: emails[0] || '',
-          phone: phones[0] || '',
+          phone: '', // Strict privacy rule
           linkedin_url: linkedins[0] ? `https://www.${linkedins[0]}` : ''
         });
       }
       success = true;
       message = 'Extracted using regex fallback';
+    }
+
+    if (auth?.user) {
+      await logAiUsage(auth.supabase, auth.user.id, 'parse-document-hr', {
+        company_name: extractedData?.company_name,
+        contact_count: extractedData?.hr_contacts?.length || 0,
+      });
     }
 
     return new Response(JSON.stringify({ success, data: extractedData, message }), {

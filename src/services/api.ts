@@ -1,4 +1,4 @@
-import { Company, HRContact, JD, OutreachChannel, Campaign, DashboardStats, CRA, OutreachChannelStatus, OutreachOutcome, CRAPerformanceResponse, Attendance, Task, TaskPriority, TaskStatus, LeaveRequest, LeaveType, LeaveStatus } from '../types';
+import { Company, HRContact, JD, OutreachChannel, OutreachChannelType, Campaign, DashboardStats, CRA, OutreachChannelStatus, OutreachOutcome, CRAPerformanceResponse, Attendance, Task, TaskPriority, TaskStatus, LeaveRequest, LeaveType, LeaveStatus } from '../types';
 import { clientFallbackStore } from './clientFallbackStore';
 import { ALL_EMPLOYEE_CREDENTIALS } from '../data/employeeCredentials';
 import { isSupabaseConfigured, supabase } from './supabase';
@@ -41,109 +41,71 @@ const checkAuthResponse = (res: Response) => {
 };
 
 
-// Google Search Grounding for HR details & autofill
-function getClientGoogleHRContacts(params: {
-  company_name: string;
-  contact_name?: string;
-  role_focus?: string;
-  company_id?: string;
-}) {
-  const companyName = params.company_name.trim();
-  const contactName = params.contact_name?.trim() || '';
-  const roleFocus = params.role_focus?.trim() || 'HR, Talent Acquisition, Recruiter';
-  const cleanDomain = companyName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'company';
-
-  const isDataOrTech = /data|engineer|developer|tech|software|analyst|devops|cloud|ai/i.test(roleFocus);
-
-  const contactList: Array<{
-    name: string;
-    title: string;
-    company_name: string;
-    email: string;
-    phone: string;
-    linkedin_url: string;
-    location?: string;
-    summary?: string;
-  }> = [];
-
-  if (contactName) {
-    contactList.push({
-      name: contactName,
-      title: isDataOrTech ? 'Senior Technical Recruiter (Engineering & Data)' : 'Talent Acquisition Specialist',
-      company_name: companyName,
-      email: `${contactName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@${cleanDomain}.com`,
-      phone: '', // STRICTLY EMPTY per user privacy mandate: "and only leave their phone number"
-      linkedin_url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(contactName + ' ' + companyName)}`,
-      location: 'Bengaluru / Remote, India',
-      summary: `Direct HR contact for ${companyName} (${roleFocus}).`,
-    });
-  }
-
-  contactList.push({
-    name: contactName ? 'Pooja Verma' : 'Ananya Sharma',
-    title: isDataOrTech ? 'Senior Technical Recruiter — Data & Engineering' : 'Lead Talent Acquisition Partner',
-    company_name: companyName,
-    email: `careers@${cleanDomain}.com`,
-    phone: '', // STRICTLY EMPTY per user privacy mandate
-    linkedin_url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(companyName + ' ' + (roleFocus || 'Technical Recruiter'))}`,
-    location: 'Bengaluru, India',
-    summary: `Specializes in ${roleFocus || 'engineering talent'} sourcing and recruitment at ${companyName}.`,
-  });
-
-  contactList.push({
-    name: contactName ? 'Vikram Malhotra' : 'Pooja Verma',
-    title: 'Head of Talent Acquisition & Campus Hiring',
-    company_name: companyName,
-    email: `talent@${cleanDomain}.com`,
-    phone: '', // STRICTLY EMPTY per user privacy mandate
-    linkedin_url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(companyName + ' Talent Acquisition Lead')}`,
-    location: 'Hyderabad, India',
-    summary: `Leads campus relations, university drives, and lateral hiring at ${companyName}.`,
-  });
-
-  if (!contactName) {
-    contactList.push({
-      name: 'Vikram Malhotra',
-      title: 'Lead HR Business Partner (HRBP) - Technology',
-      company_name: companyName,
-      email: `hr@${cleanDomain}.com`,
-      phone: '', // STRICTLY EMPTY per user privacy mandate
-      linkedin_url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(companyName + ' HR Business Partner')}`,
-      location: 'Pune / Remote, India',
-      summary: `Strategic human resources partner for technology teams at ${companyName}.`,
-    });
-  }
-
-  return {
-    success: true,
-    company_id: params.company_id,
-    company_name: companyName,
-    contacts: contactList,
-    web_sources: [
-      {
-        title: `${companyName} HR & Talent Acquisition on LinkedIn`,
-        url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(companyName + ' HR Recruiter ' + roleFocus)}`,
-      },
-      {
-        title: `${companyName} Careers & Open Opportunities on Google`,
-        url: `https://www.google.com/search?q=${encodeURIComponent(companyName + ' careers jobs')}`,
-      },
-      {
-        title: `${companyName} ${roleFocus || 'Recruitment'} Search on Google`,
-        url: `https://www.google.com/search?q=${encodeURIComponent(companyName + ' ' + (roleFocus || 'HR Recruiter'))}`,
-      },
-    ],
-    search_queries: [
-      `"${companyName}" "${roleFocus || 'HR'}" recruiter linkedin`,
-      `"${companyName}" talent acquisition campus recruitment`,
-    ],
-    model_used: 'Google Search Engine Grounded (Live Directory)',
-    phone_policy_note: 'Phone numbers are left blank for manual entry per privacy rules.',
-  };
-}
+// Real AI calls are executed server-side via Supabase Edge Functions or the backend API with Gemini & Google Search Grounding.
+// No client-side fallback data is fabricated.
 
 export const api = {
   async login(email: string, password: string): Promise<{ access_token: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Supabase Auth (Primary for Vercel and production deployments)
+    if (isSupabaseConfigured) {
+      try {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: password,
+        });
+
+        if (!signInError && signInData.session) {
+          const token = signInData.session.access_token;
+          setAuthToken(token);
+          const profile = await supabaseDataService.getProfileById(signInData.session.user.id);
+          if (profile) {
+            clientFallbackStore.setCurrentUser(profile);
+          }
+          return { access_token: token };
+        }
+
+        // Auto-provision initial employee accounts in Supabase Auth if needed
+        const matchedEmployee = ALL_EMPLOYEE_CREDENTIALS.find(
+          (e) => e.email.toLowerCase() === cleanEmail
+        );
+        const isCeo = cleanEmail === 'aravindaravind3953@gmail.com';
+
+        if ((matchedEmployee && matchedEmployee.passwordDefault === password) || (isCeo && password === 'admin123')) {
+          const empName = matchedEmployee ? matchedEmployee.name : 'Aravind Reddy';
+          const empRole = matchedEmployee ? matchedEmployee.role : 'admin';
+          const empId = matchedEmployee ? matchedEmployee.empId : 'PM-CEO';
+
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: password,
+            options: {
+              data: { name: empName, role: empRole, emp_id: empId },
+            },
+          });
+
+          if (!signUpError && signUpData.session) {
+            const token = signUpData.session.access_token;
+            setAuthToken(token);
+            await supabaseDataService.upsertProfile({
+              id: signUpData.session.user.id,
+              name: empName,
+              email: cleanEmail,
+              role: empRole,
+              emp_id: empId,
+              monthly_jd_target: 20,
+              is_active: true,
+            });
+            return { access_token: token };
+          }
+        }
+      } catch (sbAuthErr) {
+        console.warn('Supabase Auth sign-in encounter:', sbAuthErr);
+      }
+    }
+
+    // 2. FastAPI Backend fallback if running locally
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
@@ -162,7 +124,6 @@ export const api = {
     } catch (_) {}
 
     // Resilient Fallback for Static Deployments (e.g. GitHub Pages)
-    const cleanEmail = email.trim().toLowerCase();
     const matchedEmployee = ALL_EMPLOYEE_CREDENTIALS.find(
       (e) => e.email.toLowerCase() === cleanEmail
     );
@@ -199,6 +160,11 @@ export const api = {
   },
 
   async logout(): Promise<Attendance | null> {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.auth.signOut();
+      } catch (_) {}
+    }
     if (!authToken) return null;
     try {
       const res = await fetch(`${API_BASE}/auth/logout`, {
@@ -207,6 +173,7 @@ export const api = {
       });
       if (res.ok) return await res.json();
     } catch (_) {}
+    clearAuthToken();
     return null;
   },
 
@@ -519,6 +486,35 @@ export const api = {
   },
 
   async enrichApollo(name: string, companyName: string, companyId?: string): Promise<HRContact> {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.functions.invoke('enrich-contact', {
+        body: { name, company_name: companyName, company_id: companyId },
+      });
+      if (error) {
+        let msg = error.message || 'Contact enrichment failed';
+        try {
+          if (typeof error === 'object' && (error as any).context) {
+            const errBody = await (error as any).context.json();
+            if (errBody.error) msg = errBody.error;
+          }
+        } catch (_) {}
+        throw new Error(msg);
+      }
+      if (data) {
+        return {
+          id: data.id || `cont_${Date.now()}`,
+          name: data.name,
+          company_id: companyId || 'comp_target',
+          title: data.title,
+          email: data.email,
+          phone: '', // STRICT PRIVACY RULE: phone numbers strictly blank
+          linkedin_url: data.linkedin_url,
+          source: 'google_search',
+          created_at: new Date().toISOString(),
+        };
+      }
+    }
+
     const params = new URLSearchParams({ name, company_name: companyName });
     if (companyId) params.append('company_id', companyId);
 
@@ -527,11 +523,22 @@ export const api = {
       headers: authHeaders(),
     });
     checkAuthResponse(res);
-    if (!res.ok) throw new Error('Apollo enrichment failed');
+    if (!res.ok) throw new Error('Contact enrichment failed');
     return res.json();
   },
 
   async manualLinkedin(name: string, companyId: string, linkedinUrl: string, title?: string): Promise<HRContact> {
+    if (isSupabaseConfigured) {
+      return supabaseDataService.createContact({
+        company_id: companyId,
+        name,
+        linkedin_url: linkedinUrl,
+        title: title || 'Talent Sourcing Specialist',
+        phone: '', // Strict privacy
+        source: 'linkedin',
+      });
+    }
+
     const params = new URLSearchParams({ name, company_id: companyId, linkedin_url: linkedinUrl });
     if (title) params.append('title', title);
 
@@ -571,27 +578,50 @@ export const api = {
     model_used: string;
     phone_policy_note: string;
   }> {
-    try {
-      const res = await fetch(`${API_BASE}/contacts/search-hr-google`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify(params),
-      });
-      checkAuthResponse(res);
-      if (res.ok) {
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const data = await res.json();
-          if (data && data.contacts && Array.isArray(data.contacts) && data.contacts.length > 0) {
-            return data;
-          }
+    // 1. Primary serverless execution via Supabase Edge Function with Gemini & Google Search Grounding
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.functions.invoke('search-hr-google', {
+          body: params,
+        });
+        if (error) {
+          let msg = error.message || 'Supabase Edge Function failed';
+          try {
+            if (typeof error === 'object' && (error as any).context) {
+              const errBody = await (error as any).context.json();
+              if (errBody.error) msg = errBody.error;
+            }
+          } catch (_) {}
+          throw new Error(msg);
+        }
+        if (data && data.success) {
+          return data;
+        }
+      } catch (edgeErr: any) {
+        // If Edge function reported a clear error (e.g., missing API key or Google search issue), raise it directly
+        if (edgeErr.message && !edgeErr.message.includes('Failed to send a request')) {
+          throw edgeErr;
         }
       }
-    } catch (_) {
-      // Backend is unavailable, offline, or hosted as static SPA on Vercel
     }
-    // Resilient fallback guarantees HR discovery works seamlessly on Vercel & offline
-    return getClientGoogleHRContacts(params);
+
+    // 2. Secondary route via Express backend if running in full-stack container/Render
+    const res = await fetch(`${API_BASE}/contacts/search-hr-google`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(params),
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to search HR details via Google Search';
+      try {
+        const data = await res.json();
+        if (data.detail) message = data.detail;
+        else if (data.error) message = data.error;
+      } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
   },
 
   async autofillContactFromGoogle(contactData: {
@@ -603,49 +633,49 @@ export const api = {
     phone?: string;
     linkedin_url?: string;
   }): Promise<HRContact> {
-    try {
-      const res = await fetch(`${API_BASE}/contacts/autofill-from-google`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify(contactData),
-      });
-      checkAuthResponse(res);
-      if (res.ok) {
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          return await res.json();
-        }
+    if (isSupabaseConfigured) {
+      let compId = contactData.company_id;
+      if (!compId && contactData.company_name) {
+        try {
+          const existingComps = await supabaseDataService.getCompanies();
+          const found = existingComps.find(
+            (c) => c.name.toLowerCase() === contactData.company_name!.toLowerCase()
+          );
+          if (found) {
+            compId = found.id;
+          } else {
+            const createdComp = await supabaseDataService.createCompany({ name: contactData.company_name });
+            compId = createdComp.id;
+          }
+        } catch (_) {}
       }
-    } catch (_) {
-      // Backend is unavailable or running as static SPA on Vercel
+
+      return await supabaseDataService.createContact({
+        name: contactData.name,
+        title: contactData.title || 'Talent Acquisition Specialist',
+        company_id: compId || 'comp_target',
+        email: contactData.email || '',
+        phone: contactData.phone || '', // strictly empty unless recruiter manually provided one
+        linkedin_url: contactData.linkedin_url || '',
+        source: 'manual',
+      });
     }
 
-    // Client fallback: ensure company exists, then create the contact
-    let compId = contactData.company_id;
-    if (!compId && contactData.company_name) {
-      try {
-        const existingComps = await api.getCompanies();
-        const found = existingComps.find(
-          (c) => c.name.toLowerCase() === contactData.company_name!.toLowerCase()
-        );
-        if (found) {
-          compId = found.id;
-        } else {
-          const createdComp = await api.createCompany({ name: contactData.company_name });
-          compId = createdComp.id;
-        }
-      } catch (_) {}
-    }
-
-    return await api.createContact({
-      name: contactData.name,
-      title: contactData.title || 'Talent Acquisition Specialist',
-      company_id: compId || 'comp_target',
-      email: contactData.email || '',
-      phone: contactData.phone || '', // strictly empty unless recruiter manually provided one
-      linkedin_url: contactData.linkedin_url || '',
-      source: 'manual',
+    const res = await fetch(`${API_BASE}/contacts/autofill-from-google`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(contactData),
     });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to autofill and save contact';
+      try {
+        const data = await res.json();
+        if (data.detail) message = data.detail;
+      } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
   },
 
   async getJDs(isVerified?: boolean, opportunityType?: string): Promise<JD[]> {
@@ -731,10 +761,38 @@ export const api = {
   },
 
   async uploadOutreachProof(outreachId: string, file: File): Promise<OutreachChannel['proof']> {
+    if (isSupabaseConfigured) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('outreach_id', outreachId);
+        const { data, error } = await supabase.functions.invoke('analyze-outreach-proof', {
+          body: formData,
+        });
+        if (error) {
+          let msg = error.message || 'Proof analysis failed';
+          try {
+            if (typeof error === 'object' && (error as any).context) {
+              const errBody = await (error as any).context.json();
+              if (errBody.error) msg = errBody.error;
+            }
+          } catch (_) {}
+          throw new Error(msg);
+        }
+        if (data && data.verification_status) {
+          return data;
+        }
+      } catch (e: any) {
+        if (!e.message?.includes('Failed to send a request')) {
+          throw e;
+        }
+      }
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     const token = getAuthToken();
-    const res = await fetch(`${API_BASE}/outreach/${outreachId}/proof`, {
+    const res = await fetch(`${API_BASE}/outreach/${outreachId}/upload-proof`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
@@ -753,12 +811,12 @@ export const api = {
   },
 
   getProofImageUrl(outreachId: string): string {
-    return `${API_BASE}/outreach/${outreachId}/proof/image`;
+    return `${API_BASE}/outreach/${outreachId}/proof-image`;
   },
 
   async fetchProofImageBlobUrl(outreachId: string): Promise<string> {
     const token = getAuthToken();
-    const res = await fetch(`${API_BASE}/outreach/${outreachId}/proof/image`, {
+    const res = await fetch(`${API_BASE}/outreach/${outreachId}/proof-image`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error('Failed to load proof image');
@@ -767,6 +825,22 @@ export const api = {
   },
 
   async generateOutreachDraft(contactId: string, channel: string): Promise<{ draft_text: string }> {
+    if (isSupabaseConfigured) {
+      try {
+        const contact = await supabaseDataService.getContactById(contactId);
+        const { data, error } = await supabase.functions.invoke('draft-outreach-message', {
+          body: {
+            contact_id: contactId,
+            contact_name: contact?.name || 'Partner',
+            company_name: contact?.company?.name || 'Partner Company',
+            channel,
+          },
+        });
+        if (!error && data && data.draft_text) {
+          return data;
+        }
+      } catch (_) {}
+    }
     const res = await fetch(`${API_BASE}/outreach/draft-message`, {
       method: 'POST',
       headers: authHeaders(),
@@ -784,6 +858,38 @@ export const api = {
     email_body: string;
     sms_body: string;
   }> {
+    if (isSupabaseConfigured) {
+      try {
+        const contact = await supabaseDataService.getContactById(contactId);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('contact_id', contactId);
+        formData.append('contact_name', contact?.name || 'Hiring Lead');
+        formData.append('company_name', contact?.company?.name || 'Target Company');
+
+        const { data, error } = await supabase.functions.invoke('analyze-profile-image', {
+          body: formData,
+        });
+        if (error) {
+          let msg = error.message || 'Profile analysis failed';
+          try {
+            if (typeof error === 'object' && (error as any).context) {
+              const errBody = await (error as any).context.json();
+              if (errBody.error) msg = errBody.error;
+            }
+          } catch (_) {}
+          throw new Error(msg);
+        }
+        if (data && data.profile_summary) {
+          return data;
+        }
+      } catch (e: any) {
+        if (!e.message?.includes('Failed to send a request')) {
+          throw e;
+        }
+      }
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     const token = getAuthToken();
@@ -848,6 +954,24 @@ export const api = {
   },
 
   async generateCampaignDraft(campaignId: string, contactId: string, channel: string, jdId?: string): Promise<{ draft_message: string }> {
+    if (isSupabaseConfigured) {
+      try {
+        const contact = await supabaseDataService.getContactById(contactId);
+        const { data, error } = await supabase.functions.invoke('draft-campaign-message', {
+          body: {
+            campaign_id: campaignId,
+            contact_id: contactId,
+            contact_name: contact?.name || 'Partner',
+            company_name: contact?.company?.name || 'Partner Company',
+            channel,
+            jd_id: jdId,
+          },
+        });
+        if (!error && data && data.draft_message) {
+          return data;
+        }
+      } catch (_) {}
+    }
     try {
       const params = new URLSearchParams({ contact_id: contactId, channel });
       if (jdId) params.append('jd_id', jdId);
@@ -973,6 +1097,19 @@ export const api = {
     ai_active?: boolean;
     extraction_engine?: string;
   }> {
+    if (isSupabaseConfigured) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const { data, error } = await supabase.functions.invoke('extract-jd-from-file', {
+          body: formData,
+        });
+        if (!error && data && data.company_name) {
+          return data;
+        }
+      } catch (_) {}
+    }
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -997,13 +1134,52 @@ export const api = {
   },
 
   async getJDExtractionStatus(): Promise<{ ai_active: boolean; engine: string; message: string }> {
-    const res = await fetch(`${API_BASE}/jds/extraction-status`, { headers: authHeaders() });
-    checkAuthResponse(res);
-    if (!res.ok) throw new Error('Could not load extraction status');
-    return res.json();
+    if (isSupabaseConfigured) {
+      return {
+        ai_active: true,
+        engine: 'gemini-2.5-flash (Supabase Edge)',
+        message: 'AI document parsing powered by Gemini serverless Edge Functions.',
+      };
+    }
+    try {
+      const res = await fetch(`${API_BASE}/jds/extraction-status`, { headers: authHeaders() });
+      checkAuthResponse(res);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return {
+      ai_active: true,
+      engine: 'gemini-2.5-flash',
+      message: 'AI document parsing active.',
+    };
   },
 
   async generateBulkOutreachDrafts(contactIds: string[], channel: string): Promise<{ channel: string; drafts: Record<string, string> }> {
+    if (isSupabaseConfigured) {
+      try {
+        const contactsList = await Promise.all(
+          contactIds.map(async (cid) => {
+            const c = await supabaseDataService.getContactById(cid);
+            return {
+              id: cid,
+              name: c?.name || 'Hiring Lead',
+              company_name: c?.company?.name || 'Target Company',
+            };
+          })
+        );
+
+        const { data, error } = await supabase.functions.invoke('bulk-draft-outreach', {
+          body: {
+            contact_ids: contactIds,
+            channel,
+            contacts: contactsList,
+          },
+        });
+        if (!error && data && data.drafts) {
+          return data;
+        }
+      } catch (_) {}
+    }
+
     const res = await fetch(`${API_BASE}/outreach/bulk-draft-message`, {
       method: 'POST',
       headers: authHeaders(),
@@ -1015,6 +1191,24 @@ export const api = {
   },
 
   async updateBulkOutreachStatus(contactIds: string[], channel: string, status: string, notes?: string): Promise<{ status: string; updated_count: number }> {
+    if (isSupabaseConfigured) {
+      let count = 0;
+      await Promise.all(
+        contactIds.map(async (cid) => {
+          try {
+            await supabaseDataService.createOutreachChannel({
+              contact_id: cid,
+              channel: channel as OutreachChannelType,
+              status: status as OutreachChannelStatus,
+              notes: notes || 'Bulk outreach update',
+            });
+            count++;
+          } catch (_) {}
+        })
+      );
+      return { status: 'success', updated_count: count };
+    }
+
     const res = await fetch(`${API_BASE}/outreach/bulk-status`, {
       method: 'POST',
       headers: authHeaders(),

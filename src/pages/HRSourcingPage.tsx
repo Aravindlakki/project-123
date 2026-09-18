@@ -296,7 +296,7 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
                 }
               }}
               className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 text-xs font-bold transition hover:scale-[1.02] active:scale-[0.98]"
-              title="Open single contact entry & Apollo enrichment modal"
+              title="Open single contact entry & AI search enrichment modal"
             >
               <UserPlus className="h-4 w-4 text-purple-400" />
               <span>+ Add HR Contact</span>
@@ -1257,10 +1257,10 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
     }
   };
 
-  // Apollo Auto-Enrich
+  // AI Auto-Enrich via Gemini Search Grounding
   const handleApolloEnrich = async () => {
     if (!singleName.trim()) {
-      setModalError('Please enter the Contact Name before Apollo enrichment.');
+      setModalError('Please enter the Contact Name before AI enrichment.');
       return;
     }
     setEnrichingApollo(true);
@@ -1274,7 +1274,7 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
         if (enriched.linkedin_url) setSingleLinkedin(enriched.linkedin_url);
       }
     } catch (err: any) {
-      setModalError(err.message || 'Apollo enrichment failed');
+      setModalError(err.message || 'AI enrichment failed');
     } finally {
       setEnrichingApollo(false);
     }
@@ -1559,7 +1559,7 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
             }`}
           >
             <Users className="h-3.5 w-3.5" />
-            <span>Single Contact & Apollo</span>
+            <span>Single Contact & Enrich</span>
           </button>
         </div>
 
@@ -2088,7 +2088,7 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
             </div>
           )}
 
-          {/* Mode 3: Single Contact & Apollo */}
+          {/* Mode 3: Single Contact & AI Enrich */}
           {mode === 'single_apollo' && (
             <form onSubmit={handleSingleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2124,10 +2124,10 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
                       onClick={handleApolloEnrich}
                       disabled={enrichingApollo || !singleName.trim()}
                       className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 h-[34px]"
-                      title="Enrich with Apollo API by Name & Target Company"
+                      title="Enrich with Gemini Search Grounding by Name & Target Company"
                     >
                       <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-                      <span>{enrichingApollo ? 'Enriching...' : 'Apollo Enrich'}</span>
+                      <span>{enrichingApollo ? 'Enriching...' : 'AI Search Enrich'}</span>
                     </button>
                   </div>
                 </div>

@@ -287,6 +287,45 @@ export const supabaseDataService = {
     }
   },
 
+  async getContactById(contactId: string): Promise<HRContact | null> {
+    if (!isSupabaseConfigured) {
+      const contacts = clientFallbackStore.getContacts();
+      return contacts.find((c) => c.id === contactId) || null;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select(`
+          *,
+          company:companies(*)
+        `)
+        .eq('id', contactId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return {
+        id: data.id,
+        company_id: data.company_id,
+        name: data.name,
+        title: data.title || undefined,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        linkedin_url: data.linkedin_url || undefined,
+        domain: data.domain || undefined,
+        location: data.location || undefined,
+        remarks: data.remarks || undefined,
+        spoc: data.spoc || undefined,
+        source: data.source || 'manual',
+        created_by: data.created_by || undefined,
+        created_at: data.created_at,
+        company: data.company || undefined,
+      };
+    } catch (_) {
+      return null;
+    }
+  },
+
   async createContact(contact: Partial<HRContact>): Promise<HRContact> {
     if (!isSupabaseConfigured) {
       const newContact: HRContact = {
@@ -1232,6 +1271,50 @@ export const supabaseDataService = {
     } catch (err) {
       console.warn('[Supabase] Error loading users:', err);
       return clientFallbackStore.getUsers();
+    }
+  },
+
+  async getProfileById(id: string): Promise<CRA | null> {
+    if (!isSupabaseConfigured) {
+      return clientFallbackStore.getUsers().find((u) => u.id === id) || null;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        emp_id: data.emp_id,
+        monthly_jd_target: data.monthly_jd_target,
+        is_active: data.is_active,
+        created_at: data.created_at,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async upsertProfile(profile: Partial<CRA> & { id: string; email: string; name: string }): Promise<void> {
+    if (!isSupabaseConfigured) return;
+    try {
+      await supabase.from('profiles').upsert({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role || 'cra',
+        emp_id: profile.emp_id,
+        monthly_jd_target: profile.monthly_jd_target || 20,
+        is_active: profile.is_active !== undefined ? profile.is_active : true,
+      });
+    } catch (e) {
+      console.warn('[Supabase] Failed to upsert profile:', e);
     }
   },
 

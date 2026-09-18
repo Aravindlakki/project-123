@@ -1,10 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { verifyAuthAndRateLimit, logAiUsage, corsHeaders } from '../_shared/auth.ts'
 
 async function callGemini(prompt: string | object, apiKey: string): Promise<{text: string | null, modelUsed: string}> {
   const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
@@ -29,10 +24,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // 1. Verify caller identity via JWT and check rate limit (10 file parses / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'extract-jd-from-file', 10);
+  if (errorResponse) return errorResponse;
+
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Missing Authorization header')
-    
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     
@@ -84,6 +80,14 @@ serve(async (req) => {
             company_name = fnParts[0];
             role_title = fnParts.slice(1).join(' ').split('.')[0];
         }
+    }
+
+    if (auth?.user) {
+      await logAiUsage(auth.supabase, auth.user.id, 'extract-jd-from-file', {
+        filename: file.name,
+        company_name,
+        role_title,
+      });
     }
 
     return new Response(JSON.stringify({

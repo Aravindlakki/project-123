@@ -1,70 +1,173 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyAuthAndRateLimit, logAiUsage, corsHeaders } from '../_shared/auth.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-async function callGemini(prompt: string | object, apiKey: string): Promise<{text: string | null, modelUsed: string}> {
+async function callGeminiWithSearch(prompt: string, apiKey: string): Promise<{
+  text: string | null;
+  modelUsed: string;
+  webSources: Array<{ title: string; url: string }>;
+  searchQueries: string[];
+}> {
+  // Use Gemini 2.5 Flash with live Google Search tool
   const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+  
   for (const model of models) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const body = typeof prompt === 'string' 
-        ? { contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }
-        : { contents: [prompt], tools: [{ google_search: {} }] };
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!res.ok) continue;
+      const body = {
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ googleSearch: {} }],
+      };
+      
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        // Retry with google_search underscore notation if googleSearch isn't accepted
+        const altBody = {
+          contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }],
+        };
+        const altRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(altBody),
+        });
+        if (!altRes.ok) continue;
+        const data = await altRes.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+        const metadata = data?.candidates?.[0]?.groundingMetadata;
+        const webSources = (metadata?.groundingChunks || [])
+          .map((chunk: any) => ({
+            title: chunk.web?.title || 'Web Reference',
+            url: chunk.web?.uri || '',
+          }))
+          .filter((s: any) => s.url);
+        const searchQueries = metadata?.webSearchQueries || [];
+        if (text) return { text, modelUsed: model, webSources, searchQueries };
+        continue;
+      }
+
       const data = await res.json();
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-      if (text) return { text, modelUsed: model };
-    } catch { continue; }
+      const metadata = data?.candidates?.[0]?.groundingMetadata;
+      const webSources = (metadata?.groundingChunks || [])
+        .map((chunk: any) => ({
+          title: chunk.web?.title || 'Web Reference',
+          url: chunk.web?.uri || '',
+        }))
+        .filter((s: any) => s.url);
+      const searchQueries = metadata?.webSearchQueries || [];
+
+      if (text) return { text, modelUsed: model, webSources, searchQueries };
+    } catch {
+      continue;
+    }
   }
-  return { text: null, modelUsed: 'none' };
+  return { text: null, modelUsed: 'none', webSources: [], searchQueries: [] };
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
+  // 1. Verify caller identity via JWT and check rate limit (15 searches / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'search-hr-google', 15);
+  if (errorResponse) return errorResponse;
+
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Missing Authorization header')
-    
-    const { company_name, contact_name, role_focus } = await req.json()
-    const apiKey = Deno.env.get('GEMINI_API_KEY')
-    if (!apiKey) throw new Error('Missing GEMINI_API_KEY')
+    const body = await req.json();
+    const company_name = body.company_name?.trim();
+    const contact_name = body.contact_name?.trim();
+    const role_focus = body.role_focus?.trim() || 'HR, Talent Acquisition, Recruiter';
 
-    const promptText = `Search for HR/Talent Acquisition contacts at ${company_name}${contact_name ? ` named ${contact_name}` : ''}${role_focus ? ` focusing on ${role_focus}` : ''}. Return ONLY a JSON array of contacts: [{ "name": "", "title": "", "company_name": "${company_name}", "email": "", "phone": "", "linkedin_url": "", "location": "", "summary": "" }]`;
+    if (!company_name) {
+      throw new Error('company_name is required');
+    }
 
-    const { text, modelUsed } = await callGemini(promptText, apiKey);
-    
+    const apiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!apiKey) {
+      throw new Error(
+        'GEMINI_API_KEY is not configured in Supabase Edge Function Secrets. Please set GEMINI_API_KEY in your Supabase Dashboard under Project Settings -> Edge Functions -> Secrets.'
+      );
+    }
+
+    const promptText = `Use Google Search to find real, verified HR, Talent Acquisition, University Relations, Campus Hiring, or Recruiter professionals currently working at "${company_name}"${contact_name ? ` matching "${contact_name}"` : ''}.
+Focus role area: ${role_focus}.
+
+CRITICAL PRIVACY RULE:
+- Do NOT search for, guess, or output any phone numbers.
+- The phone field MUST strictly be an empty string ("").
+
+Return ONLY a JSON array of contacts:
+[
+  {
+    "name": "Full Name",
+    "title": "Exact Role / Title at ${company_name}",
+    "company_name": "${company_name}",
+    "email": "work email or corporate pattern if verified, else empty string",
+    "phone": "",
+    "linkedin_url": "real LinkedIn profile URL or search URL",
+    "location": "City, Country",
+    "summary": "Brief note on their focus area"
+  }
+]`;
+
+    const { text, modelUsed, webSources, searchQueries } = await callGeminiWithSearch(promptText, apiKey);
+
     let contacts = [];
     if (text) {
       try {
-        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        contacts = JSON.parse(jsonStr);
-        contacts = contacts.map((c: any) => ({ ...c, phone: '' }));
+        let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        cleanText = cleanText.replace(/^[^{[]*/, '').replace(/[^}\]]*$/, '');
+        const parsed = JSON.parse(cleanText);
+        const list = Array.isArray(parsed) ? parsed : [parsed];
+        contacts = list
+          .map((c: any) => ({
+            name: String(c.name || '').trim(),
+            title: String(c.title || 'Talent Acquisition Specialist').trim(),
+            company_name: String(c.company_name || company_name).trim(),
+            email: String(c.email || '').trim(),
+            phone: '', // MANDATORY PRIVACY: Phone numbers strictly empty
+            linkedin_url: String(c.linkedin_url || '').trim(),
+            location: c.location ? String(c.location).trim() : undefined,
+            summary: c.summary ? String(c.summary).trim() : undefined,
+          }))
+          .filter((c: any) => c.name.length > 0 && !c.name.toLowerCase().includes('recruitment team'));
       } catch (e) {
+        console.error('Failed to parse Gemini contacts JSON:', e);
       }
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      contacts,
-      web_sources: [],
-      search_queries: [],
-      model_used: modelUsed,
-      phone_policy_note: 'Phone numbers are left blank for manual entry per privacy rules.'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    if (auth?.user) {
+      await logAiUsage(auth.supabase, auth.user.id, 'search-hr-google', {
+        company_name,
+        contact_count: contacts.length,
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        company_name,
+        company_id: body.company_id,
+        contacts,
+        web_sources: webSources,
+        search_queries: searchQueries,
+        model_used: modelUsed,
+        phone_policy_note: 'Phone numbers are strictly left blank for manual recruiter entry per privacy policy.',
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: error.message || 'Search failed' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
-    })
+    });
   }
-})
+});
