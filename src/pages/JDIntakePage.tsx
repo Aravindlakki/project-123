@@ -654,12 +654,12 @@ Requirements:
       )}
 
       {/* Intake Mode Selection Tabs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Tab 1: File Upload */}
         <button
           type="button"
           onClick={() => handleMethodChange('file_ai_extract')}
-          className={`p-4 rounded-xl border text-left flex items-start space-x-3 transition ${
+          className={`p-4 rounded-xl border text-left flex items-start space-x-3 transition cursor-pointer ${
             intakeMethod === 'file_ai_extract'
               ? 'bg-indigo-900/30 border-indigo-500 text-white shadow-lg'
               : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-600'
@@ -670,7 +670,7 @@ Requirements:
             <div className="flex items-center gap-2 font-semibold text-sm">
               <span>File Upload (HTML / PDF / DOCX / Image)</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">Reads HTML, PDF, Word doc, or screenshot and pre-fills company and job title automatically.</p>
+            <p className="text-xs text-gray-400 mt-1">Direct file upload and batch processing. Automatically extracts job details and saves to CRM.</p>
           </div>
         </button>
 
@@ -678,7 +678,7 @@ Requirements:
         <button
           type="button"
           onClick={() => handleMethodChange('manual_entry')}
-          className={`p-4 rounded-xl border text-left flex items-start space-x-3 transition ${
+          className={`p-4 rounded-xl border text-left flex items-start space-x-3 transition cursor-pointer ${
             intakeMethod === 'manual_entry'
               ? 'bg-indigo-900/30 border-indigo-500 text-white shadow-lg'
               : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:border-gray-600'
@@ -688,16 +688,16 @@ Requirements:
           <div>
             <div className="flex items-center gap-2 font-semibold text-sm">
               <span>Manual Text Paste</span>
-              <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">Needs Review</span>
+              <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">Form Entry</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">Direct text copy-paste. Flagged for review until confirmed.</p>
+            <p className="text-xs text-gray-400 mt-1">Directly fill in company name, job title, and paste job description text.</p>
           </div>
         </button>
       </div>
 
-      <form noValidate onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-6 shadow-sm">
-        {/* File Upload Zone if File AI Extract mode */}
-        {intakeMethod === 'file_ai_extract' && (
+      {intakeMethod === 'file_ai_extract' ? (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-6 shadow-sm">
+          {/* File Upload Zone */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <label className="block text-sm font-medium text-gray-300">
@@ -811,7 +811,7 @@ Requirements:
                         e.stopPropagation();
                         fileInputRef.current?.click();
                       }}
-                      className="px-2.5 py-1 text-xs font-medium text-indigo-300 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-lg flex items-center gap-1 transition"
+                      className="px-2.5 py-1 text-xs font-medium text-indigo-300 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-lg flex items-center gap-1 transition cursor-pointer"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Add More Files
@@ -819,7 +819,7 @@ Requirements:
                     <button
                       type="button"
                       onClick={handleClearQueue}
-                      className="px-2 py-1 text-xs text-gray-400 hover:text-rose-400 rounded transition"
+                      className="px-2 py-1 text-xs text-gray-400 hover:text-rose-400 rounded transition cursor-pointer"
                       title="Clear queue"
                     >
                       Clear
@@ -886,7 +886,7 @@ Requirements:
                         <button
                           type="button"
                           onClick={() => handleRemoveStagedFile(item.id)}
-                          className="text-gray-400 hover:text-rose-400 p-1 rounded transition"
+                          className="text-gray-400 hover:text-rose-400 p-1 rounded transition cursor-pointer"
                           title="Remove file"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -924,246 +924,232 @@ Requirements:
                       type="button"
                       disabled={batchProcessing}
                       onClick={handleProcessBatch}
-                      className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition cursor-pointer text-sm"
+                      className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition cursor-pointer text-sm"
                     >
                       {batchProcessing ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Processing & Saving Batch to CRM...</span>
+                          <span>Processing & Saving to CRM...</span>
                         </>
                       ) : (
                         <>
                           <Sparkles className="h-4 w-4" />
                           <span>
-                            Process & Save All ({stagedFiles.filter((f) => f.status !== 'done').length}) Files to CRM
+                            {stagedFiles.filter((f) => f.status !== 'done').length === 1
+                              ? 'Process & Save 1 File to CRM'
+                              : `Process & Save All (${stagedFiles.filter((f) => f.status !== 'done').length}) Files to CRM`}
                           </span>
                         </>
                       )}
                     </button>
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* Confidence & Auto-fill Status Banner (Single file mode) */}
-            {extractionConfidence && (
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-gray-900/60 border-gray-700">
-                <div className="flex items-center space-x-2 text-xs">
-                  <File className="h-4 w-4 text-indigo-400" />
-                  <span className="text-gray-300">Active File: <strong>{extractedFilename}</strong></span>
-                </div>
-                {extractionConfidence === 'high' ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Auto-filled — High Confidence
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    Auto-filled — Please Verify ({extractionConfidence.toUpperCase()} confidence)
-                  </span>
+                {stagedFiles.length > 0 && stagedFiles.every((f) => f.status === 'done') && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between text-xs text-emerald-300">
+                    <span className="flex items-center gap-2 font-medium">
+                      <CheckCircle className="h-4 w-4 text-emerald-400" />
+                      All {stagedFiles.length} file(s) processed & saved to CRM successfully!
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1 bg-emerald-600/30 hover:bg-emerald-600/40 text-white font-semibold rounded transition cursor-pointer"
+                    >
+                      Upload More Files
+                    </button>
+                  </div>
                 )}
               </div>
             )}
-            {rawText && extractedFilename && (
-              <details className="rounded-lg border border-gray-700 bg-gray-950/50 p-3 text-xs">
-                <summary className="cursor-pointer font-semibold text-gray-200">View raw extracted text for {extractedFilename}</summary>
-                <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap text-gray-400 font-sans">{rawText}</pre>
-              </details>
-            )}
-            {htmlVerification !== null && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg border text-sm ${htmlVerification ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
-                {htmlVerification ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
-                <strong>{htmlVerification ? 'Verified' : 'Not Verified'}</strong>
-                <span className="text-gray-300">HTML file structure check</span>
-              </div>
-            )}
           </div>
-        )}
-
-        {/* Company Selection Mode Toggle & Inputs */}
-        <div className="space-y-3 bg-gray-900/40 p-4 rounded-xl border border-gray-700/60">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="text-sm font-semibold text-gray-200 flex items-center gap-1.5">
-              <Building2 className="h-4 w-4 text-indigo-400" />
-              Company Details *
-            </label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleQuickFillSample}
-                className="text-xs px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg flex items-center gap-1 transition"
-                title="Click to populate demo company & job details"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
-                <span>Fill Demo Sample</span>
-              </button>
-              <label className="inline-flex items-center cursor-pointer text-xs text-indigo-300 font-medium space-x-2">
-                <input
-                  type="checkbox"
-                  checked={useExistingCompany}
-                  onChange={(e) => {
-                    setUseExistingCompany(e.target.checked);
-                    if (e.target.checked && companies.length > 0) {
-                      setCompanyInput(companies[0].name);
-                      setIndustryInput(companies[0].industry || '');
-                      setFormErrors((prev) => ({ ...prev, company: undefined }));
-                    }
-                  }}
-                  className="rounded border-gray-600 bg-gray-800 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span>Select Existing Company</span>
+        </div>
+      ) : (
+        <form noValidate onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-6 shadow-sm">
+          {/* Company Selection Mode Toggle & Inputs */}
+          <div className="space-y-3 bg-gray-900/40 p-4 rounded-xl border border-gray-700/60">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-sm font-semibold text-gray-200 flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-indigo-400" />
+                Company Details *
               </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleQuickFillSample}
+                  className="text-xs px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                  title="Click to populate demo company & job details"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                  <span>Fill Demo Sample</span>
+                </button>
+                <label className="inline-flex items-center cursor-pointer text-xs text-indigo-300 font-medium space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={useExistingCompany}
+                    onChange={(e) => {
+                      setUseExistingCompany(e.target.checked);
+                      if (e.target.checked && companies.length > 0) {
+                        setCompanyInput(companies[0].name);
+                        setIndustryInput(companies[0].industry || '');
+                        setFormErrors((prev) => ({ ...prev, company: undefined }));
+                      }
+                    }}
+                    className="rounded border-gray-600 bg-gray-800 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                  />
+                  <span>Select Existing Company</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+              <div className="md:col-span-2">
+                {useExistingCompany ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1">Choose Existing Company</label>
+                    <select
+                      value={companyInput}
+                      onChange={(e) => {
+                        setCompanyInput(e.target.value);
+                        const selectedComp = companies.find((c) => c.name === e.target.value);
+                        if (selectedComp) {
+                          setIndustryInput(selectedComp.industry || '');
+                        }
+                        if (e.target.value) {
+                          setFormErrors((prev) => ({ ...prev, company: undefined }));
+                        }
+                      }}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm font-semibold"
+                    >
+                      {companies.length === 0 ? (
+                        <option value="">No existing companies found</option>
+                      ) : (
+                        companies.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name} {c.industry ? `(${c.industry})` : ''}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1">Company Name *</label>
+                    <input
+                      type="text"
+                      list="existing-companies-list"
+                      placeholder="e.g. Google, Stripe, Acme Corp..."
+                      value={companyInput}
+                      onChange={(e) => {
+                        setCompanyInput(e.target.value);
+                        if (e.target.value.trim()) {
+                          setFormErrors((prev) => ({ ...prev, company: undefined }));
+                        }
+                      }}
+                      className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none text-sm ${
+                        formErrors.company
+                          ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/50'
+                          : 'border-gray-700 focus:border-indigo-500'
+                      }`}
+                    />
+                    {formErrors.company && (
+                      <p className="text-xs text-rose-400 mt-1">{formErrors.company}</p>
+                    )}
+                    <datalist id="existing-companies-list">
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.name} />
+                      ))}
+                    </datalist>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-1">Industry (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Software, FinTech"
+                  value={industryInput}
+                  onChange={(e) => setIndustryInput(e.target.value)}
+                  disabled={useExistingCompany && !!industryInput}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm disabled:opacity-60"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+          {/* Job Title & Opportunity Type */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              {useExistingCompany ? (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Choose Existing Company</label>
-                  <select
-                    value={companyInput}
-                    onChange={(e) => {
-                      setCompanyInput(e.target.value);
-                      const selectedComp = companies.find((c) => c.name === e.target.value);
-                      if (selectedComp) {
-                        setIndustryInput(selectedComp.industry || '');
-                      }
-                      if (e.target.value) {
-                        setFormErrors((prev) => ({ ...prev, company: undefined }));
-                      }
-                    }}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm font-semibold"
-                  >
-                    {companies.length === 0 ? (
-                      <option value="">No existing companies found</option>
-                    ) : (
-                      companies.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name} {c.industry ? `(${c.industry})` : ''}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Company Name *</label>
-                  <input
-                    type="text"
-                    list="existing-companies-list"
-                    placeholder="e.g. Google, Stripe, Acme Corp..."
-                    value={companyInput}
-                    onChange={(e) => {
-                      setCompanyInput(e.target.value);
-                      if (e.target.value.trim()) {
-                        setFormErrors((prev) => ({ ...prev, company: undefined }));
-                      }
-                    }}
-                    className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none text-sm ${
-                      formErrors.company
-                        ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/50'
-                        : 'border-gray-700 focus:border-indigo-500'
-                    }`}
-                  />
-                  {formErrors.company && (
-                    <p className="text-xs text-rose-400 mt-1">{formErrors.company}</p>
-                  )}
-                  <datalist id="existing-companies-list">
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.name} />
-                    ))}
-                  </datalist>
-                </div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Job / Opportunity Title *</label>
+              <input
+                type="text"
+                placeholder="e.g. Senior Fullstack Engineer"
+                value={jdTitle}
+                onChange={(e) => {
+                  setJdTitle(e.target.value);
+                  if (e.target.value.trim()) {
+                    setFormErrors((prev) => ({ ...prev, title: undefined }));
+                  }
+                }}
+                className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none text-sm ${
+                  formErrors.title
+                    ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/50'
+                    : 'border-gray-700 focus:border-indigo-500'
+                }`}
+              />
+              {formErrors.title && (
+                <p className="text-xs text-rose-400 mt-1">{formErrors.title}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">Industry (Optional)</label>
-              <input
-                type="text"
-                placeholder="e.g. Software, FinTech"
-                value={industryInput}
-                onChange={(e) => setIndustryInput(e.target.value)}
-                disabled={useExistingCompany && !!industryInput}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm disabled:opacity-60"
-              />
+              <label className="block text-sm font-medium text-gray-300 mb-1">Opportunity Type</label>
+              <select
+                value={opportunityType}
+                onChange={(e: any) => setOpportunityType(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm"
+              >
+                <option value="existing_post">Existing Job Post</option>
+                <option value="cold_outreach">Cold Outreach Target</option>
+              </select>
             </div>
           </div>
-        </div>
 
-        {/* Job Title & Opportunity Type */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Job / Opportunity Title *</label>
-            <input
-              type="text"
-              placeholder="e.g. Senior Fullstack Engineer"
-              value={jdTitle}
-              onChange={(e) => {
-                setJdTitle(e.target.value);
-                if (e.target.value.trim()) {
-                  setFormErrors((prev) => ({ ...prev, title: undefined }));
-                }
-              }}
-              className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none text-sm ${
-                formErrors.title
-                  ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/50'
-                  : 'border-gray-700 focus:border-indigo-500'
-              }`}
-            />
-            {formErrors.title && (
-              <p className="text-xs text-rose-400 mt-1">{formErrors.title}</p>
-            )}
-          </div>
-
+          {/* Raw Text */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Opportunity Type</label>
-            <select
-              value={opportunityType}
-              onChange={(e: any) => setOpportunityType(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm"
-            >
-              <option value="cold_outreach">Cold Outreach Target</option>
-              <option value="existing_post">Existing Job Post</option>
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-300">Job Description Text (Optional)</label>
+              <span className="text-xs text-gray-500">Auto-generated summary used if left empty</span>
+            </div>
+            <textarea
+              rows={5}
+              placeholder="Paste full job specification, responsibilities, requirements, or tech stack (optional)..."
+              value={rawText}
+              onChange={(e) => setRawText(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm font-mono"
+            ></textarea>
           </div>
-        </div>
 
-        {/* Raw Text */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-gray-300">Job Description Text (Optional)</label>
-            <span className="text-xs text-gray-500">Auto-generated summary used if left empty</span>
-          </div>
-          <textarea
-            rows={5}
-            placeholder="Paste full job specification, responsibilities, requirements, or tech stack (optional)..."
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm font-mono"
-          ></textarea>
-        </div>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg flex items-center justify-center space-x-2 transition shadow-md cursor-pointer"
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Saving Opportunity to CRM...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-5 w-5" />
-              <span>Submit & Save Opportunity to CRM</span>
-            </>
-          )}
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg flex items-center justify-center space-x-2 transition shadow-md cursor-pointer"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Saving Opportunity to CRM...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5" />
+                <span>Submit & Save Opportunity to CRM</span>
+              </>
+            )}
+          </button>
+        </form>
+      )}
 
       {/* Logged JDs & Verification Badges */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-4">
