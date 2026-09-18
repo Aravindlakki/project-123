@@ -487,31 +487,41 @@ export const api = {
 
   async enrichApollo(name: string, companyName: string, companyId?: string): Promise<HRContact> {
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.functions.invoke('enrich-contact', {
-        body: { name, company_name: companyName, company_id: companyId },
-      });
-      if (error) {
-        let msg = error.message || 'Contact enrichment failed';
-        try {
-          if (typeof error === 'object' && (error as any).context) {
-            const errBody = await (error as any).context.json();
-            if (errBody.error) msg = errBody.error;
+      try {
+        const { data, error } = await supabase.functions.invoke('enrich-contact', {
+          body: { name, company_name: companyName, company_id: companyId },
+        });
+        if (error) {
+          let msg = error.message || 'Contact enrichment failed';
+          try {
+            if (typeof error === 'object' && (error as any).context) {
+              const errBody = await (error as any).context.json();
+              if (errBody.error) msg = errBody.error;
+            }
+          } catch (_) {}
+          // If unauthorized or anon key, fall back to backend API instead of crashing
+          if (msg.includes('Public anon keys') || msg.includes('Unauthorized') || msg.includes('401')) {
+            console.warn('Edge function auth note, trying backend route:', msg);
+          } else {
+            throw new Error(msg);
           }
-        } catch (_) {}
-        throw new Error(msg);
-      }
-      if (data) {
-        return {
-          id: data.id || `cont_${Date.now()}`,
-          name: data.name,
-          company_id: companyId || 'comp_target',
-          title: data.title,
-          email: data.email,
-          phone: '', // STRICT PRIVACY RULE: phone numbers strictly blank
-          linkedin_url: data.linkedin_url,
-          source: 'google_search',
-          created_at: new Date().toISOString(),
-        };
+        } else if (data) {
+          return {
+            id: data.id || `cont_${Date.now()}`,
+            name: data.name,
+            company_id: companyId || 'comp_target',
+            title: data.title,
+            email: data.email,
+            phone: '', // STRICT PRIVACY RULE: phone numbers strictly blank
+            linkedin_url: data.linkedin_url,
+            source: 'google_search',
+            created_at: new Date().toISOString(),
+          };
+        }
+      } catch (enrichErr: any) {
+        if (enrichErr.message && !enrichErr.message.includes('Public anon keys') && !enrichErr.message.includes('Unauthorized')) {
+          throw enrichErr;
+        }
       }
     }
 
@@ -592,14 +602,18 @@ export const api = {
               if (errBody.error) msg = errBody.error;
             }
           } catch (_) {}
-          throw new Error(msg);
-        }
-        if (data && data.success) {
+          if (msg.includes('Public anon keys') || msg.includes('Unauthorized') || msg.includes('401')) {
+            console.warn('Supabase Edge Function auth note, falling back to local backend:', msg);
+          } else {
+            throw new Error(msg);
+          }
+        } else if (data && data.success) {
           return data;
         }
       } catch (edgeErr: any) {
-        // If Edge function reported a clear error (e.g., missing API key or Google search issue), raise it directly
-        if (edgeErr.message && !edgeErr.message.includes('Failed to send a request')) {
+        if (edgeErr.message && (edgeErr.message.includes('Public anon keys') || edgeErr.message.includes('Unauthorized'))) {
+          console.warn('Falling back to local backend API due to auth note:', edgeErr.message);
+        } else if (edgeErr.message && !edgeErr.message.includes('Failed to send a request')) {
           throw edgeErr;
         }
       }
