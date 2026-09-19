@@ -64,7 +64,7 @@ export interface JD {
   company_id: string;
   raw_text: string;
   is_verified: boolean;
-  verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract';
+  verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract' | 'pdf_upload';
   opportunity_type: OpportunityType;
   date_found: string;
   created_by?: string;

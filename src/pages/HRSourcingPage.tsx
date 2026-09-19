@@ -35,6 +35,7 @@ import {
   Copy,
   Download,
   Trash2,
+  Clock,
 } from 'lucide-react';
 
 interface HRSourcingPageProps {
@@ -658,17 +659,31 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
 
                         {/* Column 3: Verification Status Badge */}
                         <td className="px-4 py-4">
-                          {isAutoVerified ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-xs">
-                              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-                              Auto-Verified
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-xs">
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                              Needs Review
-                            </span>
-                          )}
+                          {(() => {
+                            const isPdfSource = jd.verification_source === 'pdf_upload' || jd.raw_text?.toLowerCase().includes('.pdf');
+                            if (isAutoVerified) {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-xs">
+                                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                                  {isPdfSource ? 'Manager Approved' : 'Auto-Verified'}
+                                </span>
+                              );
+                            }
+                            if (isPdfSource) {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-xs" title="PDFs require manual manager/admin approval">
+                                  <Clock className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                  PDF · Needs Approval
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-xs">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                Needs Review
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         {/* Column 4: Date Added */}

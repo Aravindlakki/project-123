@@ -247,100 +247,116 @@ export const App: React.FC = () => {
         onCloseMobile={() => setMobileMenuOpen(false)}
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        <header className={`backdrop-blur-md border-b px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-40 ${adminMode ? 'bg-amber-950/50 border-amber-800/40' : 'bg-purple-950/60 border-purple-800/40'}`}>
-          <div className="flex items-center gap-2 sm:gap-3">
+        <header className={`backdrop-blur-md border-b px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-40 ${adminMode ? 'bg-amber-950/70 border-amber-800/40' : 'bg-purple-950/70 border-purple-800/40'}`}>
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Hamburger button for mobile & tablet toggle */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-1.5 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 transition"
+              className="lg:hidden p-2 rounded-xl text-gray-200 hover:text-white hover:bg-white/10 active:bg-white/20 transition shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              aria-label="Open Navigation Menu"
               title="Open Navigation"
             >
               <Menu className="h-5 w-5" />
             </button>
 
-            <span className={`text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full border ${adminMode ? 'text-amber-200 bg-amber-900/50 border-amber-700/50' : 'text-purple-200 bg-purple-900/50 border-purple-700/50'}`}>
-              {adminMode ? `Admin · ${heading}` : `Employee portal · ${heading}`}
+            {/* Title Badge - Compact on Mobile, Full on Desktop */}
+            <span className={`text-[11px] sm:text-xs font-black uppercase tracking-wider px-2.5 sm:px-3 py-1 rounded-full border truncate max-w-[140px] sm:max-w-none ${adminMode ? 'text-amber-200 bg-amber-900/50 border-amber-700/50' : 'text-purple-200 bg-purple-900/50 border-purple-700/50'}`}>
+              <span className="sm:hidden">{adminMode ? 'Admin' : 'CRA'} · {heading}</span>
+              <span className="hidden sm:inline">{adminMode ? `Admin · ${heading}` : `Employee portal · ${heading}`}</span>
             </span>
 
-            {/* Admin Portal Gateway Controls */}
+            {/* Persistent Live Database Connection Indicator - Always visible & noticeable on ALL screen sizes */}
+            <div
+              className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-semibold border shrink-0 transition-colors ${
+                isSupabaseConfigured
+                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                  : 'bg-amber-950/80 border-amber-500/50 text-amber-300'
+              }`}
+              title={
+                isSupabaseConfigured
+                  ? 'Supabase Cloud Database connected and operational.'
+                  : 'Supabase credentials are not set. App is running in LocalStorage mode.'
+              }
+            >
+              <Database className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline text-[11px]">
+                {isSupabaseConfigured ? 'Supabase' : 'Local DB'}
+              </span>
+              <span
+                className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                  isSupabaseConfigured
+                    ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.9)]'
+                    : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]'
+                }`}
+                aria-label={isSupabaseConfigured ? 'Database Connected' : 'Database Offline/Local'}
+              />
+            </div>
+
+            {/* Admin Portal Gateway Controls - Visible on tablet/desktop */}
             {adminMode ? (
               <button
                 onClick={handleExitAdmin}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-purple-900/50 hover:bg-purple-800/70 text-purple-200 border border-purple-600/50 shadow-sm"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-purple-900/50 hover:bg-purple-800/70 text-purple-200 border border-purple-600/50 shadow-sm"
               >
                 <User className="h-3.5 w-3.5 text-purple-300" />
-                <span>Exit to Employee View</span>
+                <span>Exit to Employee</span>
               </button>
             ) : (
               <button
                 onClick={() => setShowAdminLoginModal(true)}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-amber-900/50 hover:bg-amber-800/70 text-amber-200 border border-amber-600/50 shadow-sm"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-amber-900/50 hover:bg-amber-800/70 text-amber-200 border border-amber-600/50 shadow-sm"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-amber-300" />
-                <span>Admin Portal (Login)</span>
+                <span>Admin Login</span>
               </button>
             )}
 
             {/* Quick System Report PDF Generator */}
             <button
               onClick={() => setShowSystemReportModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-purple-800/60 to-indigo-800/60 hover:from-purple-700 hover:to-indigo-700 text-white border border-purple-500/40 shadow-sm cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-purple-800/60 to-indigo-800/60 hover:from-purple-700 hover:to-indigo-700 text-white border border-purple-500/40 shadow-sm cursor-pointer shrink-0"
               title="Open System Architecture Report & Export PDF"
             >
               <FileText className="h-3.5 w-3.5 text-purple-300" />
               <span className="hidden md:inline">System Report</span>
-              <span className="text-[10px] bg-purple-500/30 px-1.5 py-0.2 rounded text-purple-200 font-extrabold uppercase">PDF</span>
+              <span className="text-[9px] bg-purple-500/30 px-1.5 py-0.5 rounded text-purple-200 font-extrabold uppercase">PDF</span>
             </button>
-
-            {/* Live Database Connection Indicator */}
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border ${
-                isSupabaseConfigured
-                  ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300'
-                  : 'bg-amber-950/70 border-amber-500/50 text-amber-300'
-              }`}
-              title={
-                isSupabaseConfigured
-                  ? 'Supabase Cloud Database connected and operational.'
-                  : 'Supabase credentials (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) are not set. App is running in LocalStorage mode.'
-              }
-            >
-              <Database className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">
-                {isSupabaseConfigured ? 'Supabase: Connected' : 'DB: Local (Supabase Not Configured)'}
-              </span>
-              <span className="lg:hidden">
-                {isSupabaseConfigured ? 'Supabase' : 'Local DB'}
-              </span>
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isSupabaseConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-                }`}
-              />
-            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Mobile PDF export shortcut button */}
+            <button
+              onClick={() => setShowSystemReportModal(true)}
+              className="sm:hidden p-2 rounded-xl text-purple-200 hover:text-white bg-purple-900/40 border border-purple-700/50 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              title="System Report PDF"
+              aria-label="Export System Report PDF"
+            >
+              <FileText className="h-4 w-4 text-purple-300" />
+            </button>
+
+            {/* Profile Avatar Button */}
             <button
               onClick={() => navigate(adminMode ? 'admin-performance' : 'performance')}
-              className="flex items-center gap-2 text-xs text-right"
+              className="flex items-center gap-2 text-xs text-right min-h-[44px] p-1 rounded-xl hover:bg-white/5 transition"
+              aria-label="User Profile"
             >
-              <span className="hidden sm:block">
+              <span className="hidden md:block">
                 <b>{currentUser.email?.toLowerCase().includes('aravind') || currentUser.name?.toLowerCase().includes('aravind') ? 'Aravind Reddy' : currentUser.name}</b>
                 <br />
                 <span className={adminMode ? 'text-amber-300 font-medium' : 'text-purple-300 font-medium'}>
                   {currentUser.email?.toLowerCase().includes('aravind') || currentUser.name?.toLowerCase().includes('aravind')
                     ? 'CRA for Placemein'
-                    : (adminMode ? 'Admin Portal Active' : 'Employee Workspace')}
+                    : (adminMode ? 'Admin Portal' : 'Employee Portal')}
                 </span>
               </span>
-              <span className={`p-2 rounded-xl ${adminMode ? 'bg-amber-700' : 'bg-purple-700'}`}>
+              <span className={`p-2 rounded-xl shrink-0 ${adminMode ? 'bg-amber-700 text-white' : 'bg-purple-700 text-white'}`}>
                 {adminMode ? <ShieldCheck className="h-4 w-4" /> : <User className="h-4 w-4" />}
               </span>
             </button>
           </div>
         </header>
 
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
           {activeTab === 'dashboard' && <DashboardPage setActiveTab={navigate} />}
           {activeTab === 'team-sheets' && <TeamSheetsPage currentUser={currentUser} />}
           {activeTab === 'tasks' && <TaskManagementPage employeeMode />}

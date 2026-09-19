@@ -14,35 +14,47 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static">
       <div 
         id="placemein-report-document"
-        className="bg-gray-950 text-gray-100 border border-gray-800 rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-full print:bg-white print:text-black print:rounded-none"
+        className="bg-gray-950 text-gray-100 border-0 sm:border border-gray-800 rounded-none sm:rounded-3xl w-full max-w-5xl h-full sm:h-auto sm:max-h-[92vh] flex flex-col shadow-2xl overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-full print:bg-white print:text-black print:rounded-none"
       >
         {/* Top Control Bar (Hidden during printing) */}
-        <div className="p-4 sm:p-5 border-b border-gray-800 bg-gray-900/80 flex items-center justify-between gap-4 print:hidden">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-purple-600/20 border border-purple-500/30 text-purple-300">
-              <FileText className="h-5 w-5 text-purple-400" />
+        <div className="p-3.5 sm:p-5 border-b border-gray-800 bg-gray-900/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 print:hidden shrink-0">
+          <div className="flex items-center justify-between sm:justify-start gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-purple-600/20 border border-purple-500/30 text-purple-300 shrink-0">
+                <FileText className="h-5 w-5 text-purple-400" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm sm:text-lg font-black text-white flex items-center gap-1.5 sm:gap-2 truncate">
+                  <span className="truncate">PLACEMEIN Blueprint</span>
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
+                    PDF
+                  </span>
+                </h2>
+                <p className="text-[11px] sm:text-xs text-gray-400 truncate hidden sm:block">
+                  Click <b>Save / Print as PDF</b> to download this complete architectural report.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                PLACEMEIN End-to-End System Report & Blueprint
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  Ready for PDF
-                </span>
-              </h2>
-              <p className="text-xs text-gray-400">
-                Click <b>Save / Print as PDF</b> to download this complete architectural report as a PDF.
-              </p>
-            </div>
+
+            {/* Mobile Close Button on header row */}
+            <button
+              onClick={onClose}
+              className="sm:hidden p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl border border-gray-700 transition cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
+              title="Close modal"
+              aria-label="Close modal"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
               id="btn-print-pdf-report"
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black rounded-xl shadow-lg shadow-purple-900/40 transition cursor-pointer"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black rounded-xl shadow-lg shadow-purple-900/40 transition cursor-pointer min-h-[44px]"
             >
               <Printer className="h-4 w-4" />
               <span>Save / Print as PDF</span>
@@ -50,8 +62,9 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
             <button
               onClick={onClose}
               id="btn-close-pdf-modal"
-              className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl border border-gray-700 transition cursor-pointer"
+              className="hidden sm:flex p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl border border-gray-700 transition cursor-pointer min-h-[44px] min-w-[44px] items-center justify-center"
               title="Close modal"
+              aria-label="Close modal"
             >
               <X className="h-4 w-4" />
             </button>

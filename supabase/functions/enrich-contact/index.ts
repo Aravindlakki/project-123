@@ -43,8 +43,8 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // 1. Verify caller identity via JWT and check rate limit (15 enrichment calls / day, max 60 total calls across all tools)
-  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'enrich-contact', 15);
+  // 1. Verify caller identity via JWT and check rate limit (10 enrichment calls / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'enrich-contact', 10);
   if (errorResponse) return errorResponse;
 
   try {

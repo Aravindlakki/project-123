@@ -74,8 +74,8 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // 1. Verify caller identity via JWT and check rate limit (15 searches / day, max 60 total calls across all tools)
-  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'search-hr-google', 15);
+  // 1. Verify caller identity via JWT and check rate limit (30 searches / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'search-hr-google', 30);
   if (errorResponse) return errorResponse;
 
   try {

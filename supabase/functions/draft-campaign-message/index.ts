@@ -24,8 +24,8 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // 1. Verify caller identity via JWT and check rate limit (20 drafts / day, max 60 total calls across all tools)
-  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'draft-campaign-message', 20);
+  // 1. Verify caller identity via JWT and check rate limit (10 drafts / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'draft-campaign-message', 10);
   if (errorResponse) return errorResponse;
 
   try {

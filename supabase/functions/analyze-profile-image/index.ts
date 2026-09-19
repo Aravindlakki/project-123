@@ -46,8 +46,8 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // 1. Verify caller identity via JWT and check rate limit (10 vision calls / day, max 60 total calls across all tools)
-  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'analyze-profile-image', 10);
+  // 1. Verify caller identity via JWT and check rate limit (5 vision calls / day, max 60 total calls across all tools)
+  const { errorResponse, auth } = await verifyAuthAndRateLimit(req, 'analyze-profile-image', 5);
   if (errorResponse) return errorResponse;
 
   try {

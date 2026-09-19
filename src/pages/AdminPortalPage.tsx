@@ -506,6 +506,11 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                           {jd.company?.name || 'Company'}
                         </span>
+                        {(jd.verification_source === 'pdf_upload' || jd.raw_text?.toLowerCase().includes('.pdf')) && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            PDF Upload · Manual Check Required
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-amber-200/70 line-clamp-2 max-w-2xl">
                         {jd.raw_text}

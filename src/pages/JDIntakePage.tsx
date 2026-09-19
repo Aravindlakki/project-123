@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Company, JD } from '../types';
+import { Company, JD, CRA } from '../types';
 import { formatIndianDate } from '../utils/formatters';
 import {
   FileText,
@@ -21,7 +21,8 @@ import {
   Layers,
   Check,
   RefreshCw,
-  Info
+  Info,
+  Clock,
 } from 'lucide-react';
 
 interface StagedFileItem {
@@ -133,6 +134,11 @@ const formatFileSize = (bytes: number) => {
 export const JDIntakePage: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [recentJDs, setRecentJDs] = useState<JD[]>([]);
+  const [currentUser, setCurrentUser] = useState<CRA | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    return sessionStorage.getItem('placemein:admin_verified') === 'true';
+  });
+  const [verifyingJdId, setVerifyingJdId] = useState<string | null>(null);
   const [useExistingCompany, setUseExistingCompany] = useState<boolean>(false);
   const [companyInput, setCompanyInput] = useState('');
   const [industryInput, setIndustryInput] = useState('');
@@ -188,10 +194,38 @@ Requirements:
     }
   };
 
+  const handleVerifyJD = async (jdId: string, verify: boolean) => {
+    setVerifyingJdId(jdId);
+    try {
+      await api.verifyJD(jdId, verify);
+      setMessage({
+        type: 'success',
+        text: verify
+          ? 'Opportunity approved and marked as verified by Manager/Admin!'
+          : 'Opportunity marked as unverified / rejected.',
+      });
+      await loadJDs();
+    } catch (err: any) {
+      setMessage({
+        type: 'error',
+        text: err.message || 'Failed to update opportunity verification status',
+      });
+    } finally {
+      setVerifyingJdId(null);
+    }
+  };
+
   useEffect(() => {
     api.getCompanies().then(setCompanies).catch(console.error);
     loadJDs();
     api.getJDExtractionStatus().then(setExtractionStatus).catch(() => undefined);
+    api.getCurrentCRA()
+      .then((user) => {
+        setCurrentUser(user);
+        const adminVerified = sessionStorage.getItem('placemein:admin_verified') === 'true';
+        setIsAdmin(user?.role === 'admin' || adminVerified);
+      })
+      .catch(() => undefined);
   }, []);
 
   const handleMethodChange = (method: 'file_ai_extract' | 'manual_entry') => {
@@ -270,10 +304,22 @@ Requirements:
         const formattedRaw = `[Source File: ${res.filename}]\n\n${res.raw_text}`;
         setRawText(formattedRaw);
 
-        setMessage({
-          type: 'success',
-          text: `Extracted text from '${res.filename}' with ${res.confidence.toUpperCase()} confidence. Review auto-filled fields below.${res.ocr_warning ? ` ${res.ocr_warning}` : ''}`,
-        });
+        const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+        if (isPdf) {
+          setIsVerified(false);
+          setHtmlVerification(false);
+          setMessage({
+            type: 'success',
+            text: `Extracted text from PDF '${res.filename}'. Note: As a PDF document, it requires Manager/Admin manual approval before verification.`,
+          });
+        } else {
+          setIsVerified(res.confidence === 'high');
+          setHtmlVerification(res.confidence === 'high');
+          setMessage({
+            type: 'success',
+            text: `Extracted text from '${res.filename}' with ${res.confidence.toUpperCase()} confidence. Review auto-filled fields below.${res.ocr_warning ? ` ${res.ocr_warning}` : ''}`,
+          });
+        }
       } catch {
         // Fallback for file without backend OCR
         const clean = file.name.replace(/\.[^/.]+$/, '').replace(/_ LinkedIn$/i, '').trim();
@@ -284,6 +330,8 @@ Requirements:
         setJdTitle(autoTitle);
         setCompanyInput(autoComp);
         setRawText(`[Source File: ${file.name}]\n\nOpportunity extracted from '${file.name}'. Ready for submission.`);
+        setIsVerified(false);
+        setHtmlVerification(false);
         setFormErrors({});
       }
     } catch (err: any) {
@@ -474,15 +522,17 @@ Requirements:
           verified = true;
           textContent = `[Source HTML: ${item.file.name}]\n\n${cleanText || 'Job posting details'}`;
         } else {
+          const isPdf = item.file.name.toLowerCase().endsWith('.pdf') || item.file.type === 'application/pdf';
           try {
             const res = await api.extractJDFromFile(item.file);
             if (res.company_name) compName = res.company_name;
             if (res.role_title) titleName = res.role_title;
             textContent = `[Source File: ${res.filename}]\n\n${(res.raw_text || '').slice(0, 4000)}`;
-            verified = res.confidence === 'high';
+            // If it is a PDF, it must be manually checked/approved by manager or admin - never auto-verify
+            verified = isPdf ? false : (res.confidence === 'high');
           } catch {
-            textContent = `[Source File: ${item.file.name}]\n\nLogged from uploaded file '${item.file.name}'. Verified by CRA team.`;
-            verified = true;
+            textContent = `[Source File: ${item.file.name}]\n\nLogged from uploaded file '${item.file.name}'. Awaiting manager manual review.`;
+            verified = false;
           }
         }
 
@@ -499,13 +549,14 @@ Requirements:
           setCompanies((prev) => [...prev, created]);
         }
 
+        const isPdf = item.file.name.toLowerCase().endsWith('.pdf') || item.file.type === 'application/pdf';
         await api.createJD({
           company_id: compId,
           title: titleName,
           raw_text: textContent,
           opportunity_type: 'existing_post',
           is_verified: verified,
-          verification_source: 'file_ai_extract',
+          verification_source: isPdf ? 'pdf_upload' : 'file_ai_extract',
         });
 
         setStagedFiles((prev) =>
@@ -583,13 +634,17 @@ Requirements:
 
       const textToSave = (rawText.trim() || `Job opportunity for ${jdTitle.trim()} at ${companyInput.trim()}. Verified by CRA.`).slice(0, 4000);
 
+      const isPdf = extractedFilename.toLowerCase().endsWith('.pdf') || (rawText && rawText.includes('[Source File:') && rawText.toLowerCase().includes('.pdf'));
+      const finalVerified = isPdf ? false : isVerified;
+      const finalSource = isPdf ? 'pdf_upload' : intakeMethod;
+
       const createdJD = await api.createJD({
         company_id: companyId,
         title: jdTitle.trim(),
         raw_text: textToSave,
         opportunity_type: opportunityType,
-        is_verified: isVerified,
-        verification_source: intakeMethod,
+        is_verified: finalVerified,
+        verification_source: finalSource,
       });
 
       try {
@@ -604,7 +659,9 @@ Requirements:
 
       setMessage({
         type: 'success',
-        text: `Opportunity '${createdJD.title}' for '${savedCompName}' logged & saved to CRM successfully!`,
+        text: isPdf
+          ? `PDF Opportunity '${createdJD.title}' for '${savedCompName}' logged! It requires Manager/Admin approval before verification.`
+          : `Opportunity '${createdJD.title}' for '${savedCompName}' logged & saved to CRM successfully!`,
       });
 
       setCompanyInput('');
@@ -1169,21 +1226,30 @@ Requirements:
                   <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Verification Badge</th>
                   <th className="px-4 py-3">Logged Date</th>
+                  <th className="px-4 py-3 text-right">Approval Status / Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700/50">
                 {recentJDs.map((jd) => {
+                  const isPdfSource = jd.verification_source === 'pdf_upload' || jd.raw_text?.toLowerCase().includes('.pdf');
                   const autoVerified = jd.verification_source === 'html_url_parser' || jd.is_verified;
                   return (
                     <tr key={jd.id} className="hover:bg-gray-700/30">
                       <td className="px-4 py-3 font-medium text-white">{jd.title}</td>
                       <td className="px-4 py-3 text-gray-300">{jd.company?.name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-400 capitalize">{jd.verification_source || 'manual'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-400 capitalize">
+                        {jd.verification_source === 'pdf_upload' ? 'PDF Upload' : (jd.verification_source || 'manual')}
+                      </td>
                       <td className="px-4 py-3">
                         {autoVerified ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                             <ShieldCheck className="h-3.5 w-3.5" />
-                            Auto-Verified
+                            {isPdfSource ? 'Manager Approved' : 'Auto-Verified'}
+                          </span>
+                        ) : isPdfSource ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30" title="PDFs require manual manager/admin approval before verification">
+                            <Clock className="h-3.5 w-3.5 text-amber-400" />
+                            PDF · Needs Approval
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
@@ -1194,6 +1260,62 @@ Requirements:
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-400">
                         {formatIndianDate(jd.created_at || jd.date_found)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {autoVerified ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-semibold">
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              Approved
+                            </span>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                disabled={verifyingJdId === jd.id}
+                                onClick={() => handleVerifyJD(jd.id, false)}
+                                className="text-[11px] text-gray-400 hover:text-rose-400 underline transition cursor-pointer"
+                                title="Revoke verification status"
+                              >
+                                Revoke
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            {isAdmin ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={verifyingJdId === jd.id}
+                                  onClick={() => handleVerifyJD(jd.id, true)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs transition cursor-pointer"
+                                  title="Manager/Admin Approval: Approve & Mark Verified"
+                                >
+                                  {verifyingJdId === jd.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3.5 w-3.5" />
+                                  )}
+                                  <span>Approve & Verify</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={verifyingJdId === jd.id}
+                                  onClick={() => handleVerifyJD(jd.id, false)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-rose-900/40 text-gray-400 hover:text-rose-300 disabled:opacity-50 text-xs font-medium rounded-lg border border-gray-700 transition cursor-pointer"
+                                  title="Reject or Discard"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-300/90 bg-amber-950/40 border border-amber-800/40 px-2.5 py-1 rounded-full">
+                                <Clock className="h-3 w-3 text-amber-400" />
+                                Awaiting Manager Review
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
