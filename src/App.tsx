@@ -356,7 +356,7 @@ export const App: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 min-w-0">
           {activeTab === 'dashboard' && <DashboardPage setActiveTab={navigate} />}
           {activeTab === 'team-sheets' && <TeamSheetsPage currentUser={currentUser} />}
           {activeTab === 'tasks' && <TaskManagementPage employeeMode />}
