@@ -933,6 +933,7 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
         <SourcingModal
           opportunity={activeOpportunity}
           allOpportunities={opportunities}
+          companies={companies}
           initialMode={sourcingModalInitialMode}
           onSelectOpportunity={setActiveOpportunity}
           onClose={() => setActiveOpportunity(null)}
@@ -1015,6 +1016,7 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
 interface SourcingModalProps {
   opportunity: SourcingOpportunity;
   allOpportunities?: SourcingOpportunity[];
+  companies?: Company[];
   initialMode?: 'google_search' | 'bulk' | 'quick_paste' | 'single_apollo';
   onSelectOpportunity?: (opp: SourcingOpportunity) => void;
   onClose: () => void;
@@ -1024,14 +1026,22 @@ interface SourcingModalProps {
 const SourcingModal: React.FC<SourcingModalProps> = ({
   opportunity,
   allOpportunities,
+  companies = [],
   initialMode,
   onSelectOpportunity,
   onClose,
   onContactsAdded,
 }) => {
   const { jd, company } = opportunity;
-  const companyName = company?.name || 'Target Company';
-  const companyId = company?.id || jd.company_id;
+
+  // Resolve canonical company specifically using companies.find(c => c.id === jd.company_id)
+  const resolvedCompany = useMemo(() => {
+    return (companies || []).find((c) => c.id === jd.company_id) || company || jd.company;
+  }, [companies, jd.company_id, company, jd.company]);
+
+  const canonicalCompanyName = resolvedCompany?.name?.trim() || '';
+  const companyName = canonicalCompanyName || 'Target Company';
+  const companyId = resolvedCompany?.id || jd.company_id;
 
   const [mode, setMode] = useState<'google_search' | 'bulk' | 'quick_paste' | 'single_apollo'>(
     initialMode || 'google_search'
@@ -1067,6 +1077,26 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
   const [phoneOverrides, setPhoneOverrides] = useState<Record<number, string>>({});
   const [searchingGoogleSingle, setSearchingGoogleSingle] = useState(false);
   const [googleCopiedId, setGoogleCopiedId] = useState<string | null>(null);
+
+  // Re-sync Google Search inputs whenever the selected opportunity or companies list changes
+  useEffect(() => {
+    const targetComp = (companies || []).find((c) => c.id === opportunity.jd.company_id) || opportunity.company || opportunity.jd.company;
+    const targetName = targetComp?.name?.trim() || '';
+    setGoogleSearchCompany(targetName || 'Target Company');
+    setGoogleSearchRoleFocus(
+      opportunity.jd.title
+        ? `${opportunity.jd.title} HR / Recruiter / Talent Acquisition`
+        : 'Campus Relations, HR Recruiter, Talent Acquisition'
+    );
+    setGoogleSearchContactName('');
+    // Clear old opportunity's results and state to prevent cross-company contamination
+    setGoogleSearchResults([]);
+    setGoogleWebSources([]);
+    setGoogleSearchQueries([]);
+    setGoogleSearchDone(false);
+    setModalError(null);
+    setModalSuccess(null);
+  }, [opportunity.jd.id, opportunity.jd.company_id, opportunity.jd.title, companies]);
 
   // Bulk Upload State
   const [bulkText, setBulkText] = useState('');
@@ -1315,9 +1345,19 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
   };
 
   const handleGoogleSearch = async () => {
-    const targetComp = googleSearchCompany.trim() || companyName;
-    if (!targetComp) {
-      setModalError('Company name is required for Google Search');
+    // Specifically resolve canonical company name using companies.find(c => c.id === jd.company_id)?.name lookup
+    const canonicalFromLookup = (companies || []).find((c) => c.id === jd.company_id)?.name?.trim()
+      || company?.name?.trim()
+      || jd.company?.name?.trim();
+
+    // Use typed value if user entered a custom company name other than 'Target Company',
+    // otherwise strictly default to canonicalFromLookup
+    const targetComp = (googleSearchCompany.trim() && googleSearchCompany.trim() !== 'Target Company')
+      ? googleSearchCompany.trim()
+      : (canonicalFromLookup || 'Target Company');
+
+    if (!targetComp || targetComp === 'Target Company') {
+      setModalError('Valid company name could not be resolved for this opportunity.');
       return;
     }
     setIsSearchingGoogle(true);
@@ -1328,7 +1368,7 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
         company_name: targetComp,
         contact_name: googleSearchContactName.trim() || undefined,
         role_focus: googleSearchRoleFocus.trim() || undefined,
-        company_id: companyId,
+        company_id: (companies || []).find((c) => c.id === jd.company_id)?.id || companyId,
       });
 
       if (res.contacts && res.contacts.length > 0) {
@@ -1456,13 +1496,6 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
       setSearchingGoogleSingle(false);
     }
   };
-
-  // Auto-trigger Google Search when SourcingModal opens in google_search mode
-  useEffect(() => {
-    if (mode === 'google_search' && googleSearchResults.length === 0 && !googleSearchDone && !isSearchingGoogle) {
-      handleGoogleSearch();
-    }
-  }, [mode]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
@@ -1612,7 +1645,19 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
               <div className="p-3.5 rounded-xl bg-gray-950 border border-gray-800 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                   <div>
-                    <label className="text-[11px] font-semibold text-gray-300 block mb-1">Target Company</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-gray-300">Target Company</label>
+                      {canonicalCompanyName && googleSearchCompany.trim() !== canonicalCompanyName && (
+                        <button
+                          type="button"
+                          onClick={() => setGoogleSearchCompany(canonicalCompanyName)}
+                          className="text-[10px] text-purple-400 hover:text-purple-300 underline font-medium cursor-pointer"
+                          title={`Reset to official company: ${canonicalCompanyName}`}
+                        >
+                          Reset: {canonicalCompanyName}
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={googleSearchCompany}
