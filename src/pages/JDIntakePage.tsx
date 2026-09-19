@@ -1217,8 +1217,17 @@ Requirements:
         {recentJDs.length === 0 ? (
           <p className="text-sm text-gray-400">No opportunities logged yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-300">
+          <div>
+            <div className="md:hidden px-3.5 py-2 bg-gray-900/90 border border-gray-700 rounded-t-lg flex items-center justify-between text-xs text-indigo-300">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span>👉 Swipe sideways to view all details & approval actions</span>
+              </span>
+              <span className="text-[10px] text-indigo-300 font-semibold px-2 py-0.5 rounded bg-indigo-900/60 border border-indigo-700/50">
+                Scrollable
+              </span>
+            </div>
+            <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-600">
+              <table className="w-full min-w-[760px] text-left text-sm text-gray-300">
               <thead className="bg-gray-900/60 text-xs uppercase text-gray-400 border-b border-gray-700">
                 <tr>
                   <th className="px-4 py-3">Title</th>
@@ -1322,6 +1331,7 @@ Requirements:
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

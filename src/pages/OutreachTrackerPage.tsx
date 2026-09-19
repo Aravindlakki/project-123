@@ -407,30 +407,30 @@ export const OutreachTrackerPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Send className="h-6 w-6 text-indigo-400" />
-            Multi-Channel Outreach Tracker Matrix
+          <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+            <Send className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-400 shrink-0" />
+            <span>Multi-Channel Outreach Tracker Matrix</span>
           </h1>
-          <p className="text-gray-400 text-sm">
+          <p className="text-gray-400 text-xs sm:text-sm mt-0.5">
             Batch-process leads, bulk generate messages, and track multi-channel status
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => setShowBulkUploadModal(true)}
-            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition"
+            className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition min-h-[44px]"
           >
-            <Upload className="h-4 w-4" />
-            <span>Bulk Upload Leads</span>
+            <Upload className="h-4 w-4 shrink-0" />
+            <span className="whitespace-nowrap">Bulk Upload Leads</span>
           </button>
           <button
             onClick={handleExportCSV}
-            className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition"
+            className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition min-h-[44px]"
           >
-            <Download className="h-4 w-4 text-emerald-400" />
-            <span>Export CSV</span>
+            <Download className="h-4 w-4 text-emerald-400 shrink-0" />
+            <span className="whitespace-nowrap">Export CSV</span>
           </button>
         </div>
       </div>
@@ -486,118 +486,129 @@ export const OutreachTrackerPage: React.FC = () => {
       )}
 
       {/* Matrix Table */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm text-gray-300">
-          <thead className="bg-gray-900/60 text-xs uppercase text-gray-400 font-semibold border-b border-gray-700">
-            <tr>
-              <th className="px-4 py-4 text-center w-10">
-                <input
-                  type="checkbox"
-                  checked={contacts.length > 0 && selectedIds.length === contacts.length}
-                  onChange={handleSelectAll}
-                  className="rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                />
-              </th>
-              <th className="px-6 py-4">HR Contact & Company</th>
-              {channelList.map((ch) => {
-                const Icon = ch.icon;
-                return (
-                  <th key={ch.id} className="px-4 py-4 text-center">
-                    <div className="flex items-center justify-center space-x-1">
-                      <Icon className="h-4 w-4" />
-                      <span>{ch.label}</span>
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-700/50">
-            {contacts.length === 0 ? (
+      <div className="bg-gray-800 border border-gray-700 rounded-xl shadow-sm overflow-hidden">
+        {/* Mobile Swipe Hint Banner */}
+        <div className="md:hidden px-3.5 py-2.5 bg-indigo-950/50 border-b border-gray-700/80 flex items-center justify-between text-xs text-indigo-200">
+          <span className="flex items-center gap-1.5 font-medium">
+            <span>👉 Swipe sideways to view Call, Email, LinkedIn, WhatsApp</span>
+          </span>
+          <span className="text-[10px] text-indigo-300/80 font-semibold px-2 py-0.5 rounded bg-indigo-900/60 border border-indigo-700/50">
+            Scrollable
+          </span>
+        </div>
+        <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-600">
+          <table className="w-full min-w-[780px] text-left text-sm text-gray-300 border-collapse">
+            <thead className="bg-gray-900/80 text-xs uppercase text-gray-400 font-semibold border-b border-gray-700">
               <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                  No HR Contacts sourced yet. Go to HR Sourcing or use Bulk Upload to add contacts.
-                </td>
+                <th className="px-4 py-4 text-center w-12 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={contacts.length > 0 && selectedIds.length === contacts.length}
+                    onChange={handleSelectAll}
+                    className="rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                  />
+                </th>
+                <th className="px-5 py-4 min-w-[220px]">HR Contact & Company</th>
+                {channelList.map((ch) => {
+                  const Icon = ch.icon;
+                  return (
+                    <th key={ch.id} className="px-4 py-4 text-center min-w-[140px]">
+                      <div className="flex items-center justify-center space-x-1.5">
+                        <Icon className="h-4 w-4 text-indigo-400" />
+                        <span>{ch.label}</span>
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
-            ) : (
-              contacts.map((contact) => {
-                const isSelected = selectedIds.includes(contact.id);
-                return (
-                  <tr key={contact.id} className={`hover:bg-gray-700/20 transition ${isSelected ? 'bg-indigo-950/30' : ''}`}>
-                    <td className="px-4 py-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleSelect(contact.id)}
-                        className="rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-bold text-white">{contact.name}</p>
-                      <p className="text-xs text-gray-400">{contact.title || 'HR Contact'} • <span className="text-indigo-400">{contact.company?.name}</span></p>
-                    </td>
-                  {channelList.map((ch) => {
-                    const entry = getChannelEntry(contact.id, ch.id);
-                    const currentStatus: OutreachChannelStatus = entry ? entry.status : 'not_started';
-                    return (
-                      <td key={ch.id} className="px-3 py-4 text-center">
-                        <div className="flex items-center justify-center space-x-1.5">
-                          {/* Status Dropdown */}
-                          <select
-                            value={currentStatus}
-                            onChange={(e) => handleStatusDropdownChange(contact, ch.id, e.target.value as OutreachChannelStatus)}
-                            className={`text-xs font-semibold rounded-lg px-2 py-1 outline-none cursor-pointer border ${
-                              currentStatus === 'sent'
-                                ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                                : currentStatus === 'replied'
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                : currentStatus === 'failed'
-                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                : 'bg-gray-900 text-gray-400 border-gray-700'
-                            }`}
-                          >
-                            <option value="not_started">Not Started</option>
-                            <option value="sent">Sent</option>
-                            <option value="replied">Replied</option>
-                            <option value="failed">Failed</option>
-                          </select>
-
-                          {/* Channel Draft Button */}
-                          <button
-                            onClick={() => handleOpenDraft(contact, ch.id)}
-                            title={`Generate ${ch.label} draft message`}
-                            className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 transition flex items-center gap-1 text-xs font-medium shrink-0"
-                          >
-                            <Sparkles className="h-3.5 w-3.5" />
-                            <span className="hidden xl:inline">Draft</span>
-                          </button>
-                          {entry?.proof && (
-                            <button
-                              type="button"
-                              onClick={() => setViewProofModal({ outreach: entry, proof: entry.proof! })}
-                              title={`Click to view AI proof analysis & screenshot for ${ch.label}`}
-                              className={`px-1.5 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 cursor-pointer hover:scale-105 ${
-                                entry.proof.verification_status === 'verified'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                                  : entry.proof.verification_status === 'not_verified'
-                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
-                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+            </thead>
+            <tbody className="divide-y divide-gray-700/50">
+              {contacts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    No HR Contacts sourced yet. Go to HR Sourcing or use Bulk Upload to add contacts.
+                  </td>
+                </tr>
+              ) : (
+                contacts.map((contact) => {
+                  const isSelected = selectedIds.includes(contact.id);
+                  return (
+                    <tr key={contact.id} className={`hover:bg-gray-700/20 transition ${isSelected ? 'bg-indigo-950/30' : ''}`}>
+                      <td className="px-4 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelect(contact.id)}
+                          className="rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                        />
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-white text-sm">{contact.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{contact.title || 'HR Contact'} • <span className="text-indigo-400">{contact.company?.name}</span></p>
+                      </td>
+                    {channelList.map((ch) => {
+                      const entry = getChannelEntry(contact.id, ch.id);
+                      const currentStatus: OutreachChannelStatus = entry ? entry.status : 'not_started';
+                      return (
+                        <td key={ch.id} className="px-3 py-4 text-center">
+                          <div className="flex items-center justify-center space-x-1.5">
+                            {/* Status Dropdown */}
+                            <select
+                              value={currentStatus}
+                              onChange={(e) => handleStatusDropdownChange(contact, ch.id, e.target.value as OutreachChannelStatus)}
+                              className={`text-xs font-semibold rounded-lg px-2 py-1 outline-none cursor-pointer border ${
+                                currentStatus === 'sent'
+                                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                                  : currentStatus === 'replied'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : currentStatus === 'failed'
+                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                  : 'bg-gray-900 text-gray-400 border-gray-700'
                               }`}
                             >
-                              <FileText className="h-3 w-3" />
-                              <span>Proof: {entry.proof.verification_status.replace('_', ' ')}</span>
+                              <option value="not_started">Not Started</option>
+                              <option value="sent">Sent</option>
+                              <option value="replied">Replied</option>
+                              <option value="failed">Failed</option>
+                            </select>
+
+                            {/* Channel Draft Button */}
+                            <button
+                              onClick={() => handleOpenDraft(contact, ch.id)}
+                              title={`Generate ${ch.label} draft message`}
+                              className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 transition flex items-center gap-1 text-xs font-medium shrink-0"
+                            >
+                              <Sparkles className="h-3.5 w-3.5" />
+                              <span className="hidden xl:inline">Draft</span>
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })
-            )}
-          </tbody>
-        </table>
+                            {entry?.proof && (
+                              <button
+                                type="button"
+                                onClick={() => setViewProofModal({ outreach: entry, proof: entry.proof! })}
+                                title={`Click to view AI proof analysis & screenshot for ${ch.label}`}
+                                className={`px-1.5 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 cursor-pointer hover:scale-105 ${
+                                  entry.proof.verification_status === 'verified'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                    : entry.proof.verification_status === 'not_verified'
+                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
+                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                                }`}
+                              >
+                                <FileText className="h-3 w-3" />
+                                <span>Proof: {entry.proof.verification_status.replace('_', ' ')}</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Sent Confirmation Checklist Modal */}

@@ -597,8 +597,17 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
       {/* Spreadsheet Table View */}
       <div className="bg-gray-900/90 border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+        {/* Mobile Swipe Hint */}
+        <div className="md:hidden px-3.5 py-2.5 bg-purple-950/50 border-b border-gray-800 flex items-center justify-between text-xs text-purple-200">
+          <span className="flex items-center gap-1.5 font-medium">
+            <span>👉 Swipe sideways to view all sheet columns & contact details</span>
+          </span>
+          <span className="text-[10px] text-purple-300 font-semibold px-2 py-0.5 rounded bg-purple-900/60 border border-purple-700/50">
+            Scrollable
+          </span>
+        </div>
+        <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-700">
+          <table className="w-full min-w-[1100px] text-left border-collapse text-xs">
             <thead>
               <tr className="bg-gray-950/80 border-b border-gray-800 text-gray-400 uppercase tracking-wider font-bold">
                 <th className="py-3 px-3 w-10 text-center">#</th>

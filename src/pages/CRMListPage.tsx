@@ -254,8 +254,17 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
       {/* HR Contacts View */}
       {activeTab === 'contacts' && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-300">
+          {/* Mobile Swipe Hint */}
+          <div className="md:hidden px-3.5 py-2.5 bg-gray-900/90 border-b border-gray-700 flex items-center justify-between text-xs text-indigo-300">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span>👉 Swipe sideways to view all contact columns & actions</span>
+            </span>
+            <span className="text-[10px] text-indigo-300 font-semibold px-2 py-0.5 rounded bg-indigo-900/60 border border-indigo-700/50">
+              Scrollable
+            </span>
+          </div>
+          <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-600">
+            <table className="w-full min-w-[760px] text-left text-sm text-gray-300">
               <thead className="bg-gray-900/60 text-xs uppercase text-gray-400 font-semibold border-b border-gray-700">
                 <tr>
                   <th className="px-6 py-4">Name & Title</th>

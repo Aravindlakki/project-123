@@ -518,8 +518,17 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
           </div>
         ) : (
           /* Table for Desktop & Tablet */
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-300 border-collapse">
+          <div>
+            <div className="md:hidden px-3.5 py-2 bg-purple-950/40 border-b border-gray-800 flex items-center justify-between text-xs text-purple-300">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span>👉 Swipe sideways to view all columns</span>
+              </span>
+              <span className="text-[10px] text-purple-300/80 font-semibold px-2 py-0.5 rounded bg-purple-900/60 border border-purple-700/50">
+                Scrollable
+              </span>
+            </div>
+            <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-700">
+              <table className="w-full min-w-[760px] text-left text-sm text-gray-300 border-collapse">
               <thead className="bg-gray-950/80 text-xs font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-800 select-none">
                 <tr>
                   <th
@@ -939,6 +948,7 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
