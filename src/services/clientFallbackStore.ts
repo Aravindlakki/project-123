@@ -22,8 +22,20 @@ const STORAGE_KEYS = {
 
 // Initial setup from seed data
 function initializeMockData() {
-  if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-    const defaultUsers: CRA[] = ALL_EMPLOYEE_CREDENTIALS.map((emp) => ({
+  // Synchronize active team roster into localStorage
+  const existingUsersJson = localStorage.getItem(STORAGE_KEYS.USERS);
+  let defaultUsers: CRA[] = [];
+  try {
+    defaultUsers = existingUsersJson ? JSON.parse(existingUsersJson) : [];
+  } catch (_) {
+    defaultUsers = [];
+  }
+
+  ALL_EMPLOYEE_CREDENTIALS.forEach((emp) => {
+    const existingIndex = defaultUsers.findIndex(
+      (u) => u.email.toLowerCase() === emp.email.toLowerCase() || u.emp_id === emp.empId
+    );
+    const userEntry: CRA = {
       id: emp.id,
       name: emp.name,
       email: emp.email,
@@ -32,22 +44,20 @@ function initializeMockData() {
       monthly_jd_target: 20,
       is_active: true,
       created_at: new Date().toISOString(),
-    }));
-    // Add primary CEO
-    if (!defaultUsers.some((u) => u.email === 'aravindaravind3953@gmail.com')) {
-      defaultUsers.unshift({
-        id: 'usr_admin_aravind',
-        name: 'Aravind Reddy',
-        email: 'aravindaravind3953@gmail.com',
-        role: 'admin',
-        emp_id: 'PM-CEO',
-        monthly_jd_target: 20,
-        is_active: true,
-        created_at: new Date().toISOString(),
-      });
+    };
+    if (existingIndex >= 0) {
+      defaultUsers[existingIndex] = {
+        ...defaultUsers[existingIndex],
+        name: emp.name,
+        role: emp.role,
+        emp_id: emp.empId,
+      };
+    } else {
+      defaultUsers.push(userEntry);
     }
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(defaultUsers));
-  }
+  });
+
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(defaultUsers));
 
   if (!localStorage.getItem(STORAGE_KEYS.COMPANIES) || !localStorage.getItem(STORAGE_KEYS.CONTACTS)) {
     const companies: Company[] = [];

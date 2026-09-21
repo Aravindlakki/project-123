@@ -898,11 +898,12 @@ export const INITIAL_PDF_LEADS: PDFLeadRecord[] = [
 ];
 
 export const SPOC_MEMBERS = [
-  { id: 'Namitha', name: 'Namitha K', role: 'CRA Specialist', email: 'namitha.k@placemein.com', avatarBg: 'bg-emerald-600' },
-  { id: 'Aliya', name: 'Aliya Shaik', role: 'CRA Specialist', email: 'aliya.s@placemein.com', avatarBg: 'bg-pink-600' },
-  { id: 'Solomon', name: 'Solomon Raj', role: 'CRA Specialist', email: 'solomon.r@placemein.com', avatarBg: 'bg-blue-600' },
   { id: 'Harish', name: 'Harish Reddy', role: 'CRA Specialist', email: 'harish.r@placemein.com', avatarBg: 'bg-purple-600' },
-  { id: 'Varshith', name: 'Varshith Reddy', role: 'CRA Specialist', email: 'varshith.r@placemein.com', avatarBg: 'bg-indigo-600' },
-  { id: 'Aasritha', name: 'Aasritha K', role: 'CRA Specialist', email: 'aasritha.k@placemein.com', avatarBg: 'bg-amber-600' },
-  { id: 'Charan', name: 'Charan Kumar', role: 'CRA Specialist', email: 'charankumar.n@placemein.com', avatarBg: 'bg-teal-600' },
+  { id: 'Aravind', name: 'Aravind Reddy', role: 'Founder & CEO (Emp+Admin)', email: 'aravindaravind3953@gmail.com', avatarBg: 'bg-amber-600' },
+  { id: 'Charan', name: 'Charan Kumar', role: 'CRA Specialist (Emp+Admin)', email: 'charankumar.n@placemein.com', avatarBg: 'bg-teal-600' },
+  { id: 'Mrudula', name: 'Mrudula', role: 'CRA Specialist', email: 'mrudula.k@placemein.com', avatarBg: 'bg-pink-600' },
+  { id: 'Namitha', name: 'Namitha K', role: 'CRA Specialist', email: 'namitha.k@placemein.com', avatarBg: 'bg-emerald-600' },
+  { id: 'Solomon', name: 'Solomon Raj', role: 'CRA Specialist', email: 'solomon.r@placemein.com', avatarBg: 'bg-blue-600' },
+  { id: 'Vineela', name: 'Vineela Bathula', role: 'Manager & Talent Partner', email: 'vineela.b@placemein.com', avatarBg: 'bg-indigo-700' },
+  { id: 'Mansi', name: 'Mansi Ramesh Peddi', role: 'CRA Team Lead & Verification Head', email: 'mansi.p@placemein.com', avatarBg: 'bg-purple-700' },
 ];

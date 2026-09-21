@@ -1,5 +1,6 @@
 import React from 'react';
 import { Download, Printer, X, FileText, CheckCircle2, ShieldCheck, ExternalLink, Sparkles, Layers, Building2, Send, Award, Users, RefreshCw } from 'lucide-react';
+import { ALL_EMPLOYEE_CREDENTIALS } from '../data/employeeCredentials';
 
 interface SystemReportModalProps {
   isOpen: boolean;
@@ -244,62 +245,29 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800 print:divide-gray-200 text-gray-300 print:text-gray-800">
-                  <tr>
-                    <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">PM-101</td>
-                    <td className="py-2 px-3 font-bold">Harish Reddy</td>
-                    <td className="py-2 px-3">harish.r@placemein.com</td>
-                    <td className="py-2 px-3">Cloud & Cyber Security Tech</td>
-                    <td className="py-2 px-3">CRA Specialist</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">PM-102</td>
-                    <td className="py-2 px-3 font-bold">Namitha K</td>
-                    <td className="py-2 px-3">namitha.k@placemein.com</td>
-                    <td className="py-2 px-3">Cyber Security & Enterprise Outbound</td>
-                    <td className="py-2 px-3">CRA Specialist</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">PM-103</td>
-                    <td className="py-2 px-3 font-bold">Charan Kumar</td>
-                    <td className="py-2 px-3">charankumar.n@placemein.com</td>
-                    <td className="py-2 px-3">Full-Stack Engineering & DevSecOps</td>
-                    <td className="py-2 px-3">CRA Specialist</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">PM-104</td>
-                    <td className="py-2 px-3 font-bold">Aliya Shaik</td>
-                    <td className="py-2 px-3">aliya.s@placemein.com</td>
-                    <td className="py-2 px-3">AI/ML Engineering & Data Platforms</td>
-                    <td className="py-2 px-3">CRA Specialist</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">PM-105</td>
-                    <td className="py-2 px-3 font-bold">Solomon Raj</td>
-                    <td className="py-2 px-3">solomon.r@placemein.com</td>
-                    <td className="py-2 px-3">Product, Design & Mobile Engineering</td>
-                    <td className="py-2 px-3">CRA Specialist</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">PM-106</td>
-                    <td className="py-2 px-3 font-bold">Varshith Reddy</td>
-                    <td className="py-2 px-3">varshith.r@placemein.com</td>
-                    <td className="py-2 px-3">SRE, DevOps & Infrastructure</td>
-                    <td className="py-2 px-3">CRA Specialist</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">PM-107</td>
-                    <td className="py-2 px-3 font-bold">Aasritha K</td>
-                    <td className="py-2 px-3">aasritha.k@placemein.com</td>
-                    <td className="py-2 px-3">Leadership, Exec Search & Corporate Tech</td>
-                    <td className="py-2 px-3">CRA Specialist</td>
-                  </tr>
-                  <tr className="bg-amber-950/20 print:bg-amber-50 font-bold">
-                    <td className="py-2 px-3 font-mono text-amber-300 print:text-amber-800">PM-CEO</td>
-                    <td className="py-2 px-3">Aravind Reddy</td>
-                    <td className="py-2 px-3">aravindaravind3953@gmail.com</td>
-                    <td className="py-2 px-3">Executive Leadership & Strategic Operations</td>
-                    <td className="py-2 px-3 text-amber-400 print:text-amber-700">CEO / Super Admin</td>
-                  </tr>
+                  {ALL_EMPLOYEE_CREDENTIALS.filter(e => !e.empId.includes('-ALT') && e.empId !== 'PM-001').map((emp) => {
+                    const isDual = emp.isDualRole;
+                    const isAdmin = emp.role === 'admin';
+                    return (
+                      <tr key={emp.id} className={emp.empId === 'PM-CEO' ? 'bg-amber-950/20 print:bg-amber-50 font-bold' : ''}>
+                        <td className="py-2 px-3 font-mono text-purple-300 print:text-purple-700">{emp.empId}</td>
+                        <td className="py-2 px-3 font-bold">{emp.name}</td>
+                        <td className="py-2 px-3">{emp.email}</td>
+                        <td className="py-2 px-3">{emp.spocDomain}</td>
+                        <td className="py-2 px-3">
+                          <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded ${
+                            isDual
+                              ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 print:text-teal-800'
+                              : isAdmin
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 print:text-amber-800'
+                              : 'bg-purple-500/20 text-purple-300 border border-purple-500/30 print:text-purple-800'
+                          }`}>
+                            {emp.designation}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

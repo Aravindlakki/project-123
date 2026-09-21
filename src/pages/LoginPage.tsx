@@ -140,7 +140,10 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   };
 
   const filteredEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((emp) => {
-    const matchesRole = filterRole === 'all' || emp.role === filterRole;
+    const matchesRole =
+      filterRole === 'all' ||
+      emp.role === filterRole ||
+      (emp.isDualRole && (filterRole === 'cra' || filterRole === 'admin'));
     const query = searchEmployee.trim().toLowerCase();
     const matchesSearch =
       !query ||
@@ -153,7 +156,9 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   });
 
   const activePortalEmployees = ALL_EMPLOYEE_CREDENTIALS.filter((emp) =>
-    loginRole === 'ADMIN' ? emp.role === 'admin' : emp.role === 'cra'
+    loginRole === 'ADMIN'
+      ? emp.role === 'admin' || emp.isDualRole
+      : emp.role === 'cra' || emp.isDualRole
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -490,7 +495,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                     : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
                 }`}
               >
-                CRA Specialists (7)
+                CRA Employees ({ALL_EMPLOYEE_CREDENTIALS.filter((e) => e.role === 'cra' || e.isDualRole).length})
               </button>
               <button
                 type="button"
@@ -501,7 +506,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                     : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white'
                 }`}
               >
-                Leadership & Admins (5)
+                Leadership & Admins ({ALL_EMPLOYEE_CREDENTIALS.filter((e) => e.role === 'admin').length})
               </button>
             </div>
           </div>
@@ -535,11 +540,13 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
                       </div>
                     </div>
                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
-                      emp.role === 'admin'
+                      emp.isDualRole
+                        ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
+                        : emp.role === 'admin'
                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                         : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                     }`}>
-                      {emp.role === 'admin' ? 'Admin' : 'CRA'}
+                      {emp.isDualRole ? 'Emp + Admin' : emp.role === 'admin' ? 'Admin' : 'CRA'}
                     </span>
                   </div>
 
