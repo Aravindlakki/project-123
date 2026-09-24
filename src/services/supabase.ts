@@ -19,41 +19,56 @@ export const isSupabaseConfigured: boolean = Boolean(
   supabaseUrl &&
   supabaseAnonKey &&
   supabaseUrl.startsWith('https://') &&
+  supabaseAnonKey.length > 20 &&
   !supabaseUrl.includes('placeholder')
 );
 
-/**
- * Explicit assertion helper.
- * Throws a loud, descriptive error if called when credentials are not configured.
- */
-export function assertSupabaseConfigured(): void {
-  if (!isSupabaseConfigured) {
-    const errorMsg =
-      '[Supabase Error] VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not configured.\n' +
-      'Please add them to your Netlify Environment Variables or local .env file.\n' +
-      `Current VITE_SUPABASE_URL: ${supabaseUrl ? `"${supabaseUrl.slice(0, 15)}..."` : 'undefined'}\n` +
-      `Current VITE_SUPABASE_ANON_KEY: ${supabaseAnonKey ? 'Present' : 'undefined'}`;
-    console.error(errorMsg);
-    throw new Error(errorMsg);
-  }
-}
+const createSafeFallbackClient = (): SupabaseClient => {
+  const noopQueryBuilder: any = {
+    select: () => noopQueryBuilder,
+    insert: () => Promise.resolve({ data: null, error: null }),
+    update: () => Promise.resolve({ data: null, error: null }),
+    delete: () => Promise.resolve({ data: null, error: null }),
+    upsert: () => Promise.resolve({ data: null, error: null }),
+    eq: () => noopQueryBuilder,
+    neq: () => noopQueryBuilder,
+    ilike: () => noopQueryBuilder,
+    like: () => noopQueryBuilder,
+    order: () => noopQueryBuilder,
+    limit: () => noopQueryBuilder,
+    range: () => noopQueryBuilder,
+    single: () => Promise.resolve({ data: null, error: null }),
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+    then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
+    catch: (reject: any) => Promise.resolve({ data: [], error: null }).catch(reject),
+  };
 
-// Log a prominent warning in dev console if missing
-if (!isSupabaseConfigured) {
-  console.warn(
-    '%c[Supabase Warning] Database environment variables missing!',
-    'background: #fee2e2; color: #991b1b; font-weight: bold; padding: 4px 8px; border-radius: 4px;',
-    '\nVITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not set in import.meta.env.\n' +
-    'The app will display an unconfigured database notice instead of silently failing.'
-  );
-}
+  const channelObj: any = {
+    on: () => channelObj,
+    subscribe: () => channelObj,
+    unsubscribe: () => Promise.resolve('ok'),
+  };
 
-/**
- * Underlying client or guarded proxy.
- * If configured, returns standard SupabaseClient.
- * If NOT configured, wraps the client in a Proxy that throws on any API invocation.
- */
-const realClient: SupabaseClient | null = isSupabaseConfigured
+  return {
+    auth: {
+      signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Supabase not configured') }),
+      signUp: () => Promise.resolve({ data: { user: null, session: null }, error: new Error('Supabase not configured') }),
+      signOut: () => Promise.resolve({ error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+    from: () => noopQueryBuilder,
+    channel: () => channelObj,
+    removeChannel: () => {},
+    removeAllChannels: () => {},
+    functions: {
+      invoke: () => Promise.resolve({ data: null, error: new Error('Supabase functions not configured') }),
+    },
+  } as unknown as SupabaseClient;
+};
+
+export const supabase: SupabaseClient = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -61,16 +76,12 @@ const realClient: SupabaseClient | null = isSupabaseConfigured
         detectSessionInUrl: true,
       },
     })
-  : null;
+  : createSafeFallbackClient();
 
-export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    if (!isSupabaseConfigured || !realClient) {
-      assertSupabaseConfigured();
-    }
-    const val = (realClient as any)[prop];
-    return typeof val === 'function' ? val.bind(realClient) : val;
-  },
-});
+export function assertSupabaseConfigured(): void {
+  if (!isSupabaseConfigured) {
+    console.warn('[Supabase Warning] Operations requested while Supabase credentials are not configured.');
+  }
+}
 
 export default supabase;

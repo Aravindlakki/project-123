@@ -34,6 +34,11 @@ const authHeaders = () => ({
   ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
 });
 
+export const isJson = (res: Response): boolean => {
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json');
+};
+
 const checkAuthResponse = (res: Response) => {
   if (res.status === 401 && res.url?.includes('/auth/me')) {
     clearAuthToken();
@@ -129,7 +134,7 @@ export const api = {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
       });
-      if (res.ok) {
+      if (res.ok && isJson(res)) {
         const data = await res.json();
         setAuthToken(data.access_token);
         if (data.user) {
@@ -252,7 +257,7 @@ export const api = {
     }
     try {
       const res = await fetch(`${API_BASE}/auth/me`, { headers: authHeaders() });
-      if (res.ok) {
+      if (res.ok && isJson(res)) {
         const u = await res.json();
         clientFallbackStore.setCurrentUser(u);
         return u;

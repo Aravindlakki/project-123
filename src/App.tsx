@@ -95,6 +95,9 @@ export const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(() => routeToTab(getRouteFromUrl()));
 
+  const adminMode = Boolean(activeTab.startsWith('admin-') && isAdminVerified && currentUser?.role === 'admin');
+  const isAttemptingAdminDirectly = Boolean(activeTab.startsWith('admin-') && (!isAdminVerified || currentUser?.role !== 'admin'));
+
   useEffect(() => {
     const listener = () => setActiveTab(routeToTab(getRouteFromUrl()));
     window.addEventListener('popstate', listener);
@@ -203,9 +206,6 @@ export const App: React.FC = () => {
   if (!currentUser) {
     return <div className="min-h-screen bg-gray-950 text-white grid place-items-center">Loading your portal…</div>;
   }
-
-  const adminMode = activeTab.startsWith('admin-') && isAdminVerified && currentUser.role === 'admin';
-  const isAttemptingAdminDirectly = activeTab.startsWith('admin-') && (!isAdminVerified || currentUser.role !== 'admin');
 
   // If directly attempting to access admin route without logging in as admin, show inline Admin Login Gate!
   if (isAttemptingAdminDirectly) {
