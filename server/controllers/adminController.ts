@@ -81,8 +81,26 @@ export function updateSettings(req: Request, res: Response) {
   return res.json(systemSettings);
 }
 
+export function getAdminUsers(req: Request, res: Response) {
+  const list = users.map(({ passwordHash: _, ...profile }) => profile);
+  return res.json(list);
+}
+
+export function updateAdminUser(req: Request, res: Response) {
+  const user = users.find((u) => u.id === req.params.id);
+  if (!user) return res.status(404).json({ detail: 'User not found' });
+  if (req.body.name !== undefined) user.name = req.body.name;
+  if (req.body.email !== undefined) user.email = req.body.email;
+  if (req.body.role !== undefined) user.role = req.body.role;
+  if (req.body.emp_id !== undefined) user.emp_id = req.body.emp_id;
+  if (req.body.monthly_jd_target !== undefined) user.monthly_jd_target = parseInt(req.body.monthly_jd_target, 10);
+  if (req.body.is_active !== undefined) user.is_active = req.body.is_active;
+  const { passwordHash: _, ...profile } = user;
+  return res.json(profile);
+}
+
 export function createTeamMember(req: Request, res: Response) {
-  const { name, email, password, role, emp_id, monthly_jd_target } = req.body;
+  const { name, email, password, role, emp_id, monthly_jd_target, is_active } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ detail: 'Name, email, and password are required' });
   }
@@ -98,7 +116,7 @@ export function createTeamMember(req: Request, res: Response) {
     role: role || 'cra',
     emp_id: emp_id || `PM-${Math.floor(100 + Math.random() * 900)}`,
     monthly_jd_target: monthly_jd_target ? parseInt(monthly_jd_target, 10) : systemSettings.default_monthly_jd_target,
-    is_active: true,
+    is_active: is_active !== undefined ? is_active : true,
     created_at: new Date().toISOString(),
   };
   users.push(newUser);
@@ -138,10 +156,12 @@ export function updateUserRole(req: Request, res: Response) {
 }
 
 export function deleteUser(req: Request, res: Response) {
-  const idx = users.findIndex((u) => u.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ detail: 'User not found' });
-  users.splice(idx, 1);
-  return res.status(204).send();
+  const user = users.find((u) => u.id === req.params.id);
+  if (!user) return res.status(404).json({ detail: 'User not found' });
+  // Soft-delete user to preserve historical attribution in companies, contacts, and outreach notes
+  user.is_active = false;
+  user.deleted_at = new Date().toISOString();
+  return res.status(200).json({ message: 'Team member soft-deleted successfully to preserve historical attribution' });
 }
 
 export function seedSheetLeadExport(req: Request, res: Response) {

@@ -153,9 +153,10 @@ create policy "Team members can create companies"
   on public.companies for insert
   with check (auth.role() = 'authenticated');
 
-create policy "Team members can update companies"
+-- Once a company profile is created, only Admins or the original creator may edit company profile fields
+create policy "Admins and original creators can update companies"
   on public.companies for update
-  using (auth.role() = 'authenticated');
+  using (public.is_admin() or auth.uid() = created_by);
 
 create policy "Only Admins can delete companies"
   on public.companies for delete

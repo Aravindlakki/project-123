@@ -24,16 +24,32 @@ export function createJD(req: Request, res: Response) {
   if (!title || !company_id) {
     return res.status(400).json({ detail: 'JD title and company are required' });
   }
+
+  const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normTitle = norm(title);
+
+  // Check if role already exists for this company: if same role, leave it and don't allow to store!
+  const existingRole = jds.find(
+    (j) => j.company_id === company_id && norm(j.title) === normTitle
+  );
+  if (existingRole) {
+    return res.status(409).json({
+      detail: `Role "${title.trim()}" already exists for this company. Duplicate roles are not allowed to be stored.`,
+      duplicate: true,
+      existing_id: existingRole.id,
+    });
+  }
+
   const newJD: JD = {
     id: `jd_${Date.now()}`,
     title: title.trim(),
     company_id,
-    raw_text: raw_text || '',
-    is_verified: is_verified !== undefined ? !!is_verified : (user.role === 'admin'),
+    raw_text: (raw_text || '').slice(0, 4000),
+    is_verified: is_verified !== undefined ? !!is_verified : (user?.role === 'admin'),
     verification_source: verification_source || 'manual_entry',
     opportunity_type: opportunity_type || 'existing_post',
     date_found: new Date().toISOString().slice(0, 10),
-    created_by: user.id,
+    created_by: user?.id || 'usr_cra_1',
     created_at: new Date().toISOString(),
   };
   jds.unshift(newJD);

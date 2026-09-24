@@ -19,7 +19,9 @@ import {
   Edit2,
   Check,
   X,
+  Building2,
 } from 'lucide-react';
+import { Company } from '../types';
 
 interface PerformancePageProps {
   employeeMode?: boolean;
@@ -28,6 +30,7 @@ interface PerformancePageProps {
 export const PerformancePage: React.FC<PerformancePageProps> = ({ employeeMode = false }) => {
   const [data, setData] = useState<CRAPerformanceResponse | null>(null);
   const [currentUser, setCurrentUser] = useState<CRA | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingTargetCraId, setEditingTargetCraId] = useState<string | null>(null);
   const [newTargetValue, setNewTargetValue] = useState<number>(10);
@@ -40,12 +43,14 @@ export const PerformancePage: React.FC<PerformancePageProps> = ({ employeeMode =
     setLoading(true);
     setErrorMsg(null);
     try {
-      const [perfRes, userRes] = await Promise.all([
+      const [perfRes, userRes, compRes] = await Promise.all([
         api.getCRAPerformance(employeeMode),
         api.getCurrentCRA().catch(() => null),
+        api.getCompanies().catch(() => []),
       ]);
       setData(perfRes);
       setCurrentUser(userRes);
+      setCompanies(compRes || []);
     } catch (err: any) {
       console.error('Failed to load performance data:', err);
       setErrorMsg(err.message || 'Failed to load performance analytics.');
@@ -442,6 +447,7 @@ export const PerformancePage: React.FC<PerformancePageProps> = ({ employeeMode =
               <thead className="bg-purple-900/40 text-purple-300 font-semibold border-b border-purple-800/60">
                 <tr>
                   <th className="py-3 px-4">Team Member</th>
+                  <th className="py-3 px-4">Companies Uploaded</th>
                   <th className="py-3 px-4">Attendance</th>
                   <th className="py-3 px-4">Sourced Contacts</th>
                   <th className="py-3 px-4">Outreach</th>
@@ -455,11 +461,23 @@ export const PerformancePage: React.FC<PerformancePageProps> = ({ employeeMode =
                   const pct = Math.round(cra.target_progress_pct || 0);
                   const isEditing = editingTargetCraId === cra.cra_id;
 
+                  const normMem = cra.cra_name.toLowerCase().split(' ')[0];
+                  const compCount = companies.filter((c) => {
+                    const entered = (c.entered_by_name || c.created_by || (c.creator ? c.creator.name : '')).toLowerCase();
+                    return entered.includes(normMem);
+                  }).length;
+
                   return (
                     <tr key={cra.cra_id} className="hover:bg-purple-900/20 transition">
                       <td className="py-3 px-4">
                         <div className="font-bold text-white">{cra.cra_name}</div>
                         <div className="text-[11px] text-purple-300/60">{cra.cra_email}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1.5 font-bold text-white bg-indigo-900/40 border border-indigo-700/50 px-2.5 py-1 rounded-lg text-xs">
+                          <Building2 className="h-3.5 w-3.5 text-indigo-400" />
+                          <span>{compCount}</span>
+                        </span>
                       </td>
                       <td className="py-3 px-4">
                         <span

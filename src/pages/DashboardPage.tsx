@@ -23,6 +23,7 @@ import {
   Printer
 } from 'lucide-react';
 import { SystemReportModal } from '../components/SystemReportModal';
+import { TaskNotificationModal } from '../components/TaskNotificationModal';
 
 interface Props {
   setActiveTab: (tab: string) => void;
@@ -36,6 +37,8 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
   const [loginTime, setLoginTime] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [dismissedTaskIds, setDismissedTaskIds] = useState<string[]>([]);
+  const [snoozedTaskIds, setSnoozedTaskIds] = useState<string[]>([]);
 
   useEffect(() => {
     // Read login timestamp from localStorage or default to current IST time
@@ -52,6 +55,11 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
       setLoginTime(`${nowFormatted} IST`);
       localStorage.setItem('placemein:login_timestamp', `${nowFormatted} IST`);
     }
+
+    // Regenerate recurring tasks according to their frequency
+    try {
+      api.regenerateRecurringTasks();
+    } catch (_) {}
 
     Promise.all([
       api.getCurrentCRA().catch(() => null),
@@ -81,6 +89,27 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
       setLoading(false);
     });
   }, []);
+
+  const handleDismissNotification = (taskId: string) => {
+    api.dismissTaskNotification(taskId);
+    setDismissedTaskIds((prev) => [...prev, taskId]);
+  };
+
+  const handleSnoozeNotification = (taskId: string, minutes: number) => {
+    api.snoozeTaskNotification(taskId, minutes);
+    setSnoozedTaskIds((prev) => [...prev, taskId]);
+  };
+
+  // Newly assigned action items popup notification:
+  // Must be assigned to this user, not completed, not dismissed, and snooze period expired
+  const pendingNotificationTasks = myTasks.filter((t) => {
+    if (t.status === 'completed') return false;
+    if (t.is_dismissed || dismissedTaskIds.includes(t.id)) return false;
+    if (snoozedTaskIds.includes(t.id)) return false;
+    if (t.snoozed_until && new Date(t.snoozed_until).getTime() > Date.now()) return false;
+    if (currentUser && t.assignee_id && t.assignee_id !== currentUser.id) return false;
+    return true;
+  });
 
   const getDetailedRoleTitle = (email?: string, name?: string, role?: string) => {
     const e = email?.toLowerCase() || '';
@@ -429,6 +458,14 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
       <SystemReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
+      />
+
+      {/* Action Item Assigned Popup Notification */}
+      <TaskNotificationModal
+        tasks={pendingNotificationTasks}
+        onDismiss={handleDismissNotification}
+        onSnooze={handleSnoozeNotification}
+        onViewTask={() => setActiveTab('tasks')}
       />
     </div>
   );

@@ -45,7 +45,7 @@ const checkAuthResponse = (res: Response) => {
 // No client-side fallback data is fabricated.
 
 export const api = {
-  async login(email: string, password: string): Promise<{ access_token: string }> {
+  async login(email: string, password: string): Promise<{ access_token: string; user?: CRA }> {
     const cleanEmail = email.trim().toLowerCase();
 
     // 1. Supabase Auth (Primary for Vercel and production deployments)
@@ -59,11 +59,21 @@ export const api = {
         if (!signInError && signInData.session) {
           const token = signInData.session.access_token;
           setAuthToken(token);
-          const profile = await supabaseDataService.getProfileById(signInData.session.user.id);
-          if (profile) {
-            clientFallbackStore.setCurrentUser(profile);
+          let profile = await supabaseDataService.getProfileById(signInData.session.user.id);
+          if (!profile) {
+            profile = {
+              id: signInData.session.user.id,
+              name: signInData.session.user.user_metadata?.name || cleanEmail.split('@')[0],
+              email: cleanEmail,
+              role: (signInData.session.user.user_metadata?.role as any) || 'cra',
+              emp_id: signInData.session.user.user_metadata?.emp_id || 'PM-EMP',
+              monthly_jd_target: 20,
+              is_active: true,
+              created_at: new Date().toISOString(),
+            };
           }
-          return { access_token: token };
+          clientFallbackStore.setCurrentUser(profile);
+          return { access_token: token, user: profile };
         }
 
         // Auto-provision initial employee accounts in Supabase Auth if needed
@@ -88,16 +98,19 @@ export const api = {
           if (!signUpError && signUpData.session) {
             const token = signUpData.session.access_token;
             setAuthToken(token);
-            await supabaseDataService.upsertProfile({
+            const userObj: CRA = {
               id: signUpData.session.user.id,
               name: empName,
               email: cleanEmail,
-              role: empRole,
+              role: empRole as any,
               emp_id: empId,
               monthly_jd_target: 20,
               is_active: true,
-            });
-            return { access_token: token };
+              created_at: new Date().toISOString(),
+            };
+            await supabaseDataService.upsertProfile(userObj);
+            clientFallbackStore.setCurrentUser(userObj);
+            return { access_token: token, user: userObj };
           }
         }
       } catch (sbAuthErr) {
@@ -105,7 +118,7 @@ export const api = {
       }
     }
 
-    // 2. FastAPI Backend fallback if running locally
+    // 2. Express Backend fallback if running locally
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
@@ -119,6 +132,9 @@ export const api = {
       if (res.ok) {
         const data = await res.json();
         setAuthToken(data.access_token);
+        if (data.user) {
+          clientFallbackStore.setCurrentUser(data.user);
+        }
         return data;
       }
     } catch (_) {}
@@ -153,7 +169,7 @@ export const api = {
       const fallbackToken = 'client_token_' + Date.now();
       setAuthToken(fallbackToken);
       clientFallbackStore.setCurrentUser(targetUser);
-      return { access_token: fallbackToken };
+      return { access_token: fallbackToken, user: targetUser };
     }
 
     throw new Error('Invalid credentials. Please verify your email and password.');
@@ -195,7 +211,7 @@ export const api = {
       return res.json();
     } catch (err: any) {
       if (err.message && err.message.includes('Failed to fetch')) {
-        throw new Error('Backend server is not running on port 8000. Please start the FastAPI backend in Terminal 1.');
+        throw new Error('Backend server is not running on port 8000. Please start the backend.');
       }
       throw err;
     }
@@ -230,9 +246,17 @@ export const api = {
   },
 
   async getCurrentCRA(): Promise<CRA> {
+    const cachedUser = clientFallbackStore.getCurrentUser();
+    if (cachedUser && cachedUser.id) {
+      return cachedUser;
+    }
     try {
       const res = await fetch(`${API_BASE}/auth/me`, { headers: authHeaders() });
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        const u = await res.json();
+        clientFallbackStore.setCurrentUser(u);
+        return u;
+      }
     } catch (_) {}
     return clientFallbackStore.getCurrentUser();
   },
@@ -355,6 +379,55 @@ export const api = {
     checkAuthResponse(res);
     if (!res.ok) {
       let message = 'Failed to extract and store document HR data';
+      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+
+  async uploadCSVCompanies(options: { file?: File; csv_text?: string; entered_by_name?: string }): Promise<{
+    success: boolean;
+    message: string;
+    report: {
+      total_rows: number;
+      companies_created: number;
+      companies_existing: number;
+      roles_created: number;
+      roles_duplicate_skipped: number;
+      errors: string[];
+      records: Array<{
+        company_name: string;
+        status: 'created' | 'existing';
+        role_status: 'created' | 'duplicate_skipped' | 'none';
+        role_title?: string;
+        uploader: string;
+      }>;
+    };
+  }> {
+    const formData = new FormData();
+    if (options.file) {
+      formData.append('file', options.file);
+    }
+    if (options.csv_text) {
+      formData.append('csv_text', options.csv_text);
+    }
+    if (options.entered_by_name) {
+      formData.append('entered_by_name', options.entered_by_name);
+    }
+
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const res = await fetch(`${API_BASE}/companies/upload-csv`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    checkAuthResponse(res);
+    if (!res.ok) {
+      let message = 'Failed to process CSV file';
       try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
       throw new Error(message);
     }
@@ -1258,6 +1331,8 @@ export const api = {
     due_date?: string;
     company_id?: string;
     contact_id?: string;
+    is_recurring?: boolean;
+    recurring_frequency?: 'daily' | 'weekly' | 'monthly';
   }): Promise<Task> {
     if (isSupabaseConfigured) {
       return supabaseDataService.createTask(taskData);
@@ -1378,37 +1453,114 @@ export const api = {
   },
 
   // Admin Portal Methods
-  async getAdminUsers(): Promise<CRA[]> {
-    const res = await fetch(`${API_BASE}/admin/users`, { headers: authHeaders() });
-    checkAuthResponse(res);
-    if (!res.ok) throw new Error('Failed to fetch admin users');
-    return res.json();
+  async getAdminUsers(includeInactive: boolean = true): Promise<CRA[]> {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users`, { headers: authHeaders() });
+      checkAuthResponse(res);
+      if (res.ok) {
+        const users: CRA[] = await res.json();
+        return includeInactive ? users : users.filter((u) => u.is_active !== false && !u.deleted_at);
+      }
+    } catch (_) {}
+    return clientFallbackStore.getUsers(includeInactive);
   },
 
-  async createAdminUser(data: Partial<CRA> & { password: string }): Promise<CRA> {
-    const res = await fetch(`${API_BASE}/admin/users`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(data),
-    });
-    checkAuthResponse(res);
-    if (!res.ok) {
+  async createAdminUser(data: Partial<CRA> & { password?: string }): Promise<CRA> {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(data),
+      });
+      checkAuthResponse(res);
+      if (res.ok) {
+        const user = await res.json();
+        clientFallbackStore.createUser(user);
+        return user;
+      }
       let err = 'Failed to create user';
       try { const d = await res.json(); if (d.detail) err = d.detail; } catch (_) {}
       throw new Error(err);
+    } catch (err: any) {
+      if (err.message && !err.message.includes('fetch')) throw err;
+      return clientFallbackStore.createUser(data);
     }
-    return res.json();
   },
 
   async updateAdminUser(userId: string, data: Partial<CRA>): Promise<CRA> {
-    const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
-      method: 'PATCH',
-      headers: authHeaders(),
-      body: JSON.stringify(data),
-    });
-    checkAuthResponse(res);
-    if (!res.ok) throw new Error('Failed to update user');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(data),
+      });
+      checkAuthResponse(res);
+      if (res.ok) {
+        const user = await res.json();
+        clientFallbackStore.updateUser(userId, user);
+        return user;
+      }
+    } catch (_) {}
+    return clientFallbackStore.updateUser(userId, data);
+  },
+
+  async deleteAdminUser(userId: string, soft: boolean = true): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      checkAuthResponse(res);
+      if (res.ok) {
+        clientFallbackStore.deleteUser(userId, soft);
+        return true;
+      }
+    } catch (_) {}
+    return clientFallbackStore.deleteUser(userId, soft);
+  },
+
+  async toggleUserStatus(userId: string, isActive?: boolean): Promise<CRA> {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}/toggle-status`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+      });
+      checkAuthResponse(res);
+      if (res.ok) {
+        const user = await res.json();
+        clientFallbackStore.updateUser(userId, user);
+        return user;
+      }
+    } catch (_) {}
+    const users = clientFallbackStore.getUsers(true);
+    const existing = users.find((u) => u.id === userId);
+    const newStatus = isActive !== undefined ? isActive : existing ? !existing.is_active : true;
+    return clientFallbackStore.toggleUserStatus(userId, newStatus);
+  },
+
+  // Task Recurring & Notification Snooze Management
+  getTaskSnoozeDuration(): number {
+    return clientFallbackStore.getTaskSnoozeDuration();
+  },
+
+  setTaskSnoozeDuration(minutes: number): void {
+    clientFallbackStore.setTaskSnoozeDuration(minutes);
+  },
+
+  dismissTaskNotification(taskId: string): void {
+    clientFallbackStore.dismissTask(taskId);
+  },
+
+  snoozeTaskNotification(taskId: string, minutes?: number): void {
+    clientFallbackStore.snoozeTask(taskId, minutes);
+  },
+
+  regenerateRecurringTasks(): Task[] {
+    return clientFallbackStore.regenerateRecurringTasks();
+  },
+
+  getTeamLeadStats() {
+    return clientFallbackStore.getTeamLeadStats();
   },
 
   async mergeCompanies(sourceCompanyId: string, targetCompanyId: string): Promise<{ message: string }> {

@@ -47,22 +47,30 @@ export const supabaseDataService = {
         return clientFallbackStore.getCompanies();
       }
 
-      return data.map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        industry: c.industry || undefined,
-        website: c.website || undefined,
-        linkedin_url: c.linkedin_url || undefined,
-        employee_count: c.employee_count || undefined,
-        location: c.location || undefined,
-        source: c.source || 'manual',
-        notes: c.notes || undefined,
-        created_by: c.created_by || undefined,
-        created_at: c.created_at,
-        contacts_count: c.contacts?.length || 0,
-        contacts: c.contacts || [],
-        jds: c.jds || [],
-      }));
+      return data.map((c: any) => {
+        let enteredByName = c.entered_by_name || c.created_by;
+        if (c.notes && c.notes.includes('Entered by:')) {
+          const match = c.notes.match(/Entered by:\s*([^|\n]+)/i);
+          if (match) enteredByName = match[1].trim();
+        }
+        return {
+          id: c.id,
+          name: c.name,
+          industry: c.industry || undefined,
+          website: c.website || undefined,
+          linkedin_url: c.linkedin_url || undefined,
+          employee_count: c.employee_count || undefined,
+          location: c.location || undefined,
+          source: c.source || 'manual',
+          notes: c.notes || undefined,
+          created_by: c.created_by || undefined,
+          created_at: c.created_at,
+          entered_by_name: enteredByName || 'Aravind Reddy',
+          contacts_count: c.contacts?.length || 0,
+          contacts: c.contacts || [],
+          jds: c.jds || [],
+        };
+      });
     } catch (err) {
       console.warn('[Supabase] Failed to fetch companies, using fallback:', err);
       return clientFallbackStore.getCompanies();
@@ -70,6 +78,13 @@ export const supabaseDataService = {
   },
 
   async createCompany(company: Partial<Company>): Promise<Company> {
+    const user = clientFallbackStore.getCurrentUser();
+    const enteredByName = company.entered_by_name || user?.name || 'Aravind Reddy';
+    let combinedNotes = company.notes || '';
+    if (!combinedNotes.includes('Entered by:')) {
+      combinedNotes = combinedNotes ? `${combinedNotes} | Entered by: ${enteredByName}` : `Entered by: ${enteredByName}`;
+    }
+
     if (!isSupabaseConfigured) {
       const companies = clientFallbackStore.getCompanies();
       const newComp: Company = {
@@ -81,7 +96,8 @@ export const supabaseDataService = {
         employee_count: company.employee_count,
         location: company.location,
         source: company.source || 'manual',
-        notes: company.notes,
+        notes: combinedNotes,
+        entered_by_name: enteredByName,
         created_at: new Date().toISOString(),
       };
       companies.unshift(newComp);
@@ -99,13 +115,18 @@ export const supabaseDataService = {
         employee_count: company.employee_count || null,
         location: company.location || null,
         source: company.source || 'manual',
-        notes: company.notes || null,
+        notes: combinedNotes,
       })
       .select()
       .single();
 
     if (error) throw new Error(error.message);
-    return data;
+    return {
+      ...data,
+      entered_by_name: enteredByName,
+      contacts: [],
+      jds: [],
+    };
   },
 
   async updateCompany(id: string, updates: Partial<Company>): Promise<Company> {
@@ -716,6 +737,37 @@ export const supabaseDataService = {
     const companies = clientFallbackStore.getCompanies();
     const matchedComp = companies.find((c) => c.id === jd.company_id);
 
+    const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    const newNormTitle = norm(jd.title);
+
+    // Rule: "if it existed then see the role that entered: if it is a different role add it, but if it is a same role leave it dont allow to store"
+    if (jd.company_id && newNormTitle) {
+      if (isSupabaseConfigured) {
+        const { data: existingJds } = await supabase
+          .from('jds')
+          .select('id, title')
+          .eq('company_id', jd.company_id);
+
+        const duplicate = (existingJds || []).find((j: any) => norm(j.title) === newNormTitle);
+        if (duplicate) {
+          throw new Error(
+            `Role "${jd.title}" already exists for this company. Duplicate role is not allowed to be stored.`
+          );
+        }
+      }
+
+      // Also verify local store
+      const localJds = clientFallbackStore.getJDs();
+      const localDup = localJds.find(
+        (j) => j.company_id === jd.company_id && norm(j.title) === newNormTitle
+      );
+      if (localDup) {
+        throw new Error(
+          `Role "${jd.title}" already exists for this company. Duplicate role is not allowed to be stored.`
+        );
+      }
+    }
+
     const fallbackJD: JD = {
       id: 'jd_' + Date.now(),
       title: jd.title || 'New Opportunity',
@@ -948,6 +1000,8 @@ export const supabaseDataService = {
     due_date?: string;
     company_id?: string;
     contact_id?: string;
+    is_recurring?: boolean;
+    recurring_frequency?: 'daily' | 'weekly' | 'monthly';
   }): Promise<Task> {
     if (!isSupabaseConfigured) {
       const users = clientFallbackStore.getUsers();
@@ -958,10 +1012,12 @@ export const supabaseDataService = {
         title: taskData.title,
         description: taskData.description || '',
         assignee_id: taskData.assignee_id,
-        assigned_by_id: currentUser.id,
+        assigned_by_id: currentUser?.id || 'usr_admin_aravind',
         priority: (taskData.priority as any) || 'medium',
         due_date: taskData.due_date || new Date().toISOString(),
         status: 'pending',
+        is_recurring: taskData.is_recurring,
+        recurring_frequency: taskData.recurring_frequency,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         assignee,

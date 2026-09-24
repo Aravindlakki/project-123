@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { companies, hrContacts, enrichCompany, enrichContact } from '../models/db';
-import { Company, HRContact, CRA } from '../models/types';
+import { companies, hrContacts, jds, enrichCompany, enrichContact, enrichJD } from '../models/db';
+import { Company, HRContact, CRA, JD } from '../models/types';
 import { generateWithGeminiRetry } from '../services/geminiService';
 
 export function getCompanies(req: Request, res: Response) {
@@ -270,7 +270,21 @@ export function getCompanyById(req: Request, res: Response) {
 export function updateCompany(req: Request, res: Response) {
   const comp = companies.find((c) => c.id === req.params.id);
   if (!comp) return res.status(404).json({ detail: 'Company not found' });
-  Object.assign(comp, req.body);
+
+  const actingUser = (req as any).user;
+  // Only Admins (or the original creator) may edit existing company profile fields
+  if (actingUser && actingUser.role !== 'admin' && comp.created_by && comp.created_by !== actingUser.id) {
+    return res.status(403).json({ detail: 'Permission denied: Once created, only Admins may edit company profile fields.' });
+  }
+
+  if (req.body.name !== undefined) comp.name = req.body.name;
+  if (req.body.industry !== undefined) comp.industry = req.body.industry;
+  if (req.body.website !== undefined) comp.website = req.body.website;
+  if (req.body.linkedin_url !== undefined) comp.linkedin_url = req.body.linkedin_url;
+  if (req.body.employee_count !== undefined) comp.employee_count = req.body.employee_count;
+  if (req.body.location !== undefined) comp.location = req.body.location;
+  if (req.body.notes !== undefined) comp.notes = req.body.notes;
+
   return res.json(enrichCompany(comp));
 }
 
@@ -280,3 +294,230 @@ export function deleteCompany(req: Request, res: Response) {
   companies.splice(idx, 1);
   return res.status(204).send();
 }
+
+/**
+ * Helper to normalize strings for duplicate checking:
+ * Converts to lowercase, replaces punctuation with spaces, collapses whitespace.
+ */
+function normStr(str?: string): string {
+  return (str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Robust RFC 4180 CSV line parser handling commas, quotes, and escaped quotes.
+ */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++; // skip escaped quote
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+/**
+ * Server-side CSV Bulk Upload Endpoint
+ * Handles file reading, CSV parsing, strict duplicate-checking, and uploader attribution.
+ *
+ * Duplicate Rules:
+ * 1. Company check: matches case-insensitively by name.
+ * 2. If Company exists:
+ *    - If role is provided and already exists for that company -> duplicate role is skipped / counted as skipped duplicate!
+ *    - If role is provided and is a new role -> added under existing company!
+ * 3. If Company is new:
+ *    - Creates new company with uploaded_by (team member) attribution in notes & entered_by_name.
+ *    - Creates new role (if specified) linked to the new company.
+ */
+export function uploadCSVCompanies(req: Request, res: Response) {
+  const user = (req as any).user as CRA;
+  const file = req.file;
+  const specifiedUploader = (req.body.entered_by_name as string)?.trim() || user?.name || 'Aravind Reddy';
+
+  let rawCsvText = '';
+  if (file?.buffer) {
+    rawCsvText = file.buffer.toString('utf-8');
+  } else if (req.body.csv_text) {
+    rawCsvText = req.body.csv_text;
+  }
+
+  if (!rawCsvText || !rawCsvText.trim()) {
+    return res.status(400).json({ detail: 'No CSV file or CSV text provided.' });
+  }
+
+  // Split into non-empty lines
+  const lines = rawCsvText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (lines.length < 2) {
+    return res.status(400).json({ detail: 'CSV must contain at least a header row and one data row.' });
+  }
+
+  const rawHeaders = parseCSVLine(lines[0]);
+  const headers = rawHeaders.map((h) => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+
+  // Header resolution index helper
+  const findColIndex = (...candidates: string[]): number => {
+    return headers.findIndex((h) => candidates.some((c) => h === c || h.includes(c)));
+  };
+
+  const nameIdx = findColIndex('company_name', 'company', 'name', 'org', 'organization');
+  const roleIdx = findColIndex('role', 'job_title', 'job_role', 'title', 'position', 'designation', 'opening');
+  const headcountIdx = findColIndex('headcount', 'employee_count', 'employees', 'size', 'team_size');
+  const linkedinIdx = findColIndex('linkedin', 'linkedin_url', 'linkedin_link');
+  const websiteIdx = findColIndex('website', 'site', 'url', 'domain');
+  const industryIdx = findColIndex('industry', 'sector', 'domain_name', 'category');
+  const uploaderIdx = findColIndex('uploaded_by', 'entered_by', 'cra', 'spoc', 'assigned_to', 'owner');
+  const roleTypeIdx = findColIndex('opportunity_type', 'role_type', 'type');
+
+  if (nameIdx === -1) {
+    return res.status(400).json({
+      detail: `CSV must contain a column for Company Name (e.g., 'company_name', 'company', 'name'). Detected headers: ${rawHeaders.join(', ')}`,
+    });
+  }
+
+  const report = {
+    total_rows: lines.length - 1,
+    companies_created: 0,
+    companies_existing: 0,
+    roles_created: 0,
+    roles_duplicate_skipped: 0,
+    errors: [] as string[],
+    records: [] as Array<{
+      company_name: string;
+      status: 'created' | 'existing';
+      role_status: 'created' | 'duplicate_skipped' | 'none';
+      role_title?: string;
+      uploader: string;
+    }>,
+  };
+
+  for (let i = 1; i < lines.length; i++) {
+    const row = parseCSVLine(lines[i]);
+    const compNameRaw = row[nameIdx]?.trim();
+    if (!compNameRaw) continue;
+
+    const normComp = normStr(compNameRaw);
+    const roleRaw = roleIdx !== -1 ? row[roleIdx]?.trim() : '';
+    const headcountRaw = headcountIdx !== -1 ? row[headcountIdx]?.trim() : '';
+    const linkedinRaw = linkedinIdx !== -1 ? row[linkedinIdx]?.trim() : '';
+    const websiteRaw = websiteIdx !== -1 ? row[websiteIdx]?.trim() : '';
+    const industryRaw = industryIdx !== -1 ? row[industryIdx]?.trim() : '';
+    const rowUploader = (uploaderIdx !== -1 ? row[uploaderIdx]?.trim() : '') || specifiedUploader;
+    const oppType: 'existing_post' | 'cold_outreach' =
+      roleTypeIdx !== -1 && row[roleTypeIdx]?.toLowerCase().includes('cold') ? 'cold_outreach' : 'existing_post';
+
+    // 1. Check if Company already exists
+    let existingComp = companies.find((c) => normStr(c.name) === normComp);
+    let compStatus: 'created' | 'existing' = 'existing';
+    let roleStatus: 'created' | 'duplicate_skipped' | 'none' = 'none';
+
+    if (!existingComp) {
+      // Create new company with explicit member attribution in notes & entered_by_name
+      compStatus = 'created';
+      const newCompId = `comp_csv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const cleanLinkedin =
+        linkedinRaw || `https://www.linkedin.com/company/${compNameRaw.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+      
+      const newCompany: Company = {
+        id: newCompId,
+        name: compNameRaw,
+        industry: industryRaw || 'Information Technology',
+        website: websiteRaw || '',
+        linkedin_url: cleanLinkedin,
+        employee_count: headcountRaw || '100-500 employees',
+        entered_by_name: rowUploader,
+        source: 'csv_upload',
+        notes: `Entered by: ${rowUploader}`,
+        created_by: user?.id || 'usr_cra_1',
+        created_at: new Date().toISOString(),
+      };
+
+      companies.unshift(newCompany);
+      existingComp = newCompany;
+      report.companies_created++;
+    } else {
+      report.companies_existing++;
+      // Update missing fields if new CSV data is provided
+      if (headcountRaw && (!existingComp.employee_count || existingComp.employee_count === '100-500 employees')) {
+        existingComp.employee_count = headcountRaw;
+      }
+      if (linkedinRaw && !existingComp.linkedin_url) {
+        existingComp.linkedin_url = linkedinRaw;
+      }
+      if (websiteRaw && !existingComp.website) {
+        existingComp.website = websiteRaw;
+      }
+      if (industryRaw && !existingComp.industry) {
+        existingComp.industry = industryRaw;
+      }
+    }
+
+    // 2. Role handling with strict duplicate checking
+    if (roleRaw) {
+      const normRole = normStr(roleRaw);
+      // Check if role already exists for this company
+      const roleExists = jds.some(
+        (j) => j.company_id === existingComp!.id && normStr(j.title) === normRole
+      );
+
+      if (roleExists) {
+        // "if it is a same role leave it dont allow to store"
+        roleStatus = 'duplicate_skipped';
+        report.roles_duplicate_skipped++;
+      } else {
+        // "if it is a different role add it"
+        roleStatus = 'created';
+        const newJd: JD = {
+          id: `jd_csv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          title: roleRaw,
+          company_id: existingComp.id,
+          raw_text: `Opportunity for ${roleRaw} at ${existingComp.name}. Uploaded via CSV by ${rowUploader}.`,
+          is_verified: true,
+          verification_source: 'csv_upload',
+          opportunity_type: oppType,
+          date_found: new Date().toISOString().slice(0, 10),
+          created_by: user?.id || 'usr_cra_1',
+          created_at: new Date().toISOString(),
+        };
+        jds.unshift(newJd);
+        report.roles_created++;
+      }
+    }
+
+    report.records.push({
+      company_name: compNameRaw,
+      status: compStatus,
+      role_status: roleStatus,
+      role_title: roleRaw || undefined,
+      uploader: rowUploader,
+    });
+  }
+
+  return res.json({
+    success: true,
+    message: `Processed ${report.total_rows} rows: ${report.companies_created} new companies created, ${report.companies_existing} existing companies recognized, ${report.roles_created} new roles added, ${report.roles_duplicate_skipped} duplicate roles safely skipped.`,
+    report,
+  });
+}
+

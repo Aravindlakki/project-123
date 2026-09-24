@@ -7,6 +7,7 @@ export interface CRA {
   emp_id?: string;
   monthly_jd_target: number;
   is_active: boolean;
+  deleted_at?: string;
   created_at: string;
 }
 
@@ -55,7 +56,7 @@ export interface JD {
   company_id: string;
   raw_text: string;
   is_verified: boolean;
-  verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract';
+  verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract' | 'csv_upload';
   opportunity_type: 'existing_post' | 'cold_outreach';
   date_found: string;
   created_by?: string;

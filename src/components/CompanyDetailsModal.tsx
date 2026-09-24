@@ -16,9 +16,11 @@ import {
   Copy,
   MessageSquare,
   Calendar,
+  Lock,
 } from 'lucide-react';
-import { Company, HRContact, JD } from '../types';
+import { Company, HRContact, JD, CRA } from '../types';
 import { api } from '../services/api';
+import { clientFallbackStore } from '../services/clientFallbackStore';
 
 interface CompanyDetailsModalProps {
   company: Company | null;
@@ -27,6 +29,7 @@ interface CompanyDetailsModalProps {
   onUpdateCompany?: (updated: Company) => void;
   onAddRole?: (companyName: string) => void;
   onContactAdded?: (newContact: HRContact) => void;
+  currentUser?: CRA | null;
 }
 
 export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
@@ -36,15 +39,28 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
   onUpdateCompany,
   onAddRole,
   onContactAdded,
+  currentUser: propUser,
 }) => {
+  const [currentUser, setCurrentUser] = useState<CRA | null>(propUser || null);
   const [isEditing, setIsEditing] = useState(false);
   const [employeeCount, setEmployeeCount] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [industry, setIndustry] = useState('');
   const [website, setWebsite] = useState('');
+  const [location, setLocation] = useState('');
   const [enteredByName, setEnteredByName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (propUser) {
+      setCurrentUser(propUser);
+    } else {
+      const u = clientFallbackStore.getCurrentUser();
+      if (u) setCurrentUser(u);
+      else api.getCurrentCRA().then(setCurrentUser).catch(() => null);
+    }
+  }, [propUser]);
 
   // Quick Add HR contact form state
   const [showAddContact, setShowAddContact] = useState(false);
@@ -54,6 +70,13 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
   const [newHREmail, setNewHREmail] = useState('');
   const [newHRLinkedin, setNewHRLinkedin] = useState('');
   const [isAddingContact, setIsAddingContact] = useState(false);
+
+  // Quick Add Role state
+  const [showAddRole, setShowAddRole] = useState(false);
+  const [newRoleTitle, setNewRoleTitle] = useState('');
+  const [newRoleType, setNewRoleType] = useState<'existing_post' | 'cold_outreach'>('existing_post');
+  const [isAddingRole, setIsAddingRole] = useState(false);
+
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   React.useEffect(() => {
@@ -62,14 +85,22 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
       setLinkedinUrl(company.linkedin_url || `https://www.linkedin.com/company/${company.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`);
       setIndustry(company.industry || '');
       setWebsite(company.website || '');
+      setLocation(company.location || '');
       setEnteredByName(company.entered_by_name || (company.creator ? company.creator.name : 'Aravind Reddy'));
       setIsEditing(false);
       setShowAddContact(false);
+      setShowAddRole(false);
       setFeedback(null);
     }
   }, [company]);
 
   if (!isOpen || !company) return null;
+
+  // Rule: Once a company profile is created, only Admins (or the original creator) may edit profile fields.
+  // Other CRAs have view-only access. Exception: any CRA may still add a new JD/role under this company.
+  const canEditCompany = currentUser?.role === 'admin' ||
+    (currentUser?.id && company.created_by === currentUser.id) ||
+    (currentUser?.name && company.entered_by_name?.toLowerCase() === currentUser.name.toLowerCase());
 
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
@@ -132,6 +163,58 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
     }
   };
 
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoleTitle.trim()) {
+      setFeedback({ type: 'error', text: 'Role title is required' });
+      return;
+    }
+
+    const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    const newNormTitle = norm(newRoleTitle);
+
+    // Rule: "if it existed then see the role that entered: if it is a different role add it, but if it is a same role leave it dont allow to store"
+    const existingRoles = company.jds || [];
+    const duplicate = existingRoles.find((j) => norm(j.title) === newNormTitle);
+    if (duplicate) {
+      setFeedback({
+        type: 'error',
+        text: `⚠️ Duplicate Role: "${newRoleTitle.trim()}" already exists for ${company.name}. Duplicate roles are not allowed to be stored.`,
+      });
+      return;
+    }
+
+    setIsAddingRole(true);
+    setFeedback(null);
+    try {
+      const createdJD = await api.createJD({
+        company_id: company.id,
+        title: newRoleTitle.trim(),
+        opportunity_type: newRoleType,
+        raw_text: `Opportunity for ${newRoleTitle.trim()} at ${company.name}`,
+        is_verified: true,
+        verification_source: 'manual_entry',
+      });
+
+      const updatedJds = [createdJD, ...(company.jds || [])];
+      onUpdateCompany?.({
+        ...company,
+        jds: updatedJds,
+      });
+
+      setShowAddRole(false);
+      setNewRoleTitle('');
+      setFeedback({
+        type: 'success',
+        text: `✅ Added new role "${createdJD.title}" to ${company.name}`,
+      });
+    } catch (err: any) {
+      setFeedback({ type: 'error', text: err.message || 'Failed to add role' });
+    } finally {
+      setIsAddingRole(false);
+    }
+  };
+
   const hrList = company.contacts || [];
   const jdList = company.jds || [];
 
@@ -173,24 +256,34 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
-                title="Edit company information"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-                <span>Edit</span>
-              </button>
+            {canEditCompany ? (
+              !isEditing ? (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
+                  title="Edit company information"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                  <span>Edit</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleSaveCompanyEdits}
+                  disabled={isSaving}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                </button>
+              )
             ) : (
-              <button
-                onClick={handleSaveCompanyEdits}
-                disabled={isSaving}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30"
+              <span
+                className="px-2.5 py-1 bg-gray-800/80 text-gray-400 border border-gray-700/60 rounded-lg text-xs font-medium flex items-center gap-1.5"
+                title="Company profile fields are locked. Only Admins can modify existing company details."
               >
-                <Check className="h-3.5 w-3.5" />
-                <span>{isSaving ? 'Saving...' : 'Save'}</span>
-              </button>
+                <Lock className="h-3 w-3 text-amber-400" />
+                <span>View-Only</span>
+              </span>
             )}
             <button
               onClick={onClose}
@@ -579,14 +672,68 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                   </span>
                 </h3>
               </div>
-              <button
-                onClick={() => onAddRole?.(company.name)}
-                className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Role / JD</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAddRole(!showAddRole)}
+                  className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{showAddRole ? 'Cancel' : 'Add Role / JD'}</span>
+                </button>
+              </div>
             </div>
+
+            {/* Quick Add Role Form */}
+            {showAddRole && (
+              <form onSubmit={handleCreateRole} className="p-4 bg-gray-900 border border-indigo-500/40 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    Enter New Opportunity / Role for {company.name}
+                  </h4>
+                  <span className="text-[10px] text-gray-400">Duplicate roles are auto-rejected</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-400 mb-1">Job Title / Role *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Senior Backend Engineer"
+                      value={newRoleTitle}
+                      onChange={(e) => setNewRoleTitle(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-400 mb-1">Opportunity Type</label>
+                    <select
+                      value={newRoleType}
+                      onChange={(e: any) => setNewRoleType(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="existing_post">Existing Job Post</option>
+                      <option value="cold_outreach">Cold Outreach Requirement</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRole(false)}
+                    className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAddingRole}
+                    className="px-4 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow"
+                  >
+                    {isAddingRole ? 'Checking & Saving...' : 'Save Role'}
+                  </button>
+                </div>
+              </form>
+            )}
 
             {jdList.length > 0 ? (
               <div className="space-y-2">

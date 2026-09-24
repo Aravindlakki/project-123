@@ -47,6 +47,8 @@ export const TaskManagementPage: React.FC<TaskManagementPageProps> = ({ employee
   const [taskAssigneeId, setTaskAssigneeId] = useState('');
   const [taskPriority, setTaskPriority] = useState<TaskPriority>('medium');
   const [taskDueDate, setTaskDueDate] = useState('');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
 
   // Apply Leave Form State
   const [leaveType, setLeaveType] = useState<LeaveType>('casual');
@@ -116,12 +118,16 @@ export const TaskManagementPage: React.FC<TaskManagementPageProps> = ({ employee
         assignee_id: taskAssigneeId,
         priority: taskPriority,
         due_date: taskDueDate || undefined,
+        is_recurring: isRecurring,
+        recurring_frequency: isRecurring ? recurringFrequency : undefined,
       });
       setShowCreateTaskModal(false);
       setTaskTitle('');
       setTaskDesc('');
       setTaskDueDate('');
-      showNotification('success', 'Task dispatched successfully.');
+      setIsRecurring(false);
+      setRecurringFrequency('weekly');
+      showNotification('success', isRecurring ? `Recurring task (${recurringFrequency}) dispatched successfully.` : 'Task dispatched successfully.');
       await loadData();
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to create task');
@@ -738,7 +744,7 @@ export const TaskManagementPage: React.FC<TaskManagementPageProps> = ({ employee
                     onChange={(e) => setTaskAssigneeId(e.target.value)}
                     className="w-full px-3 py-2 bg-purple-950/50 border border-purple-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   >
-                    {cras.map((cra) => (
+                    {cras.filter((cra) => cra.is_active !== false && !cra.deleted_at).map((cra) => (
                       <option key={cra.id} value={cra.id}>
                         {cra.name} ({cra.role})
                       </option>
@@ -772,6 +778,42 @@ export const TaskManagementPage: React.FC<TaskManagementPageProps> = ({ employee
                   onChange={(e) => setTaskDueDate(e.target.value)}
                   className="w-full px-3 py-2 bg-purple-950/50 border border-purple-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+              </div>
+
+              {/* Recurring Task Configuration */}
+              <div className="p-3.5 bg-purple-950/40 rounded-2xl border border-purple-800/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className={`h-4 w-4 ${isRecurring ? 'text-purple-400 animate-spin' : 'text-gray-400'}`} />
+                    <label htmlFor="recurringToggle" className="text-xs font-semibold text-purple-200 cursor-pointer select-none">
+                      Make this a recurring task
+                    </label>
+                  </div>
+                  <input
+                    id="recurringToggle"
+                    type="checkbox"
+                    checked={isRecurring}
+                    onChange={(e) => setIsRecurring(e.target.checked)}
+                    className="h-4 w-4 rounded accent-purple-600 bg-gray-900 border-purple-700 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                  />
+                </div>
+
+                {isRecurring && (
+                  <div className="pt-2 border-t border-purple-800/30 flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                    <span className="text-[11px] text-purple-300 font-medium">
+                      Recurring Frequency:
+                    </span>
+                    <select
+                      value={recurringFrequency}
+                      onChange={(e) => setRecurringFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                      className="bg-purple-900/60 border border-purple-600/70 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none font-semibold"
+                    >
+                      <option value="daily">Daily (Every 24 Hours)</option>
+                      <option value="weekly">Weekly (Every 7 Days)</option>
+                      <option value="monthly">Monthly (Every 30 Days)</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-purple-800/40">

@@ -10,6 +10,7 @@ import { PerformancePage } from './pages/PerformancePage';
 import { TaskManagementPage } from './pages/TaskManagementPage';
 import { AdminPortalPage } from './pages/AdminPortalPage';
 import { TeamSheetsPage } from './pages/TeamSheetsPage';
+import { TeamLeadDashboardPage } from './pages/TeamLeadDashboardPage';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { SystemReportModal } from './components/SystemReportModal';
 import { api, getAuthToken, clearAuthToken } from './services/api';
@@ -35,6 +36,7 @@ const routeToTab = (rawPath: string) => {
   const clean = rawPath.replace(/\/$/, '');
   const routes: Record<string, string> = {
     '/dashboard': 'dashboard',
+    '/team-lead-dashboard': 'team-lead-dashboard',
     '/team-sheets': 'team-sheets',
     '/hr-sourcing': 'hr-sourcing',
     '/jd-intake': 'jd-intake',
@@ -63,6 +65,7 @@ const routeToTab = (rawPath: string) => {
 
 const tabToRoute: Record<string, string> = {
   dashboard: '/dashboard',
+  'team-lead-dashboard': '/team-lead-dashboard',
   'team-sheets': '/team-sheets',
   'hr-sourcing': '/hr-sourcing',
   'jd-intake': '/jd-intake',
@@ -358,6 +361,7 @@ export const App: React.FC = () => {
 
         <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 min-w-0">
           {activeTab === 'dashboard' && <DashboardPage setActiveTab={navigate} />}
+          {activeTab === 'team-lead-dashboard' && <TeamLeadDashboardPage setActiveTab={navigate} />}
           {activeTab === 'team-sheets' && <TeamSheetsPage currentUser={currentUser} />}
           {activeTab === 'tasks' && <TaskManagementPage employeeMode />}
           {activeTab === 'performance' && <PerformancePage employeeMode />}

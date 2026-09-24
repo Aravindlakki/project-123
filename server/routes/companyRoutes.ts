@@ -3,6 +3,7 @@ import {
   getCompanies,
   createCompany,
   bulkCompanies,
+  uploadCSVCompanies,
   parseDocumentHR,
   getCompanyById,
   updateCompany,
@@ -16,6 +17,7 @@ export const companyRouter = Router();
 companyRouter.get('/companies', authenticate, getCompanies);
 companyRouter.post('/companies', authenticate, createCompany);
 companyRouter.post('/companies/bulk', authenticate, bulkCompanies);
+companyRouter.post('/companies/upload-csv', authenticate, uploadFile, uploadCSVCompanies);
 companyRouter.post('/companies/parse-document-hr', authenticate, uploadFile, parseDocumentHR);
 companyRouter.get('/companies/:id', authenticate, getCompanyById);
 companyRouter.patch('/companies/:id', authenticate, updateCompany);

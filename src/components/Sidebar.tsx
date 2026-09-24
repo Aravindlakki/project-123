@@ -34,6 +34,7 @@ interface SidebarProps {
 
 const employeeItems = [
   { id: 'dashboard', label: 'My Dashboard', icon: LayoutDashboard },
+  { id: 'team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'team-sheets', label: 'Team Worksheets', icon: FileSpreadsheet },
   { id: 'hr-sourcing', label: 'HR Sourcing', icon: Search },
   { id: 'jd-intake', label: 'JD Intake', icon: FileText },
@@ -44,6 +45,7 @@ const employeeItems = [
 ];
 
 const adminItems = [
+  { id: 'team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
   { id: 'team-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
   { id: 'admin-tasks', label: 'Task Management', icon: CheckSquare },

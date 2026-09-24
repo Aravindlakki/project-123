@@ -536,6 +536,9 @@ Requirements:
           }
         }
 
+        const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+        const newNormTitle = norm(titleName);
+
         // Check or create company
         let compId: string;
         const matched = companies.find(
@@ -543,6 +546,24 @@ Requirements:
         );
         if (matched) {
           compId = matched.id;
+          // Rule: If company exists and role is the same, leave it and don't allow to store!
+          const existingRolesForComp = recentJDs.filter((j) => j.company_id === matched.id);
+          const dupRole = existingRolesForComp.find((j) => norm(j.title) === newNormTitle);
+          if (dupRole) {
+            setStagedFiles((prev) =>
+              prev.map((sf) =>
+                sf.id === item.id
+                  ? {
+                      ...sf,
+                      status: 'failed',
+                      error: `Duplicate role: "${titleName}" already exists for "${matched.name}". Skipped duplicate.`,
+                    }
+                  : sf
+              )
+            );
+            failCount++;
+            continue;
+          }
         } else {
           const created = await api.createCompany({ name: compName, source: 'manual' });
           compId = created.id;
@@ -620,8 +641,23 @@ Requirements:
         (c) => c.name.toLowerCase().trim() === companyInput.toLowerCase().trim()
       );
 
+      const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+      const newNormTitle = norm(jdTitle);
+
       if (existingComp) {
         companyId = existingComp.id;
+        // Check if role already exists for this company:
+        // Rule: "if it existed then see the role that entred if it is a different role add it but if it is a same role leave it dont allow to store"
+        const existingRolesForComp = recentJDs.filter((j) => j.company_id === existingComp.id);
+        const dupRole = existingRolesForComp.find((j) => norm(j.title) === newNormTitle);
+        if (dupRole) {
+          setSubmitting(false);
+          setMessage({
+            type: 'error',
+            text: `⚠️ Duplicate Role Rejected: Company "${existingComp.name}" already has the role "${jdTitle.trim()}". Duplicate roles for the same company are not allowed to be stored.`,
+          });
+          return;
+        }
       } else {
         const createdComp = await api.createCompany({
           name: companyInput.trim(),

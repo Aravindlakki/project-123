@@ -8,7 +8,9 @@ import {
   getAdminJDs,
   getAdminUnverifiedJDs,
   verifyAdminJD,
+  getAdminUsers,
   createTeamMember,
+  updateAdminUser,
   toggleUserStatus,
   resetUserPassword,
   updateUserRole,
@@ -33,6 +35,14 @@ adminRouter.get('/admin/audit-logs', authenticate, requireAdmin, getAuditLogs);
 adminRouter.get('/admin/export', authenticate, requireAdmin, exportCSV);
 adminRouter.get('/admin/settings', authenticate, requireAdmin, getSettings);
 adminRouter.put('/admin/settings', authenticate, requireAdmin, updateSettings);
+
+// Team Member & User Management (CRUD)
+adminRouter.get('/admin/users', authenticate, requireAdmin, getAdminUsers);
+adminRouter.post('/admin/users', authenticate, requireAdmin, createTeamMember);
+adminRouter.patch('/admin/users/:id', authenticate, requireAdmin, updateAdminUser);
+adminRouter.delete('/admin/users/:id', authenticate, requireAdmin, deleteUser);
+adminRouter.patch('/admin/users/:id/toggle-status', authenticate, requireAdmin, toggleUserStatus);
+
 adminRouter.post('/admin/team-members', authenticate, requireAdmin, createTeamMember);
 adminRouter.patch('/admin/team-members/:id/toggle-status', authenticate, requireAdmin, toggleUserStatus);
 adminRouter.post('/admin/team-members/:id/reset-password', authenticate, requireAdmin, resetUserPassword);

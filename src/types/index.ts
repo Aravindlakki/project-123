@@ -16,6 +16,7 @@ export interface CRA {
   emp_id?: string;
   monthly_jd_target?: number;
   is_active?: boolean;
+  deleted_at?: string;
   created_at: string;
 }
 
@@ -138,12 +139,31 @@ export interface Task {
   due_date?: string;
   company_id?: string;
   contact_id?: string;
+  is_recurring?: boolean;
+  recurring_frequency?: 'daily' | 'weekly' | 'monthly';
+  last_regenerated_at?: string;
+  is_dismissed?: boolean;
+  snoozed_until?: string;
   created_at: string;
   updated_at: string;
   assignee?: CRA;
   assigned_by?: CRA;
   company?: Company;
   contact?: HRContact;
+}
+
+export interface TeamLeadStats {
+  eligible_jds_this_month: number;
+  drives_scheduled_this_month: number;
+  attendance_today_present: number;
+  attendance_today_total: number;
+  attendance_today_pct: number;
+  jds_received_today: number;
+  interviews_scheduled_today: number;
+  interviews_on_hold_month: number;
+  pf_target_achievement_pct: number;
+  pf_target_achieved_count: number;
+  pf_target_total_goal: number;
 }
 
 export interface DashboardStats {
