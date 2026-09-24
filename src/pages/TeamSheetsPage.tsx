@@ -258,7 +258,28 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       'Entered By',
     ];
 
-    const rows = filteredLeads.map((l) => [
+    const exportData = filteredLeads.length > 0 ? filteredLeads : [
+      {
+        name: 'Monisha Kanduri',
+        title: 'HR Manager',
+        phone: '+91 98765 43210',
+        email: 'monisha@autoliv.com',
+        linkedin_url: 'https://linkedin.com/in/monisha-example',
+        domain: 'Automotive & Safety Systems',
+        location: 'Bangalore, India',
+        remarks: 'Sample Lead Template',
+        spoc: activeSheet === 'all' ? 'Aravind' : activeSheet,
+        entered_by_name: `${activeSheet === 'all' ? 'Aravind' : activeSheet} Reddy`,
+        company: {
+          name: 'Autoliv India',
+          employee_count: '1,000+ employees',
+          linkedin_url: 'https://linkedin.com/company/autoliv',
+          website: 'https://www.autoliv.com',
+        },
+      } as any,
+    ];
+
+    const rows = exportData.map((l) => [
       `"${l.company?.name || ''}"`,
       `"${l.company?.employee_count || '100-500 employees'}"`,
       `"${l.company?.linkedin_url || ''}"`,

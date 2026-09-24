@@ -60,19 +60,29 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
     }
 
     try {
-      const { contacts } = parseHRContactsCSV(
+      const { contacts, hasHeaders } = parseHRContactsCSV(
         content,
         defaultCompObj ? { id: defaultCompObj.id, name: defaultCompObj.name } : undefined
       );
 
       if (contacts.length === 0) {
-        setErrorMessage('No valid contact rows could be extracted. Please check the file format or try our sample template.');
+        if (hasHeaders) {
+          setErrorMessage(
+            'The uploaded spreadsheet contains headers, but no contact data rows were found below the header. Please ensure your sheet has at least one recruiter or lead row, or download our Sample CSV template.'
+          );
+        } else {
+          setErrorMessage(
+            'No valid contact rows could be extracted. Please check that your file includes a contact or company name, or try our sample template.'
+          );
+        }
+        setParsedRows([]);
       } else {
         setParsedRows(contacts);
         if (name) setFileName(name);
       }
     } catch (err: any) {
       setErrorMessage(`Failed to parse file: ${err.message || 'Unknown parsing error'}`);
+      setParsedRows([]);
     }
   };
 

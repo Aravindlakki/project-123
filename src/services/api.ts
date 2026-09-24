@@ -573,28 +573,34 @@ export const api = {
 
     const { rows } = parseDelimitedText(rawText);
     if (rows.length < 2) {
-      throw new Error('File must contain at least a header row and one data row.');
+      throw new Error(
+        'The uploaded spreadsheet contains headers, but no data rows were found below the header. Please ensure your sheet has company rows below the header, or click "Sample CSV" to view the format.'
+      );
     }
 
     const rawHeaders = rows[0];
     const headers = rawHeaders.map((h) => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
 
     const findColIndex = (...candidates: string[]): number => {
-      return headers.findIndex((h) => candidates.some((c) => h === c || h.includes(c)));
+      for (const cand of candidates) {
+        const idx = headers.findIndex((h) => h === cand || h.includes(cand));
+        if (idx !== -1) return idx;
+      }
+      return -1;
     };
 
-    const nameIdx = findColIndex('company_name', 'company', 'name', 'org', 'organization', 'firm', 'employer');
+    const nameIdx = findColIndex('company_name', 'company', 'organization', 'organisation', 'firm', 'employer', 'name', 'org');
     const roleIdx = findColIndex('role', 'job_title', 'job_role', 'title', 'position', 'designation', 'opening');
-    const headcountIdx = findColIndex('headcount', 'employee_count', 'employees', 'size', 'team_size');
-    const linkedinIdx = findColIndex('linkedin', 'linkedin_url', 'linkedin_link');
-    const websiteIdx = findColIndex('website', 'site', 'url', 'domain');
-    const industryIdx = findColIndex('industry', 'sector', 'domain_name', 'category');
-    const uploaderIdx = findColIndex('uploaded_by', 'entered_by', 'cra', 'spoc', 'assigned_to', 'owner');
+    const headcountIdx = findColIndex('employee_headcount', 'headcount', 'employee_count', 'employees', 'size', 'team_size');
+    const linkedinIdx = findColIndex('company_linkedin', 'linkedin_url', 'linkedin_link', 'linkedin');
+    const websiteIdx = findColIndex('website', 'site', 'url');
+    const industryIdx = findColIndex('domain', 'industry', 'sector', 'domain_name', 'category');
+    const uploaderIdx = findColIndex('entered_by', 'uploaded_by', 'spoc', 'cra', 'assigned_to', 'owner');
     const roleTypeIdx = findColIndex('opportunity_type', 'role_type', 'type');
 
     if (nameIdx === -1) {
       throw new Error(
-        `File must contain a column for Company Name (e.g. 'company_name', 'company', 'name'). Detected headers: ${rawHeaders.join(', ')}`
+        `File must contain a column for Company Name (e.g. 'Company Name', 'company', 'name'). Detected headers: ${rawHeaders.join(', ')}`
       );
     }
 
