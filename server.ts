@@ -1,11 +1,12 @@
+import 'tsx';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { apiRouter } from './server/routes/index';
 
 const app = express();
-const PORT = process.env.NODE_ENV === 'production' && process.env.PORT ? Number(process.env.PORT) : 3000;
+const PORT = 3000;
 
 // Core Middlewares with full CORS support for Vercel frontends
 app.use(cors({
@@ -18,7 +19,7 @@ app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-// Root & Health Checks for Render deployment
+// Root & Health Checks for deployment
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -38,11 +39,11 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Mount MVC API Routes
-app.use('/api/v1', apiRouter);
-
 // Start Server with Vite or Static
 async function startServer() {
+  const { apiRouter } = await import('./server/routes/index');
+  app.use('/api/v1', apiRouter);
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true, host: '0.0.0.0', port: PORT },
@@ -60,13 +61,13 @@ async function startServer() {
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, 'index.html');
-      if (require('fs').existsSync(indexPath)) {
+      if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
         res.json({
           status: 'ok',
           service: 'placemein-backend',
-          message: 'Backend API is running. Frontend is deployed on Vercel.',
+          message: 'Backend API is running. Frontend build in dist/',
         });
       }
     });
@@ -78,3 +79,4 @@ async function startServer() {
 }
 
 startServer();
+

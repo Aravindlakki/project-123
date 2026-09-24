@@ -1,23 +1,28 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    'Missing Supabase environment variables. ' +
-    'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local'
-  );
-}
-
-export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || '',
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  }
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl &&
+  supabaseAnonKey &&
+  typeof supabaseUrl === 'string' &&
+  supabaseUrl.startsWith('https://')
 );
+
+export const supabase: SupabaseClient = isSupabaseConfigured
+  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    })
+  : (new Proxy({}, {
+      get: () => () => ({
+        channel: () => ({ on: () => ({ subscribe: () => ({}) }) }),
+        removeChannel: () => {},
+        from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }),
+      }),
+    }) as any);
+

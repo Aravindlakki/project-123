@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "vite build && node -e \"if (!process.env.VERCEL) import('child_process').then(cp => cp.execSync('npm run build:backend', { stdio: 'inherit' }))\"",
     "build:frontend": "vite build",
     "build:backend": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
+    "start": "node server.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
