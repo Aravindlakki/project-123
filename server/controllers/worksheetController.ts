@@ -117,3 +117,76 @@ export function createWorksheetLead(req: Request, res: Response) {
   hrContacts.unshift(newContact);
   return res.status(201).json(enrichContact(newContact));
 }
+
+export function bulkCreateWorksheetLeads(req: Request, res: Response) {
+  const user = (req as any).user as CRA;
+  const items = Array.isArray(req.body) ? req.body : req.body.leads || [];
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ detail: 'No leads provided for import' });
+  }
+
+  let companiesCreated = 0;
+  let contactsCreated = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const companyName = (item.company_name || item.company || '').trim();
+    const hrName = (item.hr_name || item.name || '').trim();
+
+    if (!companyName || !hrName) continue;
+
+    let comp = companies.find((c) => c.name.toLowerCase().trim() === companyName.toLowerCase());
+    if (!comp) {
+      comp = {
+        id: `comp_bulk_${Date.now()}_${i}`,
+        name: companyName,
+        website: item.website?.trim() || '',
+        linkedin_url: item.linkedin_url?.trim() || `https://www.linkedin.com/company/${companyName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        employee_count: item.employee_count?.trim() || '100-500 employees',
+        industry: item.industry?.trim() || item.domain?.trim() || 'Technology',
+        location: item.location?.trim() || '',
+        entered_by_name: item.entered_by_name?.trim() || user.name,
+        source: 'excel_import',
+        created_by: user.id,
+        created_at: new Date().toISOString(),
+      };
+      companies.unshift(comp);
+      companiesCreated++;
+    } else {
+      if (item.employee_count && (!comp.employee_count || comp.employee_count === '100-500 employees')) {
+        comp.employee_count = item.employee_count;
+      }
+      if (item.website && !comp.website) comp.website = item.website;
+      if (item.linkedin_url && !comp.linkedin_url) comp.linkedin_url = item.linkedin_url;
+    }
+
+    const newContact: HRContact = {
+      id: `cont_bulk_${Date.now()}_${i}`,
+      name: hrName,
+      title: item.title?.trim() || item.designation?.trim() || 'HR Lead',
+      company_id: comp.id,
+      phone: item.phone?.trim() || '',
+      email: item.email?.trim() || '',
+      linkedin_url: item.hr_linkedin?.trim() || item.linkedin_url?.trim() || '',
+      domain: item.domain?.trim() || comp.industry || 'Technology',
+      location: item.location?.trim() || comp.location || '',
+      remarks: item.remarks?.trim() || 'Imported via Excel',
+      spoc: item.spoc?.trim() || user.name.split(' ')[0],
+      entered_by_name: item.entered_by_name?.trim() || user.name,
+      source: 'excel_import',
+      created_by: user.id,
+      created_at: new Date().toISOString(),
+    };
+    hrContacts.unshift(newContact);
+    contactsCreated++;
+  }
+
+  return res.json({
+    success: true,
+    count: contactsCreated,
+    companies_created: companiesCreated,
+    contacts_created: contactsCreated,
+    message: `Successfully imported ${contactsCreated} worksheet leads into the database.`,
+  });
+}

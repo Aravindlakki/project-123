@@ -276,6 +276,91 @@ export const clientFallbackStore = {
     localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
   },
 
+  bulkImportWorksheetLeads(rawLeads: Array<{
+    company_name: string;
+    website?: string;
+    linkedin_url?: string;
+    employee_count?: string;
+    industry?: string;
+    hr_name: string;
+    title?: string;
+    phone?: string;
+    email?: string;
+    hr_linkedin?: string;
+    domain?: string;
+    location?: string;
+    remarks?: string;
+    spoc?: string;
+    entered_by_name?: string;
+  }>): { count: number; companies_created: number; contacts_created: number } {
+    const existingCompanies = this.getCompanies();
+    const existingContacts = this.getContacts();
+    let companiesCreated = 0;
+    let contactsCreated = 0;
+
+    rawLeads.forEach((item, index) => {
+      const cleanCompName = (item.company_name || '').trim();
+      const cleanHrName = (item.hr_name || '').trim();
+      if (!cleanCompName || !cleanHrName) return;
+
+      let company = existingCompanies.find(
+        (c) => c.name.toLowerCase().trim() === cleanCompName.toLowerCase()
+      );
+
+      if (!company) {
+        company = {
+          id: `comp_excel_${Date.now()}_${index}`,
+          name: cleanCompName,
+          website: item.website?.trim() || '',
+          linkedin_url: item.linkedin_url?.trim() || `https://www.linkedin.com/company/${cleanCompName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          employee_count: item.employee_count?.trim() || '100-500 employees',
+          industry: item.industry?.trim() || item.domain?.trim() || 'Technology',
+          location: item.location?.trim() || '',
+          entered_by_name: item.entered_by_name?.trim() || 'Aravind Reddy',
+          source: 'import',
+          created_at: new Date().toISOString(),
+        };
+        existingCompanies.unshift(company);
+        companiesCreated++;
+      } else {
+        if (item.employee_count && (!company.employee_count || company.employee_count === '100-500 employees')) {
+          company.employee_count = item.employee_count;
+        }
+        if (item.website && !company.website) company.website = item.website;
+        if (item.linkedin_url && !company.linkedin_url) company.linkedin_url = item.linkedin_url;
+      }
+
+      const newContact: HRContact = {
+        id: `cont_excel_${Date.now()}_${index}`,
+        name: cleanHrName,
+        title: item.title?.trim() || 'HR Lead',
+        company_id: company.id,
+        phone: item.phone?.trim() || '',
+        email: item.email?.trim() || '',
+        linkedin_url: item.hr_linkedin?.trim() || '',
+        domain: item.domain?.trim() || company.industry || 'Technology',
+        location: item.location?.trim() || company.location || '',
+        remarks: item.remarks?.trim() || 'Imported via Excel',
+        spoc: item.spoc?.trim() || 'Harish',
+        entered_by_name: item.entered_by_name?.trim() || 'Aravind Reddy',
+        source: 'import',
+        company,
+        created_at: new Date().toISOString(),
+      };
+      existingContacts.unshift(newContact);
+      contactsCreated++;
+    });
+
+    this.saveCompanies(existingCompanies);
+    this.saveContacts(existingContacts);
+
+    return {
+      count: contactsCreated,
+      companies_created: companiesCreated,
+      contacts_created: contactsCreated,
+    };
+  },
+
   getTasks(): Task[] {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || '[]');

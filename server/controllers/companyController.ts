@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import * as XLSX from 'xlsx';
 import { companies, hrContacts, jds, enrichCompany, enrichContact, enrichJD } from '../models/db';
 import { Company, HRContact, CRA, JD } from '../models/types';
 import { generateWithGeminiRetry } from '../services/geminiService';
@@ -106,7 +107,15 @@ export async function parseDocumentHR(req: Request, res: Response) {
   let fileBufferB64: string | null = null;
 
   if (file?.buffer) {
-    if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+    if (filename.match(/\.xlsx?$|\.csv$/i) || mimeType.includes('spreadsheet') || mimeType.includes('excel')) {
+      try {
+        const wb = XLSX.read(file.buffer, { type: 'buffer' });
+        const sheetCsvs = wb.SheetNames.map((s) => `--- Sheet: ${s} ---\n` + XLSX.utils.sheet_to_csv(wb.Sheets[s])).join('\n\n');
+        textToParse = sheetCsvs + '\n' + textToParse;
+      } catch (_) {
+        textToParse = file.buffer.toString('utf-8') + '\n' + textToParse;
+      }
+    } else if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
       fileBufferB64 = file.buffer.toString('base64');
     } else {
       textToParse = file.buffer.toString('utf-8') + '\n' + textToParse;

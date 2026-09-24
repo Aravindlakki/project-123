@@ -210,7 +210,7 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.txt,.docx,.doc,image/*"
+                    accept=".pdf,.xlsx,.xls,.csv,.txt,.docx,.doc,image/*"
                     onChange={handleFileChange}
                     className="hidden"
                   />
@@ -232,10 +232,10 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
                     ) : (
                       <>
                         <p className="text-sm font-semibold text-white">
-                          Click to select or drag and drop your PDF / document
+                          Click to select or drag and drop your PDF, Excel, or Document
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                          Supports PDF, Word (.docx), Text files, or screenshots with company & HR numbers
+                          Supports PDF, Excel (.xlsx, .xls, .csv), Word (.docx), and plain text
                         </p>
                       </>
                     )}

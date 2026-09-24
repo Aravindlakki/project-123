@@ -32,6 +32,7 @@ import { api } from '../services/api';
 import { SPOC_MEMBERS } from '../data/pdfLeadsData';
 import { CompanyDetailsModal } from '../components/CompanyDetailsModal';
 import { DocumentIntakeModal } from '../components/DocumentIntakeModal';
+import { ExcelWorksheetImportModal } from '../components/ExcelWorksheetImportModal';
 import { SystemReportModal } from '../components/SystemReportModal';
 
 interface TeamSheetsPageProps {
@@ -70,6 +71,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
@@ -375,6 +377,15 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setShowExcelModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 shadow-emerald-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-emerald-500/30"
+              title="Import Excel (.xlsx, .xls) or CSV spreadsheet directly into your worksheet"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Import Excel Sheet</span>
+            </button>
+
             <button
               onClick={() => setShowDocumentModal(true)}
               className={`flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r ${adminMode ? 'from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-900/30' : 'from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-900/30'} text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer`}
@@ -1108,6 +1119,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         onViewCompany={(comp) => {
           setSelectedCompany(comp);
           setShowCompanyModal(true);
+        }}
+      />
+
+      {/* Excel & Spreadsheet Import Modal */}
+      <ExcelWorksheetImportModal
+        isOpen={showExcelModal}
+        onClose={() => setShowExcelModal(false)}
+        currentUser={currentUser}
+        defaultSpoc={activeSheet}
+        adminMode={adminMode}
+        onImportSuccess={() => {
+          fetchLeads();
         }}
       />
 

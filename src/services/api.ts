@@ -542,6 +542,49 @@ export const api = {
     return supabaseDataService.createWorksheetLead(lead);
   },
 
+  async bulkImportWorksheetLeads(leads: Array<{
+    company_name: string;
+    website?: string;
+    linkedin_url?: string;
+    employee_count?: string;
+    industry?: string;
+    hr_name: string;
+    title?: string;
+    phone?: string;
+    email?: string;
+    hr_linkedin?: string;
+    domain?: string;
+    location?: string;
+    remarks?: string;
+    spoc?: string;
+    entered_by_name?: string;
+  }>): Promise<{ success: boolean; count: number; companies_created: number; contacts_created: number; message: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/worksheet/bulk-leads`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(leads),
+      });
+      checkAuthResponse(res);
+      if (res.ok) {
+        const result = await res.json();
+        // Also sync to client fallback store for persistence
+        clientFallbackStore.bulkImportWorksheetLeads(leads);
+        return result;
+      }
+    } catch (_) {}
+
+    // Fallback directly to client store
+    const fallbackResult = clientFallbackStore.bulkImportWorksheetLeads(leads);
+    return {
+      success: true,
+      count: fallbackResult.count,
+      companies_created: fallbackResult.companies_created,
+      contacts_created: fallbackResult.contacts_created,
+      message: `Successfully imported ${fallbackResult.count} leads and ${fallbackResult.companies_created} companies.`,
+    };
+  },
+
   async bulkCreateContacts(companyId?: string, contacts: (Partial<HRContact> & { company_name?: string })[] = []): Promise<{ created: HRContact[]; count: number }> {
     if (isSupabaseConfigured) {
       return supabaseDataService.bulkCreateContacts(companyId, contacts);
