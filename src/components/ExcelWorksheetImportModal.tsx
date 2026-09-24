@@ -139,6 +139,77 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
     try {
       setError(null);
       setImportResult(null);
+
+      // Handle PDF Sourcing Sheet files gracefully
+      if (selectedFile.name.toLowerCase().endsWith('.pdf') || selectedFile.type === 'application/pdf') {
+        setIsProcessing(true);
+        try {
+          const parseRes = await api.parseDocumentHR({
+            file: selectedFile,
+            entered_by_name: enteredByName,
+          });
+
+          const leadsList: Record<string, any>[] = [];
+          const contacts = parseRes.contacts || [];
+
+          contacts.forEach((c) => {
+            leadsList.push({
+              'Company Name': c.company?.name || parseRes.company?.name || 'Partner Company',
+              'HR Name': c.name,
+              'Designation': c.title || 'HR Lead',
+              'Phone Number': c.phone || '',
+              'Email': c.email || '',
+              'SPOC': c.spoc || selectedDefaultSpoc,
+              'Domain': c.domain || 'Technology',
+              'Employee Count': c.company?.employee_count || '100-500 employees',
+              'Website': c.company?.website || '',
+              'Company LinkedIn': c.company?.linkedin_url || '',
+              'Location': c.location || 'Hyderabad',
+              'Remarks': c.remarks || 'Imported from Sourcing Sheet',
+            });
+          });
+
+          if (leadsList.length === 0 && parseRes.company) {
+            leadsList.push({
+              'Company Name': parseRes.company.name,
+              'HR Name': 'HR Executive',
+              'Designation': 'Talent Acquisition Lead',
+              'Phone Number': '',
+              'Email': '',
+              'SPOC': selectedDefaultSpoc,
+              'Domain': parseRes.company.industry || 'Technology',
+              'Employee Count': parseRes.company.employee_count || '100-500 employees',
+              'Website': parseRes.company.website || '',
+              'Company LinkedIn': parseRes.company.linkedin_url || '',
+              'Location': 'Hyderabad',
+              'Remarks': 'Imported from Sourcing Sheet',
+            });
+          }
+
+          if (leadsList.length === 0) {
+            throw new Error('No contacts or companies could be parsed from this PDF file.');
+          }
+
+          const headers = Object.keys(leadsList[0]);
+          const pdfSheet: ParsedSheetData = {
+            name: selectedFile.name.replace(/\.[^/.]+$/, ''),
+            headers,
+            rawRows: leadsList,
+          };
+
+          setFile(selectedFile);
+          setSheets([pdfSheet]);
+          setActiveSheetIndex(0);
+          const detected = autoDetectMappings(headers);
+          setColumnMap(detected);
+          setIsProcessing(false);
+          return;
+        } catch (pdfErr: any) {
+          setIsProcessing(false);
+          throw new Error(pdfErr.message || 'Failed to extract data from PDF');
+        }
+      }
+
       const data = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array' });
 
@@ -183,8 +254,8 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
       const detected = autoDetectMappings(parsedSheets[0].headers);
       setColumnMap(detected);
     } catch (err: any) {
-      console.error('Excel parse error:', err);
-      setError(err.message || 'Failed to read Excel file. Please ensure it is a valid .xlsx, .xls, or .csv file.');
+      console.error('File parse error:', err);
+      setError(err.message || 'Failed to read file. Please ensure it is a valid Excel (.xlsx, .xls), CSV (.csv), or PDF sourcing sheet.');
       setFile(null);
       setSheets([]);
     }
@@ -472,7 +543,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".xlsx, .xls, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv"
+                    accept=".xlsx, .xls, .csv, .pdf, application/pdf, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         handleFile(e.target.files[0]);
@@ -484,15 +555,16 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
                     <UploadCloud className="h-8 w-8" />
                   </div>
                   <h3 className="text-base font-bold text-white mb-1">
-                    Choose Excel or CSV File
+                    Choose Excel, CSV, or PDF Sourcing Sheet
                   </h3>
                   <p className="text-xs text-gray-400 max-w-sm mb-4">
-                    Drag and drop your spreadsheet here or click to browse. Supports <strong>.xlsx</strong>, <strong>.xls</strong>, and <strong>.csv</strong> with single or multiple sheets.
+                    Drag and drop your spreadsheet or sourcing sheet here. Supports <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong>, and <strong>.pdf</strong> sourcing sheets.
                   </p>
                   <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-gray-500">
                     <span className="px-2.5 py-1 rounded-md bg-gray-800 border border-gray-700 text-emerald-400 font-mono font-bold">.XLSX</span>
                     <span className="px-2.5 py-1 rounded-md bg-gray-800 border border-gray-700 text-emerald-400 font-mono font-bold">.XLS</span>
                     <span className="px-2.5 py-1 rounded-md bg-gray-800 border border-gray-700 text-emerald-400 font-mono font-bold">.CSV</span>
+                    <span className="px-2.5 py-1 rounded-md bg-purple-900/40 border border-purple-700/60 text-purple-300 font-mono font-bold">.PDF</span>
                   </div>
                 </div>
               ) : (

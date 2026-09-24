@@ -27,10 +27,10 @@ export async function generateWithGeminiRetry(params: {
   const gemini = getGeminiClient();
   if (!gemini) return null;
 
-  // Valid free-tier Gemini models with fallback chain for high-demand spikes (503/429)
-  const models = params.preferredModels || ['gemini-3.8-flash', 'gemini-2.5-flash'];
+  // Use fast, resilient models (gemini-2.5-flash and gemini-3.8-flash)
+  const models = params.preferredModels || ['gemini-2.5-flash', 'gemini-3.8-flash'];
   const maxRetries = params.maxRetriesPerModel ?? 2;
-  const timeoutMs = params.timeoutMs ?? 5000;
+  const timeoutMs = params.timeoutMs ?? 30000;
 
   for (const model of models) {
     for (let attempt = 0; attempt < maxRetries; attempt++) {

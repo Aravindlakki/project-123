@@ -49,9 +49,19 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
 
   if (!isOpen) return null;
 
+  const detectNameFromFile = (f: File) => {
+    const match = f.name.match(/\b(aravind|namitha|harish|pavithra|mansi|vineela|deepak|kavya|sandeep)\b/i);
+    if (match) {
+      const spocName = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+      setEnteredByName(`${spocName} Reddy`);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const f = e.target.files[0];
+      setFile(f);
+      detectNameFromFile(f);
       setError(null);
     }
   };
@@ -59,7 +69,9 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
+      const f = e.dataTransfer.files[0];
+      setFile(f);
+      detectNameFromFile(f);
       setError(null);
     }
   };
@@ -85,7 +97,7 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
         entered_by_name: enteredByName.trim() || undefined,
       });
 
-      if (response.success && response.company) {
+      if (response.success && (response.company || (response.contacts && response.contacts.length > 0))) {
         setSuccessResult({
           company: response.company,
           contacts: response.contacts || [],
