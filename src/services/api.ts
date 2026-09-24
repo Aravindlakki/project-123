@@ -3,6 +3,7 @@ import { clientFallbackStore } from './clientFallbackStore';
 import { ALL_EMPLOYEE_CREDENTIALS } from '../data/employeeCredentials';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { supabaseDataService } from './supabaseDataService';
+import { parseDelimitedText } from '../utils/csvParser';
 
 const getApiBase = (): string => {
   const envUrl = (import.meta as any).env?.VITE_API_URL;
@@ -310,7 +311,7 @@ export const api = {
         body: JSON.stringify(company),
       });
       checkAuthResponse(res);
-      if (res.ok) return await res.json();
+      if (res.ok && isJson(res)) return await res.json();
     } catch (_) {}
     return supabaseDataService.createCompany(company);
   },
@@ -332,7 +333,7 @@ export const api = {
         body: JSON.stringify({ items }),
       });
       checkAuthResponse(res);
-      if (res.ok) return await res.json();
+      if (res.ok && isJson(res)) return await res.json();
     } catch (_) {}
     return supabaseDataService.bulkCreateCompanies(items);
   },
@@ -348,7 +349,7 @@ export const api = {
         body: JSON.stringify(updates),
       });
       checkAuthResponse(res);
-      if (res.ok) return await res.json();
+      if (res.ok && isJson(res)) return await res.json();
     } catch (_) {}
     return supabaseDataService.updateCompany(id, updates);
   },
@@ -511,34 +512,195 @@ export const api = {
       }>;
     };
   }> {
-    const formData = new FormData();
-    if (options.file) {
-      formData.append('file', options.file);
-    }
-    if (options.csv_text) {
-      formData.append('csv_text', options.csv_text);
-    }
-    if (options.entered_by_name) {
-      formData.append('entered_by_name', options.entered_by_name);
+    // 1. If backend API is reachable, attempt server-side parse
+    try {
+      const formData = new FormData();
+      if (options.file) {
+        formData.append('file', options.file);
+      }
+      if (options.csv_text) {
+        formData.append('csv_text', options.csv_text);
+      }
+      if (options.entered_by_name) {
+        formData.append('entered_by_name', options.entered_by_name);
+      }
+
+      const headers: Record<string, string> = {};
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
+
+      const res = await fetch(`${API_BASE}/companies/upload-csv`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      checkAuthResponse(res);
+      if (res.ok && isJson(res)) {
+        return await res.json();
+      }
+    } catch (networkErr) {
+      console.warn('[uploadCSVCompanies] Server endpoint unavailable, activating client fallback:', networkErr);
     }
 
-    const headers: Record<string, string> = {};
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
+    // 2. Resilient Client-Side Parser with duplicate checking and persistence
+    let rawText = options.csv_text || '';
+    if (options.file && !rawText) {
+      const fileName = options.file.name.toLowerCase();
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        try {
+          const XLSX = await import('xlsx');
+          const buffer = await options.file.arrayBuffer();
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          if (firstSheetName) {
+            rawText = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheetName]);
+          }
+        } catch (excelErr) {
+          console.warn('[uploadCSVCompanies] Could not parse as Excel, attempting text read:', excelErr);
+        }
+      }
+      if (!rawText) {
+        try {
+          rawText = await options.file.text();
+        } catch (_) {}
+      }
     }
 
-    const res = await fetch(`${API_BASE}/companies/upload-csv`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    checkAuthResponse(res);
-    if (!res.ok) {
-      let message = 'Failed to process CSV file';
-      try { const data = await res.json(); if (data.detail) message = data.detail; } catch (_) {}
-      throw new Error(message);
+    if (!rawText || !rawText.trim()) {
+      throw new Error('No spreadsheet content or CSV text provided.');
     }
-    return res.json();
+
+    const { rows } = parseDelimitedText(rawText);
+    if (rows.length < 2) {
+      throw new Error('File must contain at least a header row and one data row.');
+    }
+
+    const rawHeaders = rows[0];
+    const headers = rawHeaders.map((h) => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+
+    const findColIndex = (...candidates: string[]): number => {
+      return headers.findIndex((h) => candidates.some((c) => h === c || h.includes(c)));
+    };
+
+    const nameIdx = findColIndex('company_name', 'company', 'name', 'org', 'organization', 'firm', 'employer');
+    const roleIdx = findColIndex('role', 'job_title', 'job_role', 'title', 'position', 'designation', 'opening');
+    const headcountIdx = findColIndex('headcount', 'employee_count', 'employees', 'size', 'team_size');
+    const linkedinIdx = findColIndex('linkedin', 'linkedin_url', 'linkedin_link');
+    const websiteIdx = findColIndex('website', 'site', 'url', 'domain');
+    const industryIdx = findColIndex('industry', 'sector', 'domain_name', 'category');
+    const uploaderIdx = findColIndex('uploaded_by', 'entered_by', 'cra', 'spoc', 'assigned_to', 'owner');
+    const roleTypeIdx = findColIndex('opportunity_type', 'role_type', 'type');
+
+    if (nameIdx === -1) {
+      throw new Error(
+        `File must contain a column for Company Name (e.g. 'company_name', 'company', 'name'). Detected headers: ${rawHeaders.join(', ')}`
+      );
+    }
+
+    const defaultUploader = options.entered_by_name?.trim() || 'Aravind Reddy';
+    const existingCompanies = clientFallbackStore.getCompanies();
+    const existingJDs = clientFallbackStore.getJDs();
+
+    const normStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const report = {
+      total_rows: rows.length - 1,
+      companies_created: 0,
+      companies_existing: 0,
+      roles_created: 0,
+      roles_duplicate_skipped: 0,
+      errors: [] as string[],
+      records: [] as Array<{
+        company_name: string;
+        status: 'created' | 'existing';
+        role_status: 'created' | 'duplicate_skipped' | 'none';
+        role_title?: string;
+        uploader: string;
+      }>,
+    };
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const compNameRaw = row[nameIdx]?.trim();
+      if (!compNameRaw) continue;
+
+      const normComp = normStr(compNameRaw);
+      const roleTitle = roleIdx !== -1 ? row[roleIdx]?.trim() : undefined;
+      const normRole = normStr(roleTitle);
+      const uploader = (uploaderIdx !== -1 && row[uploaderIdx]?.trim()) || defaultUploader;
+      const headcount = headcountIdx !== -1 ? row[headcountIdx]?.trim() : undefined;
+      const linkedinUrl = linkedinIdx !== -1 ? row[linkedinIdx]?.trim() : undefined;
+      const website = websiteIdx !== -1 ? row[websiteIdx]?.trim() : undefined;
+      const industry = industryIdx !== -1 ? row[industryIdx]?.trim() : undefined;
+      const oppType = (roleTypeIdx !== -1 && row[roleTypeIdx]?.trim()) || 'existing_post';
+
+      let targetCompany = existingCompanies.find((c) => normStr(c.name) === normComp);
+      let companyStatus: 'created' | 'existing' = 'existing';
+
+      if (targetCompany) {
+        report.companies_existing++;
+      } else {
+        companyStatus = 'created';
+        targetCompany = {
+          id: 'comp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+          name: compNameRaw,
+          employee_count: headcount,
+          website,
+          linkedin_url: linkedinUrl,
+          industry,
+          source: 'import',
+          created_at: new Date().toISOString(),
+          entered_by_name: uploader,
+        };
+        existingCompanies.unshift(targetCompany);
+        report.companies_created++;
+      }
+
+      let roleStatus: 'created' | 'duplicate_skipped' | 'none' = 'none';
+
+      if (roleTitle && targetCompany) {
+        const isRoleDuplicate = existingJDs.some(
+          (jd) => jd.company_id === targetCompany!.id && normStr(jd.title) === normRole
+        );
+
+        if (isRoleDuplicate) {
+          roleStatus = 'duplicate_skipped';
+          report.roles_duplicate_skipped++;
+        } else {
+          const newJD: JD = {
+            id: 'jd_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+            company_id: targetCompany.id,
+            title: roleTitle,
+            opportunity_type: oppType as any,
+            is_verified: true,
+            verification_source: 'csv_bulk_import',
+            entered_by_name: uploader,
+            created_at: new Date().toISOString(),
+          };
+          existingJDs.unshift(newJD);
+          roleStatus = 'created';
+          report.roles_created++;
+        }
+      }
+
+      report.records.push({
+        company_name: compNameRaw,
+        status: companyStatus,
+        role_status: roleStatus,
+        role_title: roleTitle,
+        uploader,
+      });
+    }
+
+    clientFallbackStore.saveCompanies(existingCompanies);
+    clientFallbackStore.saveJDs(existingJDs);
+
+    return {
+      success: true,
+      message: `Successfully processed ${report.total_rows} rows: ${report.companies_created} companies created, ${report.companies_existing} matched existing. ${report.roles_created} roles created, ${report.roles_duplicate_skipped} duplicates skipped.`,
+      report,
+    };
   },
 
   async getContacts(companyId?: string): Promise<HRContact[]> {

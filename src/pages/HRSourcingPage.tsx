@@ -1157,9 +1157,23 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
   };
 
   // Handle CSV/TSV file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processUploadFile = async (file: File) => {
+    const lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+      try {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = workbook.SheetNames[0];
+        if (firstSheet) {
+          const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet]);
+          handleBulkTextChange(csvText);
+          return;
+        }
+      } catch (excelErr) {
+        console.warn('Failed to parse Excel workbook:', excelErr);
+      }
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -1169,6 +1183,12 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processUploadFile(file);
     e.target.value = '';
   };
 
@@ -1177,15 +1197,7 @@ const SourcingModal: React.FC<SourcingModalProps> = ({
     setIsDraggingBulk(false);
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        handleBulkTextChange(content);
-      }
-    };
-    reader.readAsText(file);
+    processUploadFile(file);
   };
 
   const handleDownloadSample = () => {

@@ -76,9 +76,24 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const readUploadedFile = async (file: File) => {
+    const lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+      try {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = workbook.SheetNames[0];
+        if (firstSheet) {
+          const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet]);
+          handleProcessContent(csvText, file.name);
+          return;
+        }
+      } catch (err: any) {
+        setErrorMessage(`Could not read Excel file: ${err.message || 'Corrupted workbook'}`);
+        return;
+      }
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -86,11 +101,15 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
       handleProcessContent(content, file.name);
     };
     reader.onerror = () => {
-      setErrorMessage('Could not read file. Please ensure it is a valid text/CSV file.');
+      setErrorMessage('Could not read file. Please ensure it is a valid text, CSV, or Excel file.');
     };
     reader.readAsText(file);
+  };
 
-    // Reset input so re-selecting same file works
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    readUploadedFile(file);
     e.target.value = '';
   };
 
@@ -99,13 +118,7 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      handleProcessContent(content, file.name);
-    };
-    reader.readAsText(file);
+    readUploadedFile(file);
   };
 
   const handleDownloadTemplate = () => {
@@ -325,7 +338,7 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
               <input
                 type="file"
                 ref={fileInputRef}
-                accept=".csv,.tsv,.txt"
+                accept=".csv,.xlsx,.xls,.tsv,.txt"
                 className="hidden"
                 onChange={handleFileChange}
               />
@@ -340,7 +353,7 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-gray-400">
-                Supports CSV, TSV (tab-separated from Google Sheets / Excel), or plain text files.
+                Supports CSV, Excel (.xlsx, .xls), TSV (tab-separated), or plain text files.
               </p>
             </div>
           )}

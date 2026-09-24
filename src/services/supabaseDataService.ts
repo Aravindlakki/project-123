@@ -626,13 +626,38 @@ export const supabaseDataService = {
 
   async bulkCreateContacts(companyId?: string, contacts: (Partial<HRContact> & { company_name?: string })[] = []): Promise<{ created: HRContact[]; count: number }> {
     if (!isSupabaseConfigured) {
+      const allCompanies = clientFallbackStore.getCompanies();
       const allContacts = clientFallbackStore.getContacts();
       const created: HRContact[] = [];
 
       for (const item of contacts) {
+        let resolvedCompany = allCompanies.find(
+          (c) => c.id === (companyId || item.company_id)
+        );
+
+        if (!resolvedCompany && item.company_name?.trim()) {
+          const compNameNorm = item.company_name.trim().toLowerCase();
+          resolvedCompany = allCompanies.find(
+            (c) => c.name.trim().toLowerCase() === compNameNorm
+          );
+
+          if (!resolvedCompany) {
+            resolvedCompany = {
+              id: 'comp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+              name: item.company_name.trim(),
+              source: 'import',
+              created_at: new Date().toISOString(),
+              entered_by_name: (item as any).entered_by_name || 'Aravind Reddy',
+            };
+            allCompanies.unshift(resolvedCompany);
+          }
+        }
+
+        const targetCompanyId = resolvedCompany?.id || companyId || item.company_id || allCompanies[0]?.id || 'comp_custom';
+
         const c: HRContact = {
           id: 'contact_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-          company_id: companyId || item.company_id || 'comp_custom',
+          company_id: targetCompanyId,
           name: item.name || 'Unknown Contact',
           title: item.title,
           email: item.email,
@@ -644,10 +669,12 @@ export const supabaseDataService = {
           spoc: item.spoc,
           source: 'import',
           created_at: new Date().toISOString(),
+          company: resolvedCompany,
         };
         allContacts.unshift(c);
         created.push(c);
       }
+      clientFallbackStore.saveCompanies(allCompanies);
       clientFallbackStore.saveContacts(allContacts);
       return { created, count: created.length };
     }

@@ -54,11 +54,16 @@ export const CSVBulkImportModal: React.FC<CSVBulkImportModalProps> = ({
 
   if (!isOpen) return null;
 
+  const isAllowedFile = (fileName: string) => {
+    const lower = fileName.toLowerCase();
+    return ['.csv', '.xlsx', '.xls', '.tsv', '.txt'].some((ext) => lower.endsWith(ext));
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
-      if (!selected.name.endsWith('.csv')) {
-        setErrorMessage('Please select a valid .csv file.');
+      if (!isAllowedFile(selected.name)) {
+        setErrorMessage('Please select a valid CSV (.csv) or Excel spreadsheet (.xlsx, .xls) file.');
         return;
       }
       setFile(selected);
@@ -75,8 +80,8 @@ export const CSVBulkImportModal: React.FC<CSVBulkImportModalProps> = ({
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const dropped = e.dataTransfer.files[0];
-      if (!dropped.name.endsWith('.csv')) {
-        setErrorMessage('Please select a valid .csv file.');
+      if (!isAllowedFile(dropped.name)) {
+        setErrorMessage('Please select a valid CSV (.csv) or Excel spreadsheet (.xlsx, .xls) file.');
         return;
       }
       setFile(dropped);
@@ -228,7 +233,7 @@ export const CSVBulkImportModal: React.FC<CSVBulkImportModalProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls,.tsv,.txt"
                   className="hidden"
                   onChange={handleFileChange}
                 />
@@ -244,9 +249,9 @@ export const CSVBulkImportModal: React.FC<CSVBulkImportModalProps> = ({
                 ) : (
                   <div>
                     <p className="text-sm font-semibold text-gray-200">
-                      Click to browse or drop your CSV file here
+                      Click to browse or drop your CSV or Excel file here
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">Comma-separated values (.csv) up to 15MB</p>
+                    <p className="text-xs text-gray-500 mt-1">CSV (.csv) or Excel (.xlsx, .xls) up to 15MB</p>
                   </div>
                 )}
               </div>

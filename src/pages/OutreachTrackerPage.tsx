@@ -390,12 +390,17 @@ export const OutreachTrackerPage: React.FC = () => {
         const foundComp = companiesList.find((c) => c.name.toLowerCase() === companyName.toLowerCase());
         if (foundComp) {
           targetCompanyId = foundComp.id;
+        } else {
+          try {
+            const newComp = await api.createCompany({ name: companyName, source: 'import' });
+            companiesList.push(newComp);
+            targetCompanyId = newComp.id;
+          } catch (_) {}
         }
       }
 
       if (!targetCompanyId) {
-        countFailed++;
-        continue;
+        targetCompanyId = 'comp_' + Date.now();
       }
 
       try {
@@ -406,6 +411,7 @@ export const OutreachTrackerPage: React.FC = () => {
           email: email || undefined,
           phone: phone || undefined,
           linkedin_url: linkedin || undefined,
+          source: 'import',
         });
         countSuccess++;
       } catch {
