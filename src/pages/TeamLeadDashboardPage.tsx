@@ -26,9 +26,10 @@ import {
 
 interface TeamLeadDashboardPageProps {
   setActiveTab?: (tab: string) => void;
+  adminMode?: boolean;
 }
 
-export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ setActiveTab }) => {
+export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ setActiveTab, adminMode = false }) => {
   const [stats, setStats] = useState<TeamLeadStats | null>(null);
   const [jds, setJds] = useState<JD[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -445,17 +446,24 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
         {setActiveTab && (
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setActiveTab('crm')}
+              onClick={() => setActiveTab(adminMode ? 'admin-companies' : 'crm')}
               className="text-xs font-bold text-blue-300 hover:text-white hover:underline"
             >
-              Open CRM Directory →
+              {adminMode ? 'Company & JD Oversight →' : 'Open CRM Directory →'}
             </button>
             <span className="text-blue-700">|</span>
             <button
-              onClick={() => setActiveTab('tasks')}
+              onClick={() => setActiveTab(adminMode ? 'admin-tasks' : 'tasks')}
               className="text-xs font-bold text-blue-300 hover:text-white hover:underline"
             >
-              Open Tasks →
+              {adminMode ? 'Task Management →' : 'Open Tasks →'}
+            </button>
+            <span className="text-blue-700">|</span>
+            <button
+              onClick={() => setActiveTab(adminMode ? 'admin-sheets' : 'team-sheets')}
+              className="text-xs font-bold text-blue-300 hover:text-white hover:underline"
+            >
+              {adminMode ? 'All Worksheets & PDF →' : 'Team Worksheets →'}
             </button>
           </div>
         )}

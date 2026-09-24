@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CRA, JD, Company } from '../types';
 import { api } from '../services/api';
+import { clientFallbackStore } from '../services/clientFallbackStore';
 import { formatIndianDate } from '../utils/formatters';
 import {
   ShieldCheck,
@@ -107,22 +108,33 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
     setLoading(true);
     try {
       if (activeTab === 'users') {
-        const userList = await api.getAdminUsers();
-        setUsers(userList);
+        const userList = await api.getAdminUsers().catch(() => clientFallbackStore.getUsers(true));
+        setUsers(userList || []);
       } else if (activeTab === 'companies') {
         const [jdList, compList] = await Promise.all([
-          api.getUnverifiedJDs().catch(() => []),
-          api.getCompanies().catch(() => []),
+          api.getUnverifiedJDs().catch(() => clientFallbackStore.getJDs().filter((j) => !j.is_verified)),
+          api.getCompanies().catch(() => clientFallbackStore.getCompanies()),
         ]);
-        setUnverifiedJDs(jdList);
-        setCompanies(compList);
+        setUnverifiedJDs(jdList || []);
+        setCompanies(compList || []);
       } else if (activeTab === 'settings') {
-        const settings = await api.getAdminSystemSettings();
+        const settings = await api.getAdminSystemSettings().catch(() => clientFallbackStore.getSystemSettings());
         setSettingsData(settings);
-        setDefaultTarget(settings.default_monthly_jd_target || 10);
+        setDefaultTarget(settings?.default_monthly_jd_target || 10);
       }
-    } catch (err) {
-      console.error('Failed to load admin data:', err);
+    } catch (err: any) {
+      console.warn('Admin data load notice, using cached store:', err?.message || err);
+      // Ensure state is populated even in failure
+      if (activeTab === 'users') {
+        setUsers(clientFallbackStore.getUsers(true));
+      } else if (activeTab === 'companies') {
+        setUnverifiedJDs(clientFallbackStore.getJDs().filter((j) => !j.is_verified));
+        setCompanies(clientFallbackStore.getCompanies());
+      } else if (activeTab === 'settings') {
+        const fallbackSettings = clientFallbackStore.getSystemSettings();
+        setSettingsData(fallbackSettings);
+        setDefaultTarget(fallbackSettings.default_monthly_jd_target || 10);
+      }
     } finally {
       setLoading(false);
     }

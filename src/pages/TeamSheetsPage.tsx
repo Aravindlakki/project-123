@@ -37,14 +37,18 @@ import { SystemReportModal } from '../components/SystemReportModal';
 interface TeamSheetsPageProps {
   initialSpoc?: string;
   currentUser?: any;
+  adminMode?: boolean;
 }
 
 export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   initialSpoc,
   currentUser,
+  adminMode = false,
 }) => {
   const [activeSheet, setActiveSheet] = useState<string>(() => {
     if (initialSpoc) return initialSpoc;
+    // For admin mode, always default to master view ('all') showing all leads across the whole company
+    if (adminMode) return 'all';
     // If current user is one of the team members, default to their sheet
     if (currentUser?.name) {
       const matched = SPOC_MEMBERS.find((m) =>
@@ -349,29 +353,31 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-purple-950/80 via-gray-900 to-indigo-950/80 border border-purple-800/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+      <div className={`bg-gradient-to-r ${adminMode ? 'from-amber-950/80 via-gray-900 to-amber-950/80 border-amber-800/40' : 'from-purple-950/80 via-gray-900 to-indigo-950/80 border-purple-800/40'} border rounded-3xl p-6 shadow-xl relative overflow-hidden`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="p-1.5 bg-purple-600/30 border border-purple-500/40 rounded-lg text-purple-300">
+              <span className={`p-1.5 ${adminMode ? 'bg-amber-600/30 border-amber-500/40 text-amber-300' : 'bg-purple-600/30 border-purple-500/40 text-purple-300'} border rounded-lg`}>
                 <FileSpreadsheet className="h-5 w-5" />
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-300">
-                Data Management & Sourcing Worksheets
+              <span className={`text-xs font-bold uppercase tracking-wider ${adminMode ? 'text-amber-300' : 'text-purple-300'}`}>
+                {adminMode ? 'Admin Portal · Master Worksheets & PDF Database' : 'Data Management & Sourcing Worksheets'}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Team Worksheets & PDF Database
+              {adminMode ? 'All Worksheets & PDF Database' : 'Team Worksheets & PDF Database'}
             </h1>
             <p className="text-sm text-gray-300 mt-1 max-w-2xl">
-              All parsed company numbers, employee headcounts, and verified HR contacts from the uploaded PDF. Each team member has their dedicated separate sheet with full contact details.
+              {adminMode
+                ? 'Centralized admin oversight of all parsed company numbers, employee headcounts, and verified HR contacts from uploaded PDFs. Filter across all SPOC sheets or export master records.'
+                : 'All parsed company numbers, employee headcounts, and verified HR contacts from the uploaded PDF. Each team member has their dedicated separate sheet with full contact details.'}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={() => setShowDocumentModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-900/30 transition-all cursor-pointer"
+              className={`flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r ${adminMode ? 'from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-900/30' : 'from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-900/30'} text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer`}
             >
               <UploadCloud className="h-4 w-4" />
               <span>Import New PDF / Doc</span>
@@ -384,7 +390,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               }}
               className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-bold rounded-xl border border-gray-700 transition-all cursor-pointer"
             >
-              <Plus className="h-4 w-4 text-purple-400" />
+              <Plus className={`h-4 w-4 ${adminMode ? 'text-amber-400' : 'text-purple-400'}`} />
               <span>Add Row to Sheet</span>
             </button>
 
@@ -412,7 +418,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               className="p-2.5 bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-white rounded-xl border border-gray-700 transition-all cursor-pointer"
               title="Refresh sheet data"
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-purple-400' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isLoading ? `animate-spin ${adminMode ? 'text-amber-400' : 'text-purple-400'}` : ''}`} />
             </button>
           </div>
         </div>
@@ -421,7 +427,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       {/* Team Member Tabs ("everyone have their separate sheet") */}
       <div className="bg-gray-900/90 border border-gray-800 rounded-2xl p-2 shadow-lg backdrop-blur-md">
         <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1 flex items-center justify-between">
-          <span>Select Dedicated Team Sheet:</span>
+          <span>{adminMode ? 'Filter by Team Member Sheet:' : 'Select Dedicated Team Sheet:'}</span>
           <span className="text-gray-500 text-[10px]">Click any tab to switch individual view</span>
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-thin">
@@ -430,14 +436,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             onClick={() => setActiveSheet('all')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeSheet === 'all'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                ? adminMode
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-900/40'
+                  : 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
                 : 'bg-gray-800/60 hover:bg-gray-800 text-gray-300 border border-gray-700/50'
             }`}
           >
             <Users className="h-3.5 w-3.5" />
             <span>Master View (All Sheets)</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-              activeSheet === 'all' ? 'bg-purple-800 text-purple-200' : 'bg-gray-700 text-gray-300'
+              activeSheet === 'all'
+                ? adminMode ? 'bg-amber-800 text-amber-100' : 'bg-purple-800 text-purple-200'
+                : 'bg-gray-700 text-gray-300'
             }`}>
               {sheetCounts.all || 0}
             </span>
@@ -453,14 +463,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 onClick={() => setActiveSheet(member.id)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-md shadow-purple-950 border border-purple-400/40'
+                    ? adminMode
+                      ? 'bg-gradient-to-r from-amber-700 to-amber-800 text-white shadow-md shadow-amber-950 border border-amber-400/40'
+                      : 'bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-md shadow-purple-950 border border-purple-400/40'
                     : 'bg-gray-800/60 hover:bg-gray-800 text-gray-300 border border-gray-700/50'
                 }`}
               >
                 <div className={`w-2 h-2 rounded-full ${member.avatarBg}`} />
                 <span>{member.name}'s Sheet</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  isActive ? 'bg-purple-900 text-purple-200' : 'bg-gray-700 text-gray-300'
+                  isActive
+                    ? adminMode ? 'bg-amber-900 text-amber-200' : 'bg-purple-900 text-purple-200'
+                    : 'bg-gray-700 text-gray-300'
                 }`}>
                   {count}
                 </span>

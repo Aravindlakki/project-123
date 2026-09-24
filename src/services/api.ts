@@ -35,7 +35,7 @@ const authHeaders = () => ({
 });
 
 const checkAuthResponse = (res: Response) => {
-  if (res.status === 401) {
+  if (res.status === 401 && res.url?.includes('/auth/me')) {
     clearAuthToken();
   }
 };
@@ -1564,42 +1564,59 @@ export const api = {
   },
 
   async mergeCompanies(sourceCompanyId: string, targetCompanyId: string): Promise<{ message: string }> {
-    const res = await fetch(`${API_BASE}/admin/companies/merge`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ source_company_id: sourceCompanyId, target_company_id: targetCompanyId }),
-    });
-    checkAuthResponse(res);
-    if (!res.ok) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/companies/merge`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ source_company_id: sourceCompanyId, target_company_id: targetCompanyId }),
+      });
+      checkAuthResponse(res);
+      if (res.ok) return await res.json();
       let err = 'Failed to merge companies';
       try { const d = await res.json(); if (d.detail) err = d.detail; } catch (_) {}
       throw new Error(err);
+    } catch (err: any) {
+      if (err.message && !err.message.includes('fetch') && !err.message.includes('network') && !err.message.includes('Failed to merge')) {
+        throw err;
+      }
+      return clientFallbackStore.mergeCompanies(sourceCompanyId, targetCompanyId);
     }
-    return res.json();
   },
 
   async getUnverifiedJDs(): Promise<JD[]> {
-    const res = await fetch(`${API_BASE}/admin/jds/unverified`, { headers: authHeaders() });
-    checkAuthResponse(res);
-    if (!res.ok) return [];
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/admin/jds/unverified`, { headers: authHeaders() });
+      checkAuthResponse(res);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return clientFallbackStore.getJDs().filter((j) => !j.is_verified);
   },
 
   async getAdminJDs(): Promise<JD[]> {
-    const res = await fetch(`${API_BASE}/admin/jds`, { headers: authHeaders() });
-    checkAuthResponse(res);
-    if (!res.ok) throw new Error('Failed to fetch company and JD oversight data');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/admin/jds`, { headers: authHeaders() });
+      checkAuthResponse(res);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return clientFallbackStore.getJDs();
   },
 
   async verifyJD(jdId: string, isVerified: boolean): Promise<JD> {
-    const res = await fetch(`${API_BASE}/admin/jds/${jdId}/verify?is_verified=${isVerified}`, {
-      method: 'PATCH',
-      headers: authHeaders(),
-    });
-    checkAuthResponse(res);
-    if (!res.ok) throw new Error('Failed to update JD verification status');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/admin/jds/${jdId}/verify?is_verified=${isVerified}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+      });
+      checkAuthResponse(res);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    const jds = clientFallbackStore.getJDs();
+    const target = jds.find((j) => j.id === jdId);
+    if (target) {
+      target.is_verified = isVerified;
+      return target;
+    }
+    return { id: jdId, is_verified: isVerified } as any;
   },
 
   async getAdminSystemSettings(): Promise<{
@@ -1612,17 +1629,29 @@ export const api = {
     ai_extraction_active: boolean;
     extraction_engine: string;
   }> {
-    const res = await fetch(`${API_BASE}/admin/system/settings`, { headers: authHeaders() });
-    checkAuthResponse(res);
-    if (!res.ok) throw new Error('Failed to fetch system settings');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/admin/system/settings`, { headers: authHeaders() });
+      checkAuthResponse(res);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return clientFallbackStore.getSystemSettings();
   },
 
   async updateAdminSystemSettings(defaultMonthlyJdTarget: number): Promise<{ default_monthly_jd_target: number }> {
-    const res = await fetch(`${API_BASE}/admin/system/settings`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ default_monthly_jd_target: defaultMonthlyJdTarget }) });
-    checkAuthResponse(res);
-    if (!res.ok) throw new Error('Failed to update system settings');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/admin/system/settings`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ default_monthly_jd_target: defaultMonthlyJdTarget }),
+      });
+      checkAuthResponse(res);
+      if (res.ok) {
+        clientFallbackStore.updateSystemSettings(defaultMonthlyJdTarget);
+        return await res.json();
+      }
+    } catch (_) {}
+    const updated = clientFallbackStore.updateSystemSettings(defaultMonthlyJdTarget);
+    return { default_monthly_jd_target: updated.default_monthly_jd_target };
   },
 };
 

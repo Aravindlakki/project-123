@@ -45,9 +45,9 @@ const employeeItems = [
 ];
 
 const adminItems = [
-  { id: 'team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
+  { id: 'admin-team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
-  { id: 'team-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
+  { id: 'admin-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
   { id: 'admin-tasks', label: 'Task Management', icon: CheckSquare },
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
   { id: 'admin-performance', label: 'Team Performance', icon: Award },
@@ -187,7 +187,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
           <div className="space-y-1">
             {items.map(({ id, label, icon: Icon }) => {
-              const active = id === activeTab;
+              const active =
+                id === activeTab ||
+                (id === 'admin-sheets' && activeTab === 'team-sheets') ||
+                (id === 'admin-team-lead-dashboard' && activeTab === 'team-lead-dashboard');
               return (
                 <button
                   key={id}

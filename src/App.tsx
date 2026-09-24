@@ -45,6 +45,10 @@ const routeToTab = (rawPath: string) => {
     '/tasks': 'tasks',
     '/performance': 'performance',
     '/admin/users': 'admin-users',
+    '/admin/worksheets': 'admin-sheets',
+    '/admin/team-sheets': 'admin-sheets',
+    '/admin/sheets': 'admin-sheets',
+    '/admin/team-lead-dashboard': 'admin-team-lead-dashboard',
     '/admin/tasks': 'admin-tasks',
     '/admin/companies': 'admin-companies',
     '/admin/performance': 'admin-performance',
@@ -74,6 +78,8 @@ const tabToRoute: Record<string, string> = {
   tasks: '/tasks',
   performance: '/performance',
   'admin-users': '/admin/users',
+  'admin-sheets': '/admin/worksheets',
+  'admin-team-lead-dashboard': '/admin/team-lead-dashboard',
   'admin-tasks': '/admin/tasks',
   'admin-companies': '/admin/companies',
   'admin-performance': '/admin/performance',
@@ -127,14 +133,24 @@ export const App: React.FC = () => {
   }, [isAuthenticated]);
 
   const navigate = (tab: string) => {
+    let effectiveTab = tab;
+    // If the user is currently verified in admin mode, keep them inside the Admin Portal!
+    if (adminMode) {
+      if (tab === 'team-sheets') effectiveTab = 'admin-sheets';
+      else if (tab === 'team-lead-dashboard') effectiveTab = 'admin-team-lead-dashboard';
+      else if (tab === 'tasks') effectiveTab = 'admin-tasks';
+      else if (tab === 'performance') effectiveTab = 'admin-performance';
+      else if (tab === 'crm') effectiveTab = 'admin-companies';
+    }
+
     // If user attempts to navigate to admin tab but is not verified as admin, intercept and prompt for login
-    if (tab.startsWith('admin-') && (!isAdminVerified || currentUser?.role !== 'admin')) {
+    if (effectiveTab.startsWith('admin-') && (!isAdminVerified || currentUser?.role !== 'admin')) {
       setShowAdminLoginModal(true);
       return;
     }
-    const targetRoute = tabToRoute[tab] || '/dashboard';
+    const targetRoute = tabToRoute[effectiveTab] || '/dashboard';
     window.location.hash = targetRoute;
-    setActiveTab(tab);
+    setActiveTab(effectiveTab);
   };
 
   const handleLogout = async () => {
@@ -234,7 +250,46 @@ export const App: React.FC = () => {
     );
   }
 
-  const heading = adminMode ? activeTab.replace('admin-', '').replace(/\b\w/g, (c) => c.toUpperCase()) : activeTab.replace('-', ' ');
+  const getTabHeading = () => {
+    switch (activeTab) {
+      case 'admin-sheets':
+        return 'All Worksheets & PDF';
+      case 'admin-team-lead-dashboard':
+        return 'Team Lead Dashboard';
+      case 'admin-users':
+        return 'User Management';
+      case 'admin-tasks':
+        return 'Task Management';
+      case 'admin-companies':
+        return 'Company & JD Oversight';
+      case 'admin-performance':
+        return 'Team Performance';
+      case 'admin-settings':
+        return 'System Settings';
+      case 'team-lead-dashboard':
+        return 'Team Lead Dashboard';
+      case 'team-sheets':
+        return 'Team Worksheets';
+      case 'dashboard':
+        return 'My Dashboard';
+      case 'hr-sourcing':
+        return 'HR Sourcing';
+      case 'jd-intake':
+        return 'JD Intake';
+      case 'crm':
+        return 'CRM Directory';
+      case 'outreach':
+        return 'Outreach Tracker';
+      case 'tasks':
+        return 'My Tasks';
+      case 'performance':
+        return 'My Performance';
+      default:
+        return activeTab.replace(/^admin-/, '').replace(/-/g, ' ');
+    }
+  };
+
+  const heading = getTabHeading();
 
   return (
     <div className={`min-h-screen ${adminMode ? 'bg-gradient-to-br from-gray-950 via-amber-950/20 to-gray-950' : 'bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950'} text-gray-100 flex font-sans`}>
@@ -376,6 +431,13 @@ export const App: React.FC = () => {
             />
           )}
           {activeTab === 'outreach' && <OutreachTrackerPage />}
+          {/* Admin Oversight Views - Kept strictly inside Admin Portal */}
+          {activeTab === 'admin-team-lead-dashboard' && (
+            <TeamLeadDashboardPage setActiveTab={navigate} adminMode={true} />
+          )}
+          {activeTab === 'admin-sheets' && (
+            <TeamSheetsPage currentUser={currentUser} adminMode={true} />
+          )}
           {activeTab === 'admin-users' && <AdminPortalPage initialTab="users" />}
           {activeTab === 'admin-companies' && <AdminPortalPage initialTab="companies" />}
           {activeTab === 'admin-settings' && <AdminPortalPage initialTab="settings" />}

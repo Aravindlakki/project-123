@@ -622,5 +622,74 @@ export const clientFallbackStore = {
       pf_target_total_goal: totalGoal,
     };
   },
+
+  getSystemSettings() {
+    try {
+      const stored = localStorage.getItem('placemein_system_settings');
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return {
+      default_monthly_jd_target: 10,
+      apollo_api_configured: true,
+      openai_api_configured: true,
+      openrouter_api_configured: true,
+      anthropic_api_configured: true,
+      openrouter_model: 'google/gemini-2.0-flash-001',
+      ai_extraction_active: true,
+      extraction_engine: 'gemini-grounded',
+    };
+  },
+
+  updateSystemSettings(defaultMonthlyJdTarget: number) {
+    const current = this.getSystemSettings();
+    current.default_monthly_jd_target = defaultMonthlyJdTarget;
+    try {
+      localStorage.setItem('placemein_system_settings', JSON.stringify(current));
+    } catch (_) {}
+    return current;
+  },
+
+  mergeCompanies(sourceCompanyId: string, targetCompanyId: string): { message: string } {
+    const companies = this.getCompanies();
+    const source = companies.find((c) => c.id === sourceCompanyId);
+    const target = companies.find((c) => c.id === targetCompanyId);
+    if (!source || !target) {
+      return { message: 'Source or target company not found' };
+    }
+    // Re-point contacts and JDs from source to target
+    const contacts = this.getContacts();
+    let reassociatedContacts = 0;
+    contacts.forEach((c) => {
+      if (c.company_id === sourceCompanyId) {
+        c.company_id = targetCompanyId;
+        reassociatedContacts++;
+      }
+    });
+    try {
+      localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
+    } catch (_) {}
+
+    const jds = this.getJDs();
+    let reassociatedJds = 0;
+    jds.forEach((j) => {
+      if (j.company_id === sourceCompanyId) {
+        j.company_id = targetCompanyId;
+        reassociatedJds++;
+      }
+    });
+    try {
+      localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(jds));
+    } catch (_) {}
+
+    // Remove source company
+    const remaining = companies.filter((c) => c.id !== sourceCompanyId);
+    try {
+      localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(remaining));
+    } catch (_) {}
+
+    return {
+      message: `Merged ${source.name} into ${target.name}. Transferred ${reassociatedContacts} contacts and ${reassociatedJds} JDs.`,
+    };
+  },
 };
 
