@@ -678,10 +678,11 @@ export const api = {
             id: 'jd_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
             company_id: targetCompany.id,
             title: roleTitle,
+            raw_text: `Imported role for ${targetCompany.name}`,
             opportunity_type: oppType as any,
             is_verified: true,
-            verification_source: 'csv_bulk_import',
-            entered_by_name: uploader,
+            verification_source: 'file_ai_extract',
+            date_found: new Date().toISOString(),
             created_at: new Date().toISOString(),
           };
           existingJDs.unshift(newJD);

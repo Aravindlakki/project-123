@@ -45,8 +45,6 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!isOpen) return null;
-
   const defaultCompObj = availableCompanies.find((c) => c.id === selectedDefaultCompanyId) || defaultCompany;
 
   // Process text or file content
@@ -218,6 +216,8 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
     if (filterMode === 'warnings') return r.warnings.length > 0;
     return true;
   });
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-in fade-in duration-200">

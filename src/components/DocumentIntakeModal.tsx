@@ -47,8 +47,6 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!isOpen) return null;
-
   const detectNameFromFile = (f: File) => {
     const match = f.name.match(/\b(aravind|namitha|harish|pavithra|mansi|vineela|deepak|kavya|sandeep)\b/i);
     if (match) {
@@ -120,6 +118,8 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
     setError(null);
     setSuccessResult(null);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div

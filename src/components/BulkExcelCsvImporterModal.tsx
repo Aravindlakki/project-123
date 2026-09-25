@@ -350,8 +350,6 @@ export const BulkExcelCsvImporterModal: React.FC<BulkExcelCsvImporterModalProps>
     onClose();
   };
 
-  if (!isOpen) return null;
-
   // ============================================================================
   // STEP 1: Smart Column Detection Algorithm
   // ============================================================================
@@ -938,6 +936,8 @@ export const BulkExcelCsvImporterModal: React.FC<BulkExcelCsvImporterModalProps>
       setStep('preview');
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">

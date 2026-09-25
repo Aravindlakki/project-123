@@ -105,8 +105,6 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!isOpen) return null;
-
   // Auto-detect best column matches based on header strings
   const autoDetectMappings = (headers: string[]) => {
     const findBestMatch = (candidates: string[]): string => {
@@ -420,6 +418,8 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
 
   const currentSheet = sheets[activeSheetIndex];
   const activeHeaders = currentSheet?.headers || [];
+
+  if (!isOpen) return null;
 
   return (
     <div
