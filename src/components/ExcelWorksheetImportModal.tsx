@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
   X,
@@ -17,6 +17,9 @@ import {
   Layers,
   ChevronDown,
   Table,
+  Globe,
+  Linkedin,
+  MapPin,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -27,6 +30,7 @@ interface ExcelWorksheetImportModalProps {
   currentUser?: { name: string };
   defaultSpoc?: string;
   adminMode?: boolean;
+  initialFile?: File | null;
 }
 
 interface ParsedSheetData {
@@ -55,6 +59,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
   currentUser,
   defaultSpoc = 'Namitha',
   adminMode = false,
+  initialFile,
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [sheets, setSheets] = useState<ParsedSheetData[]>([]);
@@ -64,6 +69,12 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
   const [selectedDefaultSpoc, setSelectedDefaultSpoc] = useState(
     defaultSpoc !== 'all' ? defaultSpoc : 'Namitha'
   );
+
+  useEffect(() => {
+    if (initialFile && isOpen) {
+      handleFile(initialFile);
+    }
+  }, [initialFile, isOpen]);
 
   // Column Mappings for active sheet: targetField -> excelColumnName
   const [columnMap, setColumnMap] = useState<{
@@ -76,7 +87,8 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
     domain: string;
     employee_count: string;
     website: string;
-    linkedin_url: string;
+    company_linkedin: string;
+    hr_linkedin: string;
     location: string;
     remarks: string;
   }>({
@@ -89,7 +101,8 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
     domain: '',
     employee_count: '',
     website: '',
-    linkedin_url: '',
+    company_linkedin: '',
+    hr_linkedin: '',
     location: '',
     remarks: '',
   });
@@ -105,31 +118,83 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Auto-detect best column matches based on header strings
+  // Auto-detect best column matches based on header strings with exact matching & anti-collision guards
   const autoDetectMappings = (headers: string[]) => {
-    const findBestMatch = (candidates: string[]): string => {
+    const norm = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+
+    const findMatch = (candidates: string[], forbiddenSubstrings: string[] = []): string => {
+      // 1. Exact match first
       for (const candidate of candidates) {
-        const found = headers.find((h) =>
-          h.toLowerCase().trim().replace(/[^a-z0-9]/g, '').includes(candidate.replace(/[^a-z0-9]/g, ''))
-        );
-        if (found) return found;
+        const target = norm(candidate);
+        const exact = headers.find((h) => norm(h) === target);
+        if (exact) return exact;
+      }
+      // 2. Substring match
+      for (const candidate of candidates) {
+        const target = norm(candidate);
+        const match = headers.find((h) => {
+          const hNorm = norm(h);
+          if (forbiddenSubstrings.some((fb) => hNorm.includes(fb))) return false;
+          return hNorm.includes(target) || target.includes(hNorm);
+        });
+        if (match) return match;
       }
       return '';
     };
 
     return {
-      company_name: findBestMatch(['companyname', 'company', 'organization', 'client', 'firm', 'employer']),
-      hr_name: findBestMatch(['hrname', 'contactname', 'recruitername', 'name', 'hr', 'contact', 'person']),
-      title: findBestMatch(['designation', 'title', 'role', 'position', 'jobtitle']),
-      phone: findBestMatch(['phone', 'mobile', 'contactno', 'phonenumber', 'tel', 'cell', 'calling', 'contactnumber']),
-      email: findBestMatch(['email', 'mail', 'emailaddress', 'emailid', 'workemail']),
-      spoc: findBestMatch(['spoc', 'assignedto', 'owner', 'assigned', 'cra', 'teammember']),
-      domain: findBestMatch(['domain', 'industry', 'sector', 'technology', 'vertical']),
-      employee_count: findBestMatch(['employeecount', 'headcount', 'size', 'employees', 'strength', 'companysize']),
-      website: findBestMatch(['website', 'url', 'web', 'link', 'site']),
-      linkedin_url: findBestMatch(['linkedin', 'companylinkedin', 'hrlinkedin', 'linkedinurl']),
-      location: findBestMatch(['location', 'city', 'state', 'address', 'place']),
-      remarks: findBestMatch(['remarks', 'status', 'notes', 'feedback', 'outcome', 'response']),
+      company_name: findMatch(
+        ['company name', 'company', 'organization', 'organisation', 'client', 'firm', 'employer', 'org'],
+        []
+      ),
+      hr_name: findMatch(
+        ['hr contact name', 'contact name', 'hr name', 'recruiter name', 'candidate name', 'recruiter', 'hr contact', 'person name', 'talent name', 'hr', 'contact', 'name'],
+        ['company', 'org', 'firm', 'client', 'employer']
+      ),
+      title: findMatch(
+        ['designation', 'job title', 'title', 'role', 'position', 'job role', 'headline'],
+        ['company']
+      ),
+      phone: findMatch(
+        ['phone number', 'contact number', 'mobile number', 'contact no', 'phone no', 'mobile no', 'phone', 'mobile', 'tel', 'cell', 'whatsapp'],
+        []
+      ),
+      email: findMatch(
+        ['email address', 'email id', 'work email', 'contact email', 'email', 'mail'],
+        []
+      ),
+      spoc: findMatch(
+        ['spoc', 'assigned spoc', 'assigned to', 'assigned', 'owner', 'cra', 'team member'],
+        []
+      ),
+      domain: findMatch(
+        ['domain', 'industry', 'sector', 'technology', 'vertical', 'business unit'],
+        []
+      ),
+      employee_count: findMatch(
+        ['employee count', 'employee headcount', 'headcount', 'company size', 'team size', 'size', 'employees'],
+        []
+      ),
+      website: findMatch(
+        ['company website', 'website', 'web url', 'site', 'company url', 'web'],
+        ['linkedin', 'social']
+      ),
+      company_linkedin: findMatch(
+        ['company linkedin', 'company linkedin url', 'organization linkedin', 'org linkedin'],
+        ['hr', 'contact', 'person', 'profile']
+      ),
+      hr_linkedin: findMatch(
+        ['hr linkedin', 'contact linkedin', 'profile url', 'profile link', 'linkedin profile', 'hr profile', 'social link', 'linkedin url', 'linkedin'],
+        ['company', 'organization', 'org']
+      ),
+      location: findMatch(
+        ['location', 'work location', 'city', 'state', 'address', 'place'],
+        []
+      ),
+      remarks: findMatch(
+        ['remarks', 'status', 'outreach status', 'notes', 'feedback', 'outcome', 'response', 'call status'],
+        []
+      ),
     };
   };
 
@@ -162,6 +227,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
               'Employee Count': c.company?.employee_count || '100-500 employees',
               'Website': c.company?.website || '',
               'Company LinkedIn': c.company?.linkedin_url || '',
+              'HR LinkedIn': c.linkedin_url || '',
               'Location': c.location || 'Hyderabad',
               'Remarks': c.remarks || 'Imported from Sourcing Sheet',
             });
@@ -179,6 +245,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
               'Employee Count': parseRes.company.employee_count || '100-500 employees',
               'Website': parseRes.company.website || '',
               'Company LinkedIn': parseRes.company.linkedin_url || '',
+              'HR LinkedIn': '',
               'Location': 'Hyderabad',
               'Remarks': 'Imported from Sourcing Sheet',
             });
@@ -208,8 +275,23 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
         }
       }
 
-      const data = await selectedFile.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
+      let workbook: XLSX.WorkBook;
+      try {
+        const data = await selectedFile.arrayBuffer();
+        workbook = XLSX.read(data, {
+          type: 'array',
+          cellDates: true,
+          dateNF: 'yyyy-mm-dd',
+        });
+      } catch (bufErr) {
+        // Fallback for CSV or text formats
+        const textData = await selectedFile.text();
+        workbook = XLSX.read(textData, {
+          type: 'string',
+          cellDates: true,
+          dateNF: 'yyyy-mm-dd',
+        });
+      }
 
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
         throw new Error('No worksheets found in this Excel file.');
@@ -221,27 +303,79 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
         const worksheet = workbook.Sheets[sheetName];
         if (!worksheet) return;
 
-        // Convert to array of objects with raw headers preserved
-        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, {
+        // Convert to 2D array with cellDates and string normalization
+        const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
           defval: '',
+          blankrows: false,
           raw: false,
+          dateNF: 'yyyy-mm-dd',
         });
 
-        // Determine all unique header keys
-        let headers: string[] = [];
-        if (rows.length > 0) {
-          headers = Object.keys(rows[0]).map((h) => h.trim());
+        if (!jsonData || jsonData.length === 0) return;
+
+        // Scan first 10 rows to detect the true header row
+        let headerRowIndex = 0;
+        let foundHeader = false;
+        for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+          const nonEmpties = (jsonData[i] || []).filter((v) => String(v ?? '').trim().length > 0);
+          if (nonEmpties.length >= 2) {
+            headerRowIndex = i;
+            foundHeader = true;
+            break;
+          }
+        }
+        if (!foundHeader) {
+          for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+            const nonEmpties = (jsonData[i] || []).filter((v) => String(v ?? '').trim().length > 0);
+            if (nonEmpties.length >= 1) {
+              headerRowIndex = i;
+              break;
+            }
+          }
         }
 
-        parsedSheets.push({
-          name: sheetName,
-          headers,
-          rawRows: rows,
+        const rawHeaderRow = (jsonData[headerRowIndex] || []).map((h, i) =>
+          String(h ?? '').trim() || `Column_${i + 1}`
+        );
+
+        // Deduplicate and trim header names
+        const seenHeaders = new Set<string>();
+        const cleanHeaders: string[] = rawHeaderRow.map((h, i) => {
+          let name = h;
+          if (seenHeaders.has(name)) {
+            name = `${name}_${i + 1}`;
+          }
+          seenHeaders.add(name);
+          return name;
         });
+
+        // Convert subsequent rows into Record<string, any>
+        const rows: Record<string, any>[] = [];
+        for (let r = headerRowIndex + 1; r < jsonData.length; r++) {
+          const rowData = jsonData[r];
+          if (!rowData || rowData.length === 0) continue;
+          const hasContent = rowData.some((c) => String(c ?? '').trim().length > 0);
+          if (!hasContent) continue;
+
+          const rowObj: Record<string, any> = {};
+          cleanHeaders.forEach((colName, colIdx) => {
+            rowObj[colName] = rowData[colIdx] !== undefined ? String(rowData[colIdx] ?? '').trim() : '';
+          });
+          rows.push(rowObj);
+        }
+
+        if (cleanHeaders.length > 0 && rows.length > 0) {
+          parsedSheets.push({
+            name: sheetName,
+            headers: cleanHeaders,
+            rawRows: rows,
+          });
+        }
       });
 
       if (parsedSheets.length === 0 || parsedSheets.every((s) => s.rawRows.length === 0)) {
-        throw new Error('The uploaded Excel file has no data rows to import.');
+        throw new Error('The uploaded spreadsheet file contains no valid data rows to import.');
       }
 
       setFile(selectedFile);
@@ -253,7 +387,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
       setColumnMap(detected);
     } catch (err: any) {
       console.error('File parse error:', err);
-      setError(err.message || 'Failed to read file. Please ensure it is a valid Excel (.xlsx, .xls), CSV (.csv), or PDF sourcing sheet.');
+      setError(err.message || 'Failed to read file. Please ensure it is a valid Excel (.xlsx, .xls) or CSV (.csv) spreadsheet.');
       setFile(null);
       setSheets([]);
     }
@@ -315,21 +449,33 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
           ? String(row[columnMap.spoc]).trim()
           : sheetDefaultSpoc;
 
+        let compLinkedin = columnMap.company_linkedin ? String(row[columnMap.company_linkedin] || '').trim() : '';
+        let hrLinkedin = columnMap.hr_linkedin ? String(row[columnMap.hr_linkedin] || '').trim() : '';
+
+        // If one of the LinkedIn URLs contains /company/ and compLinkedin is empty, map it
+        if (!compLinkedin && hrLinkedin.includes('/company/')) {
+          compLinkedin = hrLinkedin;
+          hrLinkedin = '';
+        } else if (!hrLinkedin && compLinkedin.includes('/in/')) {
+          hrLinkedin = compLinkedin;
+          compLinkedin = '';
+        }
+
         leadsList.push({
-          company_name: compVal || 'Unknown Company',
+          company_name: compVal || 'Imported Organization',
           website: columnMap.website ? String(row[columnMap.website] || '').trim() : undefined,
-          linkedin_url: columnMap.linkedin_url ? String(row[columnMap.linkedin_url] || '').trim() : undefined,
+          linkedin_url: compLinkedin || undefined,
           employee_count: columnMap.employee_count ? String(row[columnMap.employee_count] || '').trim() : '100-500 employees',
           industry: columnMap.domain ? String(row[columnMap.domain] || '').trim() : 'Technology',
           hr_name: hrVal || 'Talent Acquisition Team',
           title: columnMap.title ? String(row[columnMap.title] || '').trim() : 'HR Lead',
           phone: columnMap.phone ? String(row[columnMap.phone] || '').trim() : '',
           email: columnMap.email ? String(row[columnMap.email] || '').trim() : '',
-          hr_linkedin: columnMap.linkedin_url ? String(row[columnMap.linkedin_url] || '').trim() : '',
+          hr_linkedin: hrLinkedin || '',
           domain: columnMap.domain ? String(row[columnMap.domain] || '').trim() : 'Technology',
           location: columnMap.location ? String(row[columnMap.location] || '').trim() : '',
           remarks: columnMap.remarks ? String(row[columnMap.remarks] || '').trim() : 'Imported via Excel',
-          spoc: spocVal || 'Namitha',
+          spoc: spocVal || selectedDefaultSpoc,
           entered_by_name: enteredByName.trim() || 'Aravind Reddy',
         });
       });
@@ -338,7 +484,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
     return leadsList;
   }, [sheets, activeSheetIndex, importAllSheets, columnMap, selectedDefaultSpoc, enteredByName]);
 
-  const handleExecuteImport = async () => {
+  const handleConfirmImport = async () => {
     if (!preparedLeads.length) {
       setError('No valid leads detected with company and contact information. Please check your column mappings.');
       return;
@@ -363,6 +509,8 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
       setIsProcessing(false);
     }
   };
+
+  const handleExecuteImport = handleConfirmImport;
 
   const handleDownloadSample = () => {
     const sampleData = [
@@ -873,6 +1021,86 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
                           ))}
                         </select>
                       </div>
+
+                      {/* Location / City */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-rose-400" />
+                          <span>Location / City</span>
+                        </label>
+                        <select
+                          value={columnMap.location}
+                          onChange={(e) => setColumnMap((prev) => ({ ...prev, location: e.target.value }))}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- None --</option>
+                          {activeHeaders.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Company Website */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                          <Globe className="h-3 w-3 text-cyan-400" />
+                          <span>Company Website</span>
+                        </label>
+                        <select
+                          value={columnMap.website}
+                          onChange={(e) => setColumnMap((prev) => ({ ...prev, website: e.target.value }))}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- None --</option>
+                          {activeHeaders.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Company LinkedIn */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                          <Linkedin className="h-3 w-3 text-blue-400" />
+                          <span>Company LinkedIn</span>
+                        </label>
+                        <select
+                          value={columnMap.company_linkedin}
+                          onChange={(e) => setColumnMap((prev) => ({ ...prev, company_linkedin: e.target.value }))}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- None --</option>
+                          {activeHeaders.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* HR LinkedIn Profile */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-300 mb-1 flex items-center gap-1">
+                          <Linkedin className="h-3 w-3 text-sky-400" />
+                          <span>HR LinkedIn Profile</span>
+                        </label>
+                        <select
+                          value={columnMap.hr_linkedin}
+                          onChange={(e) => setColumnMap((prev) => ({ ...prev, hr_linkedin: e.target.value }))}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- None --</option>
+                          {activeHeaders.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
 
@@ -973,8 +1201,10 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
 
               <button
                 type="button"
+                aria-label="Confirm Import"
+                data-testid="confirm-import-btn"
                 disabled={!file || preparedLeads.length === 0 || isProcessing}
-                onClick={handleExecuteImport}
+                onClick={handleConfirmImport}
                 className={`flex items-center gap-2 px-6 py-2.5 text-xs font-bold rounded-xl transition shadow-lg ${
                   !file || preparedLeads.length === 0 || isProcessing
                     ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed'
@@ -984,12 +1214,12 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
                 {isProcessing ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin text-white" />
-                    <span>Importing Rows...</span>
+                    <span>Confirming Import...</span>
                   </>
                 ) : (
                   <>
-                    <FileSpreadsheet className="h-4 w-4" />
-                    <span>Import {preparedLeads.length} Leads to Worksheet</span>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                    <span>Confirm Import ({preparedLeads.length} Leads)</span>
                   </>
                 )}
               </button>

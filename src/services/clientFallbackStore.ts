@@ -301,18 +301,21 @@ export const clientFallbackStore = {
     rawLeads.forEach((item, index) => {
       const cleanCompName = (item.company_name || '').trim();
       const cleanHrName = (item.hr_name || '').trim();
-      if (!cleanCompName || !cleanHrName) return;
+      if (!cleanCompName && !cleanHrName) return;
+
+      const compName = cleanCompName || 'Imported Organization';
+      const hrName = cleanHrName || 'Talent Acquisition Team';
 
       let company = existingCompanies.find(
-        (c) => c.name.toLowerCase().trim() === cleanCompName.toLowerCase()
+        (c) => c.name.toLowerCase().trim() === compName.toLowerCase()
       );
 
       if (!company) {
         company = {
           id: `comp_excel_${Date.now()}_${index}`,
-          name: cleanCompName,
+          name: compName,
           website: item.website?.trim() || '',
-          linkedin_url: item.linkedin_url?.trim() || `https://www.linkedin.com/company/${cleanCompName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          linkedin_url: item.linkedin_url?.trim() || `https://www.linkedin.com/company/${compName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
           employee_count: item.employee_count?.trim() || '100-500 employees',
           industry: item.industry?.trim() || item.domain?.trim() || 'Technology',
           location: item.location?.trim() || '',
@@ -330,25 +333,46 @@ export const clientFallbackStore = {
         if (item.linkedin_url && !company.linkedin_url) company.linkedin_url = item.linkedin_url;
       }
 
-      const newContact: HRContact = {
-        id: `cont_excel_${Date.now()}_${index}`,
-        name: cleanHrName,
-        title: item.title?.trim() || 'HR Lead',
-        company_id: company.id,
-        phone: item.phone?.trim() || '',
-        email: item.email?.trim() || '',
-        linkedin_url: item.hr_linkedin?.trim() || '',
-        domain: item.domain?.trim() || company.industry || 'Technology',
-        location: item.location?.trim() || company.location || '',
-        remarks: item.remarks?.trim() || 'Imported via Excel',
-        spoc: item.spoc?.trim() || 'Harish',
-        entered_by_name: item.entered_by_name?.trim() || 'Aravind Reddy',
-        source: 'import',
-        company,
-        created_at: new Date().toISOString(),
-      };
-      existingContacts.unshift(newContact);
-      contactsCreated++;
+      // Check if contact already exists under this company
+      const cleanPhone = (item.phone || '').trim().replace(/[^\d+]/g, '');
+      const cleanEmail = (item.email || '').trim().toLowerCase();
+      const existingContact = existingContacts.find((c) => {
+        if (cleanEmail && c.email?.trim().toLowerCase() === cleanEmail) return true;
+        if (cleanPhone && c.phone && c.phone.replace(/[^\d+]/g, '') === cleanPhone) return true;
+        if (c.company_id === company!.id && c.name.toLowerCase().trim() === hrName.toLowerCase()) return true;
+        return false;
+      });
+
+      if (existingContact) {
+        if (item.phone && !existingContact.phone) existingContact.phone = item.phone.trim();
+        if (item.email && !existingContact.email) existingContact.email = item.email.trim();
+        if ((item.hr_linkedin || item.linkedin_url) && !existingContact.linkedin_url) {
+          existingContact.linkedin_url = (item.hr_linkedin || item.linkedin_url)!.trim();
+        }
+        if (item.remarks) existingContact.remarks = item.remarks.trim();
+        if (item.spoc) existingContact.spoc = item.spoc.trim();
+        contactsCreated++;
+      } else {
+        const newContact: HRContact = {
+          id: `cont_excel_${Date.now()}_${index}`,
+          name: hrName,
+          title: item.title?.trim() || 'HR Lead',
+          company_id: company.id,
+          phone: item.phone?.trim() || '',
+          email: item.email?.trim() || '',
+          linkedin_url: item.hr_linkedin?.trim() || (item.linkedin_url?.includes('/in/') ? item.linkedin_url.trim() : ''),
+          domain: item.domain?.trim() || company.industry || 'Technology',
+          location: item.location?.trim() || company.location || '',
+          remarks: item.remarks?.trim() || 'Imported via Excel',
+          spoc: item.spoc?.trim() || 'Namitha',
+          entered_by_name: item.entered_by_name?.trim() || 'Aravind Reddy',
+          source: 'import',
+          company,
+          created_at: new Date().toISOString(),
+        };
+        existingContacts.unshift(newContact);
+        contactsCreated++;
+      }
     });
 
     this.saveCompanies(existingCompanies);

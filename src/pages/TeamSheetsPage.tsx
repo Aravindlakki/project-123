@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FileSpreadsheet,
   Search,
@@ -72,6 +72,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [excelFileToImport, setExcelFileToImport] = useState<File | null>(null);
+  const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
@@ -398,10 +400,29 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <input
+              type="file"
+              ref={excelFileInputRef}
+              accept=".xlsx, .xls, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const picked = e.target.files?.[0];
+                if (picked) {
+                  setExcelFileToImport(picked);
+                  setShowExcelModal(true);
+                  e.target.value = '';
+                }
+              }}
+            />
+
             <button
-              onClick={() => setShowExcelModal(true)}
+              onClick={() => {
+                setExcelFileToImport(null);
+                setShowExcelModal(true);
+              }}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 shadow-emerald-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-emerald-500/30"
               title="Import Excel (.xlsx, .xls) or CSV spreadsheet directly into your worksheet"
+              aria-label="Import Excel Sheet"
             >
               <FileSpreadsheet className="h-4 w-4" />
               <span>Import Excel Sheet</span>
@@ -1146,10 +1167,14 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       {/* Excel & Spreadsheet Import Modal */}
       <ExcelWorksheetImportModal
         isOpen={showExcelModal}
-        onClose={() => setShowExcelModal(false)}
+        onClose={() => {
+          setShowExcelModal(false);
+          setExcelFileToImport(null);
+        }}
         currentUser={currentUser}
         defaultSpoc={activeSheet}
         adminMode={adminMode}
+        initialFile={excelFileToImport}
         onImportSuccess={() => {
           fetchLeads();
         }}

@@ -624,6 +624,125 @@ export const supabaseDataService = {
     };
   },
 
+  async bulkImportWorksheetLeads(leads: Array<{
+    company_name: string;
+    website?: string;
+    linkedin_url?: string;
+    employee_count?: string;
+    industry?: string;
+    hr_name: string;
+    title?: string;
+    phone?: string;
+    email?: string;
+    hr_linkedin?: string;
+    domain?: string;
+    location?: string;
+    remarks?: string;
+    spoc?: string;
+    entered_by_name?: string;
+  }>): Promise<{ success: boolean; count: number; companies_created: number; contacts_created: number; message: string }> {
+    if (!isSupabaseConfigured) {
+      const fallbackResult = clientFallbackStore.bulkImportWorksheetLeads(leads);
+      return {
+        success: true,
+        count: fallbackResult.count,
+        companies_created: fallbackResult.companies_created,
+        contacts_created: fallbackResult.contacts_created,
+        message: `Successfully imported ${fallbackResult.count} leads and ${fallbackResult.companies_created} companies.`,
+      };
+    }
+
+    try {
+      // 1. Fetch existing companies to deduplicate
+      const { data: existingCompaniesData } = await supabase
+        .from('companies')
+        .select('*');
+
+      const existingCompanies: Company[] = existingCompaniesData || [];
+      const companyMap = new Map<string, Company>();
+      existingCompanies.forEach((c) => {
+        companyMap.set(c.name.toLowerCase().trim(), c);
+      });
+
+      let companiesCreated = 0;
+      let contactsCreated = 0;
+
+      for (const lead of leads) {
+        const cleanComp = (lead.company_name || 'Imported Organization').trim();
+        const normComp = cleanComp.toLowerCase();
+
+        let compObj = companyMap.get(normComp);
+        if (!compObj) {
+          const { data: newComp, error: compErr } = await supabase
+            .from('companies')
+            .insert({
+              name: cleanComp,
+              website: lead.website || null,
+              linkedin_url: lead.linkedin_url || null,
+              employee_count: lead.employee_count || '100-500 employees',
+              industry: lead.industry || lead.domain || 'Technology',
+              location: lead.location || null,
+              source: 'import',
+            })
+            .select()
+            .single();
+
+          if (!compErr && newComp) {
+            compObj = newComp;
+            companyMap.set(normComp, newComp);
+            companiesCreated++;
+          }
+        }
+
+        const compId = compObj?.id;
+        const hrName = (lead.hr_name || 'Talent Acquisition Team').trim();
+
+        const { data: newContact, error: contErr } = await supabase
+          .from('contacts')
+          .insert({
+            company_id: compId || null,
+            name: hrName,
+            title: lead.title || 'HR Lead',
+            email: lead.email || null,
+            phone: lead.phone || null,
+            linkedin_url: lead.hr_linkedin || null,
+            domain: lead.domain || compObj?.industry || 'Technology',
+            location: lead.location || compObj?.location || null,
+            remarks: lead.remarks || 'Imported via Excel',
+            spoc: lead.spoc || 'Namitha',
+            source: 'import',
+          })
+          .select()
+          .single();
+
+        if (!contErr && newContact) {
+          contactsCreated++;
+        }
+      }
+
+      // Also sync to local fallback store so offline & local storage remain up to date
+      clientFallbackStore.bulkImportWorksheetLeads(leads);
+
+      return {
+        success: true,
+        count: contactsCreated,
+        companies_created: companiesCreated,
+        contacts_created: contactsCreated,
+        message: `Successfully imported ${contactsCreated} leads and ${companiesCreated} companies to database.`,
+      };
+    } catch (err: any) {
+      console.warn('[Supabase] bulkImportWorksheetLeads error, syncing to local fallback store:', err);
+      const fallbackResult = clientFallbackStore.bulkImportWorksheetLeads(leads);
+      return {
+        success: true,
+        count: fallbackResult.count,
+        companies_created: fallbackResult.companies_created,
+        contacts_created: fallbackResult.contacts_created,
+        message: `Imported ${fallbackResult.count} leads into database storage.`,
+      };
+    }
+  },
+
   async bulkCreateContacts(companyId?: string, contacts: (Partial<HRContact> & { company_name?: string })[] = []): Promise<{ created: HRContact[]; count: number }> {
     if (!isSupabaseConfigured) {
       const allCompanies = clientFallbackStore.getCompanies();

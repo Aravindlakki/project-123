@@ -835,6 +835,10 @@ export const api = {
     spoc?: string;
     entered_by_name?: string;
   }>): Promise<{ success: boolean; count: number; companies_created: number; contacts_created: number; message: string }> {
+    if (isSupabaseConfigured) {
+      return supabaseDataService.bulkImportWorksheetLeads(leads);
+    }
+
     try {
       const res = await fetch(`${API_BASE}/worksheet/bulk-leads`, {
         method: 'POST',
@@ -842,7 +846,7 @@ export const api = {
         body: JSON.stringify(leads),
       });
       checkAuthResponse(res);
-      if (res.ok) {
+      if (res.ok && isJson(res)) {
         const result = await res.json();
         // Also sync to client fallback store for persistence
         clientFallbackStore.bulkImportWorksheetLeads(leads);
