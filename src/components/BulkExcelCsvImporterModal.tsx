@@ -1634,6 +1634,8 @@ export const BulkExcelCsvImporterModal: React.FC<BulkExcelCsvImporterModalProps>
             <div className="flex items-center gap-3">
               <button
                 disabled={selectedRowsCount === 0}
+                aria-label="Confirm Import"
+                data-testid="confirm-import-btn"
                 onClick={handleConfirmImport}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-900/30 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >

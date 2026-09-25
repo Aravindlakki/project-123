@@ -135,67 +135,79 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
         const match = headers.find((h) => {
           const hNorm = norm(h);
           if (forbiddenSubstrings.some((fb) => hNorm.includes(fb))) return false;
-          return hNorm.includes(target) || target.includes(hNorm);
+          return hNorm.includes(target) || (target.length >= 3 && target.includes(hNorm));
         });
         if (match) return match;
       }
       return '';
     };
 
-    return {
+    const mapping = {
       company_name: findMatch(
-        ['company name', 'company', 'organization', 'organisation', 'client', 'firm', 'employer', 'org'],
+        ['company name', 'company', 'company_name', 'organization', 'organisation', 'client name', 'client', 'firm', 'employer', 'account', 'business', 'org', 'partner', 'companyname', 'organization name', 'account name'],
         []
       ),
       hr_name: findMatch(
-        ['hr contact name', 'contact name', 'hr name', 'recruiter name', 'candidate name', 'recruiter', 'hr contact', 'person name', 'talent name', 'hr', 'contact', 'name'],
-        ['company', 'org', 'firm', 'client', 'employer']
+        ['hr contact name', 'hr name', 'contact name', 'hr_name', 'full name', 'recruiter name', 'recruiter', 'talent partner', 'spoc name', 'candidate name', 'person name', 'contact', 'name', 'hr contact', 'spoc', 'hr', 'lead name', 'poc', 'point of contact', 'person', 'talent acquisition'],
+        ['company', 'org', 'firm', 'client', 'employer', 'account', 'business']
       ),
       title: findMatch(
-        ['designation', 'job title', 'title', 'role', 'position', 'job role', 'headline'],
+        ['designation', 'job title', 'title', 'role', 'position', 'job role', 'headline', 'hr role', 'designation/role'],
         ['company']
       ),
       phone: findMatch(
-        ['phone number', 'contact number', 'mobile number', 'contact no', 'phone no', 'mobile no', 'phone', 'mobile', 'tel', 'cell', 'whatsapp'],
+        ['phone number', 'contact number', 'mobile number', 'phone no', 'mobile no', 'contact no', 'phone_number', 'mobile_number', 'phone', 'mobile', 'tel', 'telephone', 'cell', 'whatsapp', 'call'],
         []
       ),
       email: findMatch(
-        ['email address', 'email id', 'work email', 'contact email', 'email', 'mail'],
+        ['email address', 'email id', 'work email', 'contact email', 'email', 'mail', 'email_id', 'e-mail'],
         []
       ),
       spoc: findMatch(
-        ['spoc', 'assigned spoc', 'assigned to', 'assigned', 'owner', 'cra', 'team member'],
+        ['spoc', 'assigned spoc', 'assigned to', 'assigned', 'owner', 'cra', 'team member', 'assigned member'],
         []
       ),
       domain: findMatch(
-        ['domain', 'industry', 'sector', 'technology', 'vertical', 'business unit'],
+        ['domain', 'industry', 'sector', 'technology', 'vertical', 'business unit', 'category', 'tech stack'],
         []
       ),
       employee_count: findMatch(
-        ['employee count', 'employee headcount', 'headcount', 'company size', 'team size', 'size', 'employees'],
+        ['employee count', 'employee headcount', 'headcount', 'company size', 'team size', 'size', 'employees', 'no of employees', 'strength'],
         []
       ),
       website: findMatch(
-        ['company website', 'website', 'web url', 'site', 'company url', 'web'],
+        ['company website', 'website', 'web url', 'site', 'company url', 'web', 'homepage', 'url'],
         ['linkedin', 'social']
       ),
       company_linkedin: findMatch(
-        ['company linkedin', 'company linkedin url', 'organization linkedin', 'org linkedin'],
+        ['company linkedin', 'company linkedin url', 'organization linkedin', 'org linkedin', 'company linkedin profile', 'company url linkedin'],
         ['hr', 'contact', 'person', 'profile']
       ),
       hr_linkedin: findMatch(
-        ['hr linkedin', 'contact linkedin', 'profile url', 'profile link', 'linkedin profile', 'hr profile', 'social link', 'linkedin url', 'linkedin'],
+        ['hr linkedin', 'contact linkedin', 'profile url', 'profile link', 'linkedin profile', 'hr profile', 'social link', 'linkedin url', 'linkedin', 'candidate linkedin', 'recruiter linkedin'],
         ['company', 'organization', 'org']
       ),
       location: findMatch(
-        ['location', 'work location', 'city', 'state', 'address', 'place'],
+        ['location', 'work location', 'city', 'state', 'address', 'place', 'office location', 'region', 'country'],
         []
       ),
       remarks: findMatch(
-        ['remarks', 'status', 'outreach status', 'notes', 'feedback', 'outcome', 'response', 'call status'],
+        ['remarks', 'status', 'outreach status', 'notes', 'feedback', 'outcome', 'response', 'call status', 'stage', 'lead status'],
         []
       ),
     };
+
+    // Safe fallbacks so columns are never left unmapped if valid headers exist
+    if (!mapping.company_name && headers.length > 0) {
+      mapping.company_name = headers[0];
+    }
+    if (!mapping.hr_name && headers.length > 1) {
+      mapping.hr_name = headers[1];
+    } else if (!mapping.hr_name && headers.length > 0) {
+      mapping.hr_name = headers[0];
+    }
+
+    return mapping;
   };
 
   const handleFile = async (selectedFile: File) => {
@@ -314,21 +326,41 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
 
         if (!jsonData || jsonData.length === 0) return;
 
-        // Scan first 10 rows to detect the true header row
-        let headerRowIndex = 0;
-        let foundHeader = false;
-        for (let i = 0; i < Math.min(10, jsonData.length); i++) {
-          const nonEmpties = (jsonData[i] || []).filter((v) => String(v ?? '').trim().length > 0);
-          if (nonEmpties.length >= 2) {
-            headerRowIndex = i;
-            foundHeader = true;
-            break;
+        // Smart keyword-weighted header detection across top 15 rows
+        const HEADER_KEYWORDS = [
+          'company', 'organisation', 'organization', 'client', 'firm', 'employer',
+          'hr', 'recruiter', 'contact', 'name', 'phone', 'mobile', 'cell', 'tel',
+          'email', 'mail', 'title', 'designation', 'role', 'position', 'domain',
+          'industry', 'sector', 'location', 'city', 'state', 'website', 'url',
+          'linkedin', 'spoc', 'remarks', 'status', 'headcount', 'size', 'employees',
+          'date', 'notes', 'cra', 'talent'
+        ];
+
+        let bestHeaderRowIndex = -1;
+        let maxKeywordMatches = 0;
+
+        for (let i = 0; i < Math.min(15, jsonData.length); i++) {
+          const row = jsonData[i] || [];
+          let keywordMatches = 0;
+          for (const cell of row) {
+            const str = String(cell ?? '').toLowerCase().trim();
+            if (HEADER_KEYWORDS.some((kw) => str.includes(kw))) {
+              keywordMatches++;
+            }
+          }
+          if (keywordMatches > maxKeywordMatches) {
+            maxKeywordMatches = keywordMatches;
+            bestHeaderRowIndex = i;
           }
         }
-        if (!foundHeader) {
+
+        let headerRowIndex = 0;
+        if (bestHeaderRowIndex >= 0 && maxKeywordMatches >= 1) {
+          headerRowIndex = bestHeaderRowIndex;
+        } else {
           for (let i = 0; i < Math.min(10, jsonData.length); i++) {
             const nonEmpties = (jsonData[i] || []).filter((v) => String(v ?? '').trim().length > 0);
-            if (nonEmpties.length >= 1) {
+            if (nonEmpties.length >= 2) {
               headerRowIndex = i;
               break;
             }
@@ -439,11 +471,28 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
       const sheetDefaultSpoc = sheetNameMatch || selectedDefaultSpoc;
 
       sheet.rawRows.forEach((row) => {
-        const compVal = String(row[columnMap.company_name] || '').trim();
-        const hrVal = String(row[columnMap.hr_name] || '').trim();
+        let compVal = columnMap.company_name ? String(row[columnMap.company_name] || '').trim() : '';
+        let hrVal = columnMap.hr_name ? String(row[columnMap.hr_name] || '').trim() : '';
 
-        // Must have at least company or HR name
-        if (!compVal && !hrVal) return;
+        // If both mapped fields are empty, look for any non-empty cell values as fallback
+        if (!compVal && !hrVal) {
+          const values = Object.values(row)
+            .map((v) => String(v ?? '').trim())
+            .filter((v) => v.length > 0);
+          if (values.length >= 2) {
+            compVal = values[0];
+            hrVal = values[1];
+          } else if (values.length === 1) {
+            compVal = values[0];
+            hrVal = 'Talent Acquisition Team';
+          } else {
+            return;
+          }
+        } else if (!compVal && hrVal) {
+          compVal = 'Imported Organization';
+        } else if (compVal && !hrVal) {
+          hrVal = 'Talent Acquisition Team';
+        }
 
         const spocVal = columnMap.spoc && row[columnMap.spoc]
           ? String(row[columnMap.spoc]).trim()
@@ -697,6 +746,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
                         handleFile(e.target.files[0]);
                       }
                     }}
+                    onClick={(e) => e.stopPropagation()}
                     className="hidden"
                   />
                   <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all shadow-lg mb-4">
