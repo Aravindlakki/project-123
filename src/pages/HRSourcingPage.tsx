@@ -4,6 +4,7 @@ import { Company, JD, HRContact } from '../types';
 import { formatIndianDate, formatIndianPhone } from '../utils/formatters';
 import { parseHRContactsCSV, generateSampleCSV, ParsedContactRow } from '../utils/csvParser';
 import { BulkContactUploadModal } from '../components/BulkContactUploadModal';
+import { BulkExcelCsvImporterModal } from '../components/BulkExcelCsvImporterModal';
 import { CompanyDetailsModal } from '../components/CompanyDetailsModal';
 import { DocumentIntakeModal } from '../components/DocumentIntakeModal';
 import {
@@ -282,11 +283,11 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
             <button
               type="button"
               onClick={() => setUniversalBulkOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 text-xs font-bold transition shadow-md hover:scale-[1.02] active:scale-[0.98]"
-              title="Bulk import contacts across any companies via CSV, TSV, or spreadsheet paste"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-md hover:scale-[1.02] active:scale-[0.98]"
+              title="Bulk import contacts across any companies via Excel (.xlsx, .xls) or CSV with smart column mapping"
             >
               <FileSpreadsheet className="h-4 w-4" />
-              <span>Bulk Upload CSV</span>
+              <span>Bulk Excel / CSV Import</span>
             </button>
 
             <button
@@ -974,17 +975,17 @@ export const HRSourcingPage: React.FC<HRSourcingPageProps> = ({ onNavigateToJDIn
         />
       )}
 
-      {/* Universal Multi-Company Bulk Contact Upload Modal */}
+      {/* Universal Multi-Company Bulk Excel & CSV Upload Modal */}
       {universalBulkOpen && (
-        <BulkContactUploadModal
+        <BulkExcelCsvImporterModal
           isOpen={universalBulkOpen}
           onClose={() => setUniversalBulkOpen(false)}
-          availableCompanies={companies}
-          onContactsImported={(newlyAdded) => {
-            setContacts((prev) => [...newlyAdded, ...prev]);
+          existingCompanies={companies}
+          existingContacts={contacts}
+          onImportComplete={(summary) => {
             setNotification({
               type: 'success',
-              message: `Successfully bulk imported ${newlyAdded.length} HR contact${newlyAdded.length === 1 ? '' : 's'} into the database!`,
+              message: `Successfully imported ${summary.companiesCreated + summary.companiesMatched} companies and ${summary.contactsCreated + summary.contactsUpdated} HR contacts!`,
             });
             fetchData();
           }}

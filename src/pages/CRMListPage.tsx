@@ -28,6 +28,7 @@ import {
 import { CompanyDetailsModal } from '../components/CompanyDetailsModal';
 import { DocumentIntakeModal } from '../components/DocumentIntakeModal';
 import { CSVBulkImportModal } from '../components/CSVBulkImportModal';
+import { BulkExcelCsvImporterModal } from '../components/BulkExcelCsvImporterModal';
 
 interface OutcomeModalState {
   contact: HRContact;
@@ -396,14 +397,14 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
             <span>Add Company</span>
           </button>
 
-          {/* Bulk CSV Upload Button */}
+          {/* Bulk Excel/CSV Import Button */}
           <button
             onClick={() => setIsCSVBulkImportOpen(true)}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30 shrink-0 cursor-pointer"
-            title="Upload CSV to bulk import companies & roles with server-side duplicate check"
+            className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-900/30 shrink-0 cursor-pointer"
+            title="Upload Excel (.xlsx, .xls) or CSV (.csv) to bulk import companies & HR contacts with duplicate checking"
           >
             <FileSpreadsheet className="h-4 w-4" />
-            <span>Bulk CSV Import</span>
+            <span>Bulk Excel / CSV Import</span>
           </button>
 
           {/* PDF & Document Intake Button */}
@@ -1161,18 +1162,20 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
         onViewCompany={(c) => handleOpenCompanyDetails(c)}
       />
 
-      <CSVBulkImportModal
+      <BulkExcelCsvImporterModal
         isOpen={isCSVBulkImportOpen}
         onClose={() => setIsCSVBulkImportOpen(false)}
-        onImportComplete={() => {
+        existingCompanies={companies}
+        existingContacts={contacts}
+        currentUserName={currentUser?.name || 'Aravind Reddy'}
+        onImportComplete={(summary) => {
           loadData();
           setFeedback({
             type: 'success',
-            text: 'Bulk CSV Import completed! Company records & roles updated.',
+            text: `Successfully imported ${summary.companiesCreated + summary.companiesMatched} companies and ${summary.contactsCreated + summary.contactsUpdated} HR contacts!`,
           });
-          setTimeout(() => setFeedback(null), 5000);
+          setTimeout(() => setFeedback(null), 6000);
         }}
-        teamMembers={TEAM_MEMBERS}
       />
     </div>
   );
