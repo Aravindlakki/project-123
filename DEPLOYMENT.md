@@ -8,7 +8,7 @@ This project is configured to deploy with **Vercel** for the Frontend and **Rend
 
 1. Go to [render.com](https://render.com/) and sign in.
 2. Click **New +** > **Web Service**.
-3. Connect your GitHub repository (`project-123` or your repo name).
+3. Connect your GitHub repository (`placemein-cra-outreach` or your repo name).
 4. Configure the settings:
    - **Name**: `placemein-backend`
    - **Language**: `Node`

@@ -4,14 +4,28 @@
     <meta charset="utf-8">
     <title>PLACEMEIN CRA Outreach</title>
     <script>
-      // Single Page Apps for GitHub Pages
+      // Single Page Apps redirect for GitHub Pages and static hosts
       var l = window.location;
-      var repoName = l.pathname.split('/')[1] || 'project-123';
-      var rest = l.pathname.slice(repoName.length + 1) || '';
-      if (!rest.startsWith('/')) rest = '/' + rest;
-      if (rest === '/') rest = '/dashboard';
-      var redirectPath = '/' + repoName + '/#' + rest + (l.search || '');
-      window.location.replace(redirectPath);
+      var isGithubPages = l.hostname.endsWith('github.io');
+      var pathSegments = l.pathname.split('/').filter(Boolean);
+      var basePath = '';
+      var routePath = '';
+
+      if (isGithubPages && pathSegments.length > 0) {
+        // First segment is the repository name on github.io
+        basePath = '/' + pathSegments[0];
+        routePath = '/' + pathSegments.slice(1).join('/');
+      } else {
+        basePath = '';
+        routePath = l.pathname;
+      }
+
+      if (!routePath || routePath === '/') {
+        routePath = '/dashboard';
+      }
+
+      var redirectUrl = l.protocol + '//' + l.host + basePath + '/#' + routePath + (l.search || '') + (l.hash ? '&' + l.hash.slice(1) : '');
+      window.location.replace(redirectUrl);
     </script>
   </head>
   <body>

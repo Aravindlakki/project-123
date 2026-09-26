@@ -49,15 +49,13 @@ async function startServer() {
       server: { middlewareMode: true, host: '0.0.0.0', port: PORT },
       appType: 'spa',
     });
-    if (process.env.GITHUB_ACTIONS) {
-      app.get('/', (req, res) => {
-        res.redirect('/project-123/');
-      });
-    }
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use('/project-123', express.static(distPath));
+    const customBase = process.env.BASE_PATH || process.env.VITE_BASE_PATH;
+    if (customBase && customBase !== '/' && customBase.startsWith('/')) {
+      app.use(customBase, express.static(distPath));
+    }
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, 'index.html');
