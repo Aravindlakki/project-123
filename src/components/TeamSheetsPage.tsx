@@ -30,6 +30,7 @@ import {
   Sparkles,
   X,
   Lock,
+  Code2,
 } from 'lucide-react';
 import { HRContact, Company } from '../types';
 import { api } from '../services/api';
@@ -41,6 +42,7 @@ import { CompanyDetailsModal } from './CompanyDetailsModal';
 import { DocumentIntakeModal } from './DocumentIntakeModal';
 import { ExcelWorksheetImportModal } from './ExcelWorksheetImportModal';
 import { SystemReportModal } from './SystemReportModal';
+import { HtmlLeadImportModal } from './HtmlLeadImportModal';
 
 export interface TeamSheetsPageProps {
   initialSpoc?: string;
@@ -95,6 +97,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showHtmlModal, setShowHtmlModal] = useState(false);
   const [excelFileToImport, setExcelFileToImport] = useState<File | null>(null);
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
@@ -917,6 +920,17 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               }}
             />
 
+            {/* HTML Lead Importer Button */}
+            <button
+              onClick={() => setShowHtmlModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-purple-500/30"
+              title="Import lead from raw HTML, web snippet, or HTML file into selected member sheet"
+              aria-label="Import HTML Lead"
+            >
+              <Code2 className="h-4 w-4 text-pink-300" />
+              <span>Import HTML Lead</span>
+            </button>
+
             {/* Quick Upload Button */}
             <button
               onClick={() => excelFileInputRef.current?.click()}
@@ -1726,6 +1740,21 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       <SystemReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
+      />
+
+      {/* HTML Lead Import Modal */}
+      <HtmlLeadImportModal
+        isOpen={showHtmlModal}
+        onClose={() => setShowHtmlModal(false)}
+        defaultMember={activeSheet !== 'all' ? activeSheet : 'Aravind'}
+        onSaveLeads={async (leadsToSave, targetSpoc) => {
+          await handleConfirmImport(leadsToSave);
+          setActiveSheet(targetSpoc);
+          setImportNotification({
+            type: 'success',
+            message: `Successfully imported ${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''} from HTML into ${targetSpoc}'s sheet!`,
+          });
+        }}
       />
     </div>
   );
