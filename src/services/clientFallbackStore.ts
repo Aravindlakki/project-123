@@ -18,7 +18,11 @@ const STORAGE_KEYS = {
   LEAVES: 'placemein_mock_leaves',
   CURRENT_USER: 'placemein_current_user',
   JDS: 'placemein_mock_jds',
+  ROSTER_VERSION: 'placemein_roster_version_v6',
 };
+
+// Target Roster Version: triggers automatic cleanup of any old cached duplicates in browser localStorage
+const CURRENT_ROSTER_VERSION = 'v6_canonical_8_team_roster_clean';
 
 // Obsolete or legacy duplicate emails that must be pruned from cache
 const OBSOLETE_EMAILS = [
@@ -36,46 +40,76 @@ const OBSOLETE_EMAILS = [
 ];
 
 // Initial setup from seed data
-function initializeMockData() {
-  // Synchronize active team roster into localStorage
-  const existingUsersJson = localStorage.getItem(STORAGE_KEYS.USERS);
-  let existingUsers: CRA[] = [];
-  try {
-    existingUsers = existingUsersJson ? JSON.parse(existingUsersJson) : [];
-  } catch (_) {
-    existingUsers = [];
+function initializeMockData(forceResetRoster: boolean = false) {
+  const storedVersion = localStorage.getItem(STORAGE_KEYS.ROSTER_VERSION);
+  const shouldResetRoster = forceResetRoster || storedVersion !== CURRENT_ROSTER_VERSION;
+
+  // Build the clean canonical 8-member roster
+  const canonicalUsers: CRA[] = ALL_EMPLOYEE_CREDENTIALS.map((emp) => ({
+    id: emp.id,
+    name: emp.name,
+    email: emp.email.toLowerCase(),
+    role: emp.role,
+    emp_id: emp.empId,
+    domain: emp.spocDomain,
+    designation: emp.designation,
+    monthly_jd_target: 20,
+    is_active: true,
+    created_at: new Date('2026-08-01T08:00:00Z').toISOString(),
+  }));
+
+  if (shouldResetRoster) {
+    // Force reset to the clean canonical 8 members with no duplicates
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(canonicalUsers));
+    localStorage.setItem(STORAGE_KEYS.ROSTER_VERSION, CURRENT_ROSTER_VERSION);
+  } else {
+    // Synchronize active team roster into localStorage safely
+    const existingUsersJson = localStorage.getItem(STORAGE_KEYS.USERS);
+    let existingUsers: CRA[] = [];
+    try {
+      existingUsers = existingUsersJson ? JSON.parse(existingUsersJson) : [];
+    } catch (_) {
+      existingUsers = [];
+    }
+
+    // Deduplicate existing users by normalized email
+    const seen = new Set<string>();
+    const cleanedExisting: CRA[] = [];
+    for (const u of existingUsers) {
+      const emailKey = (u.email || '').trim().toLowerCase();
+      if (!emailKey || OBSOLETE_EMAILS.includes(emailKey) || seen.has(emailKey)) continue;
+      seen.add(emailKey);
+      cleanedExisting.push(u);
+    }
+
+    // Merge: canonical users take precedence or preserve existing custom fields
+    const mergedUsers: CRA[] = canonicalUsers.map((emp) => {
+      const existing = cleanedExisting.find((u) => u.email.toLowerCase() === emp.email.toLowerCase() || u.id === emp.id);
+      return {
+        id: emp.id,
+        name: existing?.name || emp.name,
+        email: emp.email,
+        role: existing?.role || emp.role,
+        emp_id: existing?.emp_id || emp.emp_id,
+        domain: existing?.domain || emp.domain,
+        designation: existing?.designation || emp.designation,
+        monthly_jd_target: existing?.monthly_jd_target || 20,
+        is_active: existing?.is_active !== undefined ? existing.is_active : true,
+        created_at: existing?.created_at || emp.created_at,
+        deleted_at: existing?.deleted_at,
+      };
+    });
+
+    // Also preserve genuinely new custom users added via "Add Team Member" modal
+    const customUsers = cleanedExisting.filter((u) =>
+      !canonicalUsers.some((c) => c.email.toLowerCase() === u.email.toLowerCase() || c.id === u.id) &&
+      u.id.startsWith('usr_') &&
+      !['usr_admin_1', 'usr_admin_2', 'usr_admin_3', 'usr_admin_4', 'usr_cra_1', 'usr_cra_2', 'usr_cra_3', 'usr_cra_4', 'usr_cra_5', 'usr_cra_6', 'usr_cra_7'].includes(u.id)
+    );
+
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([...mergedUsers, ...customUsers]));
+    localStorage.setItem(STORAGE_KEYS.ROSTER_VERSION, CURRENT_ROSTER_VERSION);
   }
-
-  // Purge any legacy duplicate / obsolete email items
-  existingUsers = existingUsers.filter((u) => !OBSOLETE_EMAILS.includes(u.email.toLowerCase()));
-
-  // Map the exact 8 canonical members
-  const canonicalUsers: CRA[] = ALL_EMPLOYEE_CREDENTIALS.map((emp) => {
-    const existing = existingUsers.find((u) => u.email.toLowerCase() === emp.email.toLowerCase());
-    return {
-      id: emp.id,
-      name: emp.name,
-      email: emp.email,
-      role: emp.role,
-      emp_id: emp.empId,
-      domain: emp.spocDomain,
-      designation: emp.designation,
-      monthly_jd_target: existing?.monthly_jd_target || 20,
-      is_active: existing?.is_active !== undefined ? existing.is_active : true,
-      created_at: existing?.created_at || new Date('2026-08-01T08:00:00Z').toISOString(),
-    };
-  });
-
-  // Preserve any custom users created via "Add Team Member" modal
-  const customUsers = existingUsers.filter((u) => 
-    !ALL_EMPLOYEE_CREDENTIALS.some((c) => c.email.toLowerCase() === u.email.toLowerCase()) &&
-    !OBSOLETE_EMAILS.includes(u.email.toLowerCase()) &&
-    u.id.startsWith('usr_') && 
-    !['usr_admin_1', 'usr_admin_2', 'usr_admin_3', 'usr_admin_4', 'usr_cra_1', 'usr_cra_2', 'usr_cra_3', 'usr_cra_4', 'usr_cra_5', 'usr_cra_6', 'usr_cra_7'].includes(u.id)
-  );
-
-  const finalUsers = [...canonicalUsers, ...customUsers];
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
 
   if (!localStorage.getItem(STORAGE_KEYS.COMPANIES) || !localStorage.getItem(STORAGE_KEYS.CONTACTS)) {
     const companies: Company[] = [];
@@ -257,31 +291,62 @@ export const clientFallbackStore = {
   getUsers(includeInactive: boolean = true): CRA[] {
     try {
       let users: CRA[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-      // If empty or containing obsolete duplicate emails, re-initialize
-      if (!users.length || users.some((u) => OBSOLETE_EMAILS.includes(u.email.toLowerCase()))) {
+      // If empty or containing obsolete duplicate emails or wrong version, re-initialize
+      const currentVersion = localStorage.getItem(STORAGE_KEYS.ROSTER_VERSION);
+      if (!users.length || currentVersion !== CURRENT_ROSTER_VERSION || users.some((u) => OBSOLETE_EMAILS.includes(u.email.toLowerCase()))) {
         initializeMockData();
         users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
       }
-      // Guarantee each user has their domain, designation and emp_id
-      users = users.map((u) => {
+
+      // Deduplicate strictly by normalized email address
+      const seenEmails = new Set<string>();
+      const dedupedUsers: CRA[] = [];
+
+      for (const u of users) {
+        const emailKey = (u.email || '').trim().toLowerCase();
+        if (!emailKey || seenEmails.has(emailKey) || OBSOLETE_EMAILS.includes(emailKey)) continue;
+        seenEmails.add(emailKey);
+
         const canonical = ALL_EMPLOYEE_CREDENTIALS.find(
-          (e) => e.email.toLowerCase() === u.email.toLowerCase() || e.id === u.id
+          (e) => e.email.toLowerCase() === emailKey || e.id === u.id
         );
-        if (canonical) {
-          return {
-            ...u,
-            name: canonical.name,
-            email: canonical.email,
-            emp_id: canonical.empId,
-            domain: canonical.spocDomain,
-            designation: canonical.designation,
-            role: canonical.role,
-          };
+
+        dedupedUsers.push({
+          ...u,
+          name: u.name || canonical?.name || 'Team Member',
+          email: u.email || canonical?.email || emailKey,
+          emp_id: u.emp_id || canonical?.empId || 'PM-EMP',
+          domain: u.domain || canonical?.spocDomain || 'Recruitment Sourcing & IT Outreach',
+          designation: u.designation || canonical?.designation || (u.role === 'admin' ? 'Administrator' : 'CRA Specialist'),
+          role: u.role || canonical?.role || 'cra',
+          monthly_jd_target: u.monthly_jd_target || 20,
+          is_active: u.is_active !== undefined ? u.is_active : true,
+          created_at: u.created_at || '2026-08-01T08:00:00Z',
+        });
+      }
+
+      // Ensure all canonical 8 members exist in the roster
+      for (const can of ALL_EMPLOYEE_CREDENTIALS) {
+        const canEmail = can.email.toLowerCase();
+        if (!seenEmails.has(canEmail)) {
+          seenEmails.add(canEmail);
+          dedupedUsers.push({
+            id: can.id,
+            name: can.name,
+            email: can.email,
+            emp_id: can.empId,
+            domain: can.spocDomain,
+            designation: can.designation,
+            role: can.role,
+            monthly_jd_target: 20,
+            is_active: true,
+            created_at: '2026-08-01T08:00:00Z',
+          });
         }
-        return u;
-      });
-      if (includeInactive) return users;
-      return users.filter((u) => u.is_active !== false && !u.deleted_at);
+      }
+
+      if (includeInactive) return dedupedUsers;
+      return dedupedUsers.filter((u) => u.is_active !== false && !u.deleted_at);
     } catch {
       return ALL_EMPLOYEE_CREDENTIALS.map((e) => ({
         id: e.id,
@@ -296,6 +361,11 @@ export const clientFallbackStore = {
         created_at: new Date('2026-08-01T08:00:00Z').toISOString(),
       }));
     }
+  },
+
+  resetToCanonicalRoster(): CRA[] {
+    initializeMockData(true);
+    return this.getUsers(true);
   },
 
   getCurrentUser(): CRA {
@@ -685,7 +755,16 @@ export const clientFallbackStore = {
   },
 
   saveUsers(users: CRA[]) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    // Strictly deduplicate by email before persisting
+    const seen = new Set<string>();
+    const cleaned: CRA[] = [];
+    for (const u of users) {
+      const key = (u.email || '').trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      cleaned.push(u);
+    }
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleaned));
   },
 
   createUser(userData: Partial<CRA>): CRA {
@@ -716,7 +795,7 @@ export const clientFallbackStore = {
 
   updateUser(id: string, updates: Partial<CRA>): CRA {
     const users = this.getUsers(true);
-    const index = users.findIndex((u) => u.id === id);
+    const index = users.findIndex((u) => u.id === id || (updates.email && u.email.toLowerCase() === updates.email.toLowerCase()));
     if (index === -1) {
       throw new Error(`User not found.`);
     }

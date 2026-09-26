@@ -220,7 +220,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
   const handleSaveUserEdit = async (userId: string) => {
     try {
-      await api.updateAdminUser(userId, {
+      const updated = await api.updateAdminUser(userId, {
         name: editName.trim() || undefined,
         email: editEmail.trim() || undefined,
         emp_id: editEmpId.trim() || undefined,
@@ -230,6 +230,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
         role: editRole,
         is_active: editActive,
       });
+      // Directly update local state so changes take effect immediately
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
       setEditingUserId(null);
       showNotification('success', 'User profile updated successfully.');
       await loadData();
@@ -241,7 +243,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
   const handleToggleUserStatus = async (user: CRA) => {
     try {
       const nextStatus = user.is_active === false;
-      await api.toggleUserStatus(user.id, nextStatus);
+      const updated = await api.toggleUserStatus(user.id, nextStatus);
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...updated, is_active: nextStatus } : u)));
       showNotification(
         'success',
         `User ${user.name} is now ${nextStatus ? 'Activated' : 'Deactivated'}. ${!nextStatus ? 'Excluded from new task assignments.' : ''}`
@@ -249,6 +252,20 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       await loadData();
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to toggle user status');
+    }
+  };
+
+  const handleResetToCanonicalRoster = async () => {
+    try {
+      const canonical = clientFallbackStore.resetToCanonicalRoster();
+      setUsers(canonical);
+      showNotification(
+        'success',
+        'Team roster synchronized to canonical 8 members with complete Emp IDs, Domains, and zero duplicates.'
+      );
+      await loadData();
+    } catch (err: any) {
+      showNotification('error', 'Failed to synchronize roster.');
     }
   };
 
@@ -537,6 +554,61 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       {/* TAB 1: USERS */}
       {activeTab === 'users' && (
         <div className="space-y-6">
+          {/* Canonical Roster Integrity Header Banner */}
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-950/70 via-gray-950 to-purple-950/50 border border-amber-600/40 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    <ShieldCheck className="h-5 w-5" />
+                  </span>
+                  <h3 className="text-base font-black text-white tracking-tight">
+                    Official Placemein Team Roster (8 Canonical Members)
+                  </h3>
+                </div>
+                <p className="text-xs text-amber-200/80 mt-1">
+                  1 CEO Admin • 2 Administrators • 5 CRA Specialists • 0 Duplicates • Complete Employee IDs & Specialization Domains
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetToCanonicalRoster}
+                  className="px-3.5 py-2 bg-amber-900/60 hover:bg-amber-800/80 border border-amber-600/60 text-amber-200 hover:text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm"
+                  title="Resets any corrupt cached local state back to the exact 8 canonical Placemein members"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Sync / Reset 8 Roster</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
+                <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">Total Members</div>
+                <div className="text-lg font-black text-white">{users.length} Unique</div>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
+                <div className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">CEO Admin</div>
+                <div className="text-lg font-black text-amber-400">1 (Aravind Reddy)</div>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
+                <div className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider">Admins</div>
+                <div className="text-lg font-black text-indigo-300">2 (Mansi, Vineela)</div>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
+                <div className="text-[10px] uppercase font-bold text-purple-300 tracking-wider">CRA Specialists</div>
+                <div className="text-lg font-black text-purple-300">5 Employees</div>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50 col-span-2 sm:col-span-1">
+                <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Duplicates</div>
+                <div className="text-lg font-black text-emerald-400">0 (Strictly Deduped)</div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs">
             <div className="flex items-center gap-2 flex-1 max-w-md">
               <Search className="h-4 w-4 text-amber-400 shrink-0" />

@@ -82,12 +82,20 @@ export function updateSettings(req: Request, res: Response) {
 }
 
 export function getAdminUsers(req: Request, res: Response) {
-  const list = users.map(({ passwordHash: _, ...profile }) => profile);
+  const seen = new Set<string>();
+  const list: any[] = [];
+  for (const u of users) {
+    const key = (u.email || '').trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const { passwordHash: _, ...profile } = u;
+    list.push(profile);
+  }
   return res.json(list);
 }
 
 export function updateAdminUser(req: Request, res: Response) {
-  const user = users.find((u) => u.id === req.params.id);
+  const user = users.find((u) => u.id === req.params.id || (req.body.email && u.email.toLowerCase() === req.body.email.toLowerCase()));
   if (!user) return res.status(404).json({ detail: 'User not found' });
   if (req.body.name !== undefined) user.name = req.body.name;
   if (req.body.email !== undefined) user.email = req.body.email;
