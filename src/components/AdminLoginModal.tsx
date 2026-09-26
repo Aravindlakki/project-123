@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { api, clearAuthToken, getAuthToken, setAuthToken } from '../services/api';
 import { CRA } from '../types';
 import { ShieldAlert, ShieldCheck, Lock, Mail, Eye, EyeOff, AlertCircle, X, CheckCircle, ArrowRight, Key } from 'lucide-react';
-import { ALL_EMPLOYEE_CREDENTIALS, DEFAULT_EMPLOYEE_PASSWORD } from '../data/employeeCredentials';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -62,8 +61,6 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     }
   };
 
-  const adminList = ALL_EMPLOYEE_CREDENTIALS.filter((e) => e.role === 'admin');
-
   const content = (
     <div className="w-full max-w-md bg-gray-900/95 border border-amber-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-black/80 backdrop-blur-xl">
       {/* Header */}
@@ -112,34 +109,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@placemein.com"
+              placeholder="Enter your admin email address"
               className="w-full bg-gray-950 border border-amber-700/50 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400 font-mono"
             />
-          </div>
-
-          {/* Quick email presets */}
-          <div className="mt-2 space-y-1.5">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Quick Select Admin Account:</span>
-            <div className="flex flex-wrap gap-1.5">
-              {adminList.map((admin) => (
-                <button
-                  key={admin.email}
-                  type="button"
-                  onClick={() => {
-                    setEmail(admin.email);
-                    setPassword('');
-                  }}
-                  className={`text-[11px] px-2 py-1 rounded-lg border transition font-medium flex items-center gap-1.5 ${
-                    email === admin.email
-                      ? 'bg-amber-600/30 border-amber-400 text-amber-200 shadow-sm'
-                      : 'bg-gray-800/60 border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${admin.avatarBg}`} />
-                  <span>{admin.name}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 

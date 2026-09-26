@@ -16,7 +16,7 @@ export interface EmployeeCredential {
 export const DEFAULT_EMPLOYEE_PASSWORD = 'Password123!';
 
 // THE CANONICAL 8-MEMBER TEAM ROSTER (EXACTLY 8, NO DUPLICATES)
-// 1 CEO Admin + 2 Admins + 5 CRA Employees
+// 1 CEO Admin + 2 Admins + 5 CRA Employees (reverted 4 employees back to previous canonical names & emails)
 export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
   // 1. CEO ADMIN
   {
@@ -51,7 +51,7 @@ export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
   {
     id: 'usr_admin_vineela',
     name: 'Vineela Bathula',
-    email: 'Vineela.b@placemein.com',
+    email: 'vineela.b@placemein.com',
     role: 'admin',
     roleDisplay: 'Admin',
     empId: 'PM-003',
@@ -75,7 +75,7 @@ export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
     passwordDefault: DEFAULT_EMPLOYEE_PASSWORD,
     notes: 'Handles major IT & Cyber security corporate leads'
   },
-  // 5. CRA EMPLOYEE - Solomon Raj
+  // 5. CRA EMPLOYEE - Solomon Raj (reverted back to previous name & email)
   {
     id: 'usr_cra_solomon',
     name: 'Solomon Raj',
@@ -89,7 +89,7 @@ export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
     passwordDefault: DEFAULT_EMPLOYEE_PASSWORD,
     notes: 'SPOC for Cloud Security & IT sourcing'
   },
-  // 6. CRA EMPLOYEE - Charan Kumar
+  // 6. CRA EMPLOYEE - Charan Kumar (reverted back to previous name & email)
   {
     id: 'usr_cra_charan',
     name: 'Charan Kumar',
@@ -103,7 +103,7 @@ export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
     passwordDefault: DEFAULT_EMPLOYEE_PASSWORD,
     notes: 'SPOC for Gen AI & Recruitment Automation corporate outreach'
   },
-  // 7. CRA EMPLOYEE - Mrudula
+  // 7. CRA EMPLOYEE - Mrudula (reverted back to previous name & email)
   {
     id: 'usr_cra_mrudula',
     name: 'Mrudula',
@@ -136,6 +136,7 @@ export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
 // Helper to normalize and resolve any login alias into the canonical team member
 export function resolveEmployeeCredential(inputEmail: string): EmployeeCredential | undefined {
   const clean = inputEmail.trim().toLowerCase();
+  
   // Direct match
   const direct = ALL_EMPLOYEE_CREDENTIALS.find(e => e.email.toLowerCase() === clean);
   if (direct) return direct;
@@ -144,22 +145,25 @@ export function resolveEmployeeCredential(inputEmail: string): EmployeeCredentia
   if (clean === 'aravindaravind3953@gmail.com') {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_admin_aravind');
   }
-  if (clean === 'harish.r@placemein.com' || clean === 'harish.m@placemein.com') {
+  if (clean === 'vineela.b@placemein.com') {
+    return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_admin_vineela');
+  }
+  if (clean === 'harish.r@placemein.com' || clean === 'harish.reddy@placemein.com' || clean === 'harish.m@placemein.com') {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_harish');
   }
-  if (clean === 'solomon.r@placemein.com') {
+  if (clean === 'solomon.r@placemein.com' || clean === 'solomon.raju@placemein.com') {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_solomon');
   }
-  if (clean === 'charankumar.n@placemein.com') {
+  if (clean === 'charankumar.n@placemein.com' || clean === 'charan.k@placemein.com') {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_charan');
   }
-  if (clean === 'mrudula.k@placemein.com' || clean === 'mrudula@placemein.com') {
+  if (clean === 'mrudula.k@placemein.com' || clean === 'mrudula.t@placemein.com' || clean === 'mrudula@placemein.com') {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_mrudula');
   }
-  if (clean === 'namitha.s@placemein.com') {
+  if (clean === 'namitha.k@placemein.com' || clean === 'namitha.s@placemein.com') {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_namitha');
   }
-
+  
   return undefined;
 }
 

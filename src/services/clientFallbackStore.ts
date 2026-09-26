@@ -22,16 +22,17 @@ const STORAGE_KEYS = {
 };
 
 // Target Roster Version: triggers automatic cleanup of any old cached duplicates in browser localStorage
-const CURRENT_ROSTER_VERSION = 'v6_canonical_8_team_roster_clean';
+const CURRENT_ROSTER_VERSION = 'v7_canonical_8_team_roster_reverted_4';
 
 // Obsolete or legacy duplicate emails that must be pruned from cache
 const OBSOLETE_EMAILS = [
-  'harish.r@placemein.com',
+  'solomon.raju@placemein.com',
+  'charankumar.n@placemein.com',
+  'mrudula.t@placemein.com',
+  'harish.reddy@placemein.com',
   'harish.m@placemein.com',
   'namitha.s@placemein.com',
-  'mrudula.k@placemein.com',
   'mrudula@placemein.com',
-  'solomon.r@placemein.com',
   'aliya.s@placemein.com',
   'varshith.r@placemein.com',
   'aasritha.k@placemein.com',

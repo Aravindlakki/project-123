@@ -370,26 +370,49 @@ export const supabaseDataService = {
       return newContact;
     }
 
-    const { data, error } = await supabase
-      .from('contacts')
-      .insert({
-        company_id: contact.company_id,
-        name: contact.name,
-        title: contact.title || null,
-        email: contact.email || null,
-        phone: contact.phone || null,
-        linkedin_url: contact.linkedin_url || null,
-        domain: contact.domain || null,
-        location: contact.location || null,
-        remarks: contact.remarks || null,
-        spoc: contact.spoc || null,
-        source: contact.source || 'manual',
-      })
-      .select('*, company:companies(*)')
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert({
+          company_id: contact.company_id,
+          name: contact.name,
+          title: contact.title || null,
+          email: contact.email || null,
+          phone: contact.phone || null,
+          linkedin_url: contact.linkedin_url || null,
+          domain: contact.domain || null,
+          location: contact.location || null,
+          remarks: contact.remarks || null,
+          spoc: contact.spoc || null,
+          source: contact.source || 'manual',
+        })
+        .select('*, company:companies(*)')
+        .single();
 
-    if (error) throw new Error(error.message);
-    return data;
+      if (error) throw error;
+      return data;
+    } catch (err: any) {
+      console.warn('Supabase createContact fallback:', err?.message || err);
+      const newContact: HRContact = {
+        id: 'contact_' + Date.now(),
+        company_id: contact.company_id || 'comp_custom',
+        name: contact.name || 'New Contact',
+        email: contact.email || '',
+        phone: contact.phone || '',
+        title: contact.title || '',
+        source: contact.source || 'manual',
+        domain: contact.domain,
+        location: contact.location,
+        remarks: contact.remarks,
+        spoc: contact.spoc,
+        created_at: new Date().toISOString(),
+        ...contact,
+      };
+      const contacts = clientFallbackStore.getContacts();
+      contacts.unshift(newContact);
+      clientFallbackStore.saveContacts(contacts);
+      return newContact;
+    }
   },
 
   async updateContact(id: string, updates: Partial<HRContact>): Promise<HRContact> {

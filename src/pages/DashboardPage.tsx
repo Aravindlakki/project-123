@@ -20,7 +20,8 @@ import {
   Key,
   Briefcase,
   FileSpreadsheet,
-  Printer
+  Printer,
+  LayoutDashboard,
 } from 'lucide-react';
 import { SystemReportModal } from '../components/SystemReportModal';
 import { TaskNotificationModal } from '../components/TaskNotificationModal';
@@ -254,8 +255,21 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
         </div>
       </div>
 
-      {/* Personal Quick Actions Shortcuts - 1 col on mobile (<640px), 3 cols on tablet (640-1024px), 6 cols on desktop (1024px+) */}
+      {/* Personal Quick Actions Shortcuts */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+        <button
+          onClick={() => setActiveTab('team-lead-dashboard')}
+          className="bg-gradient-to-br from-blue-900/70 to-indigo-950/80 hover:from-blue-800/80 hover:to-indigo-900/90 border border-blue-500/50 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 text-left transition-all hover:scale-[1.02] shadow-lg group flex items-center space-x-3 min-h-[52px] cursor-pointer"
+        >
+          <div className="p-2.5 sm:p-3 bg-blue-500/20 text-blue-300 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition shrink-0">
+            <LayoutDashboard className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-white group-hover:text-blue-200 truncate">Team Lead Stats</p>
+            <p className="text-[11px] text-blue-300/80 font-semibold truncate">Drives & Targets</p>
+          </div>
+        </button>
+
         <button
           onClick={() => setActiveTab('team-sheets')}
           className="bg-gradient-to-br from-purple-900/70 to-indigo-950/80 hover:from-purple-800/80 hover:to-indigo-900/90 border border-purple-600/50 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 text-left transition-all hover:scale-[1.02] shadow-lg group flex items-center space-x-3 min-h-[52px] cursor-pointer"

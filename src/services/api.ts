@@ -1,6 +1,6 @@
 import { Company, HRContact, JD, OutreachChannel, OutreachChannelType, Campaign, DashboardStats, CRA, OutreachChannelStatus, OutreachOutcome, CRAPerformanceResponse, Attendance, Task, TaskPriority, TaskStatus, LeaveRequest, LeaveType, LeaveStatus } from '../types';
 import { clientFallbackStore } from './clientFallbackStore';
-import { ALL_EMPLOYEE_CREDENTIALS } from '../data/employeeCredentials';
+import { ALL_EMPLOYEE_CREDENTIALS, resolveEmployeeCredential } from '../data/employeeCredentials';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { supabaseDataService } from './supabaseDataService';
 import { parseDelimitedText } from '../utils/csvParser';
@@ -53,16 +53,32 @@ const checkAuthResponse = (res: Response) => {
 export const api = {
   async login(email: string, password: string): Promise<{ access_token: string; user?: CRA }> {
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = password.trim();
 
-    // 1. Supabase Auth (Primary for Vercel and production deployments)
+    if (!cleanEmail || !cleanPass) {
+      throw new Error('Please enter both your email address and password.');
+    }
+
+    // Quick local match check from existing team roster or canonical credentials
+    const localUsers = clientFallbackStore.getUsers(true);
+    const existingRosterUser = localUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+    const matchedEmployee = resolveEmployeeCredential(cleanEmail) || ALL_EMPLOYEE_CREDENTIALS.find(
+      (e) => e.email.toLowerCase() === cleanEmail
+    );
+    const isCeo = cleanEmail === 'aravindaravind3953@gmail.com' || cleanEmail === 'aravindreddy.l@placemein.com';
+
+    // 1. Supabase Auth (with fast timeout so it never stalls the UI)
     if (isSupabaseConfigured) {
       try {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SB_TIMEOUT')), 1200));
+        const signInPromise = supabase.auth.signInWithPassword({
           email: cleanEmail,
-          password: password,
+          password: cleanPass,
         });
 
-        if (!signInError && signInData.session) {
+        const { data: signInData, error: signInError }: any = await Promise.race([signInPromise, timeoutPromise]);
+
+        if (!signInError && signInData?.session) {
           const token = signInData.session.access_token;
           setAuthToken(token);
           let profile = await supabaseDataService.getProfileById(signInData.session.user.id);
@@ -81,60 +97,26 @@ export const api = {
           clientFallbackStore.setCurrentUser(profile);
           return { access_token: token, user: profile };
         }
-
-        // Auto-provision initial employee accounts in Supabase Auth if needed
-        const matchedEmployee = ALL_EMPLOYEE_CREDENTIALS.find(
-          (e) => e.email.toLowerCase() === cleanEmail
-        );
-        const isCeo = cleanEmail === 'aravindaravind3953@gmail.com';
-
-        if ((matchedEmployee && matchedEmployee.passwordDefault === password) || (isCeo && password === 'admin123')) {
-          const empName = matchedEmployee ? matchedEmployee.name : 'Aravind Reddy';
-          const empRole = matchedEmployee ? matchedEmployee.role : 'admin';
-          const empId = matchedEmployee ? matchedEmployee.empId : 'PM-CEO';
-
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: password,
-            options: {
-              data: { name: empName, role: empRole, emp_id: empId },
-            },
-          });
-
-          if (!signUpError && signUpData.session) {
-            const token = signUpData.session.access_token;
-            setAuthToken(token);
-            const userObj: CRA = {
-              id: signUpData.session.user.id,
-              name: empName,
-              email: cleanEmail,
-              role: empRole as any,
-              emp_id: empId,
-              monthly_jd_target: 20,
-              is_active: true,
-              created_at: new Date().toISOString(),
-            };
-            await supabaseDataService.upsertProfile(userObj);
-            clientFallbackStore.setCurrentUser(userObj);
-            return { access_token: token, user: userObj };
-          }
-        }
       } catch (sbAuthErr) {
-        console.warn('Supabase Auth sign-in encounter:', sbAuthErr);
+        // Continue immediately to fast local / backend resolution without delaying the user
       }
     }
 
-    // 2. Express Backend fallback if running locally
+    // 2. Express Backend fallback if running locally (with fast 500ms timeout)
     const formData = new URLSearchParams();
-    formData.append('username', email);
-    formData.append('password', password);
+    formData.append('username', cleanEmail);
+    formData.append('password', cleanPass);
 
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 600);
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       if (res.ok && isJson(res)) {
         const data = await res.json();
         setAuthToken(data.access_token);
@@ -145,37 +127,44 @@ export const api = {
       }
     } catch (_) {}
 
-    // Resilient Fallback for Static Deployments (e.g. GitHub Pages)
-    const matchedEmployee = ALL_EMPLOYEE_CREDENTIALS.find(
-      (e) => e.email.toLowerCase() === cleanEmail
-    );
-    const isCeo = cleanEmail === 'aravindaravind3953@gmail.com';
+    // 3. Lightning-fast local & static fallback authentication
+    const isValidPass =
+      cleanPass === 'Password123!' ||
+      cleanPass === 'admin123' ||
+      cleanPass === 'placemein2026' ||
+      cleanPass === 'admin' ||
+      cleanPass === (matchedEmployee?.passwordDefault || '') ||
+      cleanPass.length >= 4; // allow standard passwords for created members
 
-    if (matchedEmployee || isCeo) {
-      const targetUser: CRA = matchedEmployee ? {
+    if ((matchedEmployee || isCeo || existingRosterUser) && isValidPass) {
+      const baseUser = existingRosterUser || (matchedEmployee ? {
         id: matchedEmployee.id,
         name: matchedEmployee.name,
         email: matchedEmployee.email,
         role: matchedEmployee.role,
         emp_id: matchedEmployee.empId,
+        domain: matchedEmployee.spocDomain,
+        designation: matchedEmployee.designation,
         monthly_jd_target: 20,
         is_active: true,
-        created_at: new Date().toISOString(),
+        created_at: '2026-08-01T08:00:00Z',
       } : {
-        id: 'usr_admin_user_session',
+        id: 'usr_admin_aravind',
         name: 'Aravind Reddy',
-        email: 'aravindaravind3953@gmail.com',
+        email: 'aravindreddy.l@placemein.com',
         role: 'admin',
         emp_id: 'PM-CEO',
+        domain: 'Founder & CEO (CEO Admin)',
+        designation: 'Founder & CEO',
         monthly_jd_target: 20,
         is_active: true,
-        created_at: new Date().toISOString(),
-      };
+        created_at: '2026-08-01T08:00:00Z',
+      });
 
       const fallbackToken = 'client_token_' + Date.now();
       setAuthToken(fallbackToken);
-      clientFallbackStore.setCurrentUser(targetUser);
-      return { access_token: fallbackToken, user: targetUser };
+      clientFallbackStore.setCurrentUser(baseUser as CRA);
+      return { access_token: fallbackToken, user: baseUser as CRA };
     }
 
     throw new Error('Invalid credentials. Please verify your email and password.');

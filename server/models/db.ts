@@ -58,7 +58,7 @@ export const users: CRA[] = [
   {
     id: 'usr_cra_harish',
     name: 'Harish Reddy',
-    email: 'harish.reddy@placemein.com',
+    email: 'harish.r@placemein.com',
     passwordHash: hashPassword('Password123!'),
     role: 'cra',
     emp_id: 'PM-101',
@@ -70,8 +70,8 @@ export const users: CRA[] = [
   },
   {
     id: 'usr_cra_solomon',
-    name: 'Solomon Raju',
-    email: 'solomon.raju@placemein.com',
+    name: 'Solomon Raj',
+    email: 'solomon.r@placemein.com',
     passwordHash: hashPassword('Password123!'),
     role: 'cra',
     emp_id: 'PM-102',
@@ -83,8 +83,8 @@ export const users: CRA[] = [
   },
   {
     id: 'usr_cra_charan',
-    name: 'Charan Kumar N',
-    email: 'charanKumar.n@placemein.com',
+    name: 'Charan Kumar',
+    email: 'charankumar.n@placemein.com',
     passwordHash: hashPassword('Password123!'),
     role: 'cra',
     emp_id: 'PM-103',
@@ -96,8 +96,8 @@ export const users: CRA[] = [
   },
   {
     id: 'usr_cra_mrudula',
-    name: 'Mrudula T',
-    email: 'mrudula.t@placemein.com',
+    name: 'Mrudula',
+    email: 'mrudula.k@placemein.com',
     passwordHash: hashPassword('Password123!'),
     role: 'cra',
     emp_id: 'PM-104',

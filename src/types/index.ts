@@ -14,8 +14,6 @@ export interface CRA {
   email: string;
   role: UserRole;
   emp_id?: string;
-  domain?: string;
-  designation?: string;
   monthly_jd_target?: number;
   is_active?: boolean;
   deleted_at?: string;

@@ -8,8 +8,22 @@ export function login(req: Request, res: Response) {
   const password = req.body.password || '';
 
   let user = users.find((u) => u.email.toLowerCase() === email);
-  if (!user && (email === 'aravindaravind3953@gmail.com' || email.includes('aravind'))) {
-    user = users.find((u) => u.id === 'usr_admin_aravind');
+  if (!user) {
+    if (email === 'aravindaravind3953@gmail.com' || email.includes('aravind')) {
+      user = users.find((u) => u.id === 'usr_admin_aravind');
+    } else if (email === 'solomon.raju@placemein.com' || email === 'solomon.r@placemein.com') {
+      user = users.find((u) => u.id === 'usr_cra_solomon');
+    } else if (email === 'charankumar.n@placemein.com' || email.startsWith('charan')) {
+      user = users.find((u) => u.id === 'usr_cra_charan');
+    } else if (email === 'mrudula.t@placemein.com' || email === 'mrudula.k@placemein.com' || email.startsWith('mrudula')) {
+      user = users.find((u) => u.id === 'usr_cra_mrudula');
+    } else if (email === 'harish.reddy@placemein.com' || email === 'harish.r@placemein.com') {
+      user = users.find((u) => u.id === 'usr_cra_harish');
+    } else if (email === 'namitha.s@placemein.com' || email === 'namitha.k@placemein.com') {
+      user = users.find((u) => u.id === 'usr_cra_namitha');
+    } else if (email === 'vineela.b@placemein.com') {
+      user = users.find((u) => u.id === 'usr_admin_vineela');
+    }
   }
   const isValid = user && (
     user.passwordHash === hashPassword(password) ||

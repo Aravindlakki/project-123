@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { api, clearAuthToken } from '../services/api';
 import { CRA } from '../types';
-import { ALL_EMPLOYEE_CREDENTIALS, DEFAULT_EMPLOYEE_PASSWORD } from '../data/employeeCredentials';
 import {
   Lock,
   Mail,
@@ -14,7 +13,6 @@ import {
   CheckCircle,
   LogIn,
   Loader2,
-  Sparkles,
 } from 'lucide-react';
 
 interface Props {
@@ -62,7 +60,6 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
         new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
       );
 
-      setLoadingStep('Initializing workspace...');
       const currentUser = loginRes.user || (await api.getCurrentCRA());
       const roleToCheck = expectedRole || loginRole;
 
@@ -196,54 +193,6 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             {loginRole}
           </span>
         </div>
-
-        {/* Quick Select from Canonical 8 Roster */}
-        {!isForgotMode && (
-          <div className="p-3 bg-gray-950/70 border border-purple-800/40 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="font-bold text-purple-300 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                <span>Quick Select Team Member (8 Canonical):</span>
-              </span>
-              <span className="text-[10px] text-gray-400 font-mono">Password: Password123!</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-1.5">
-              {ALL_EMPLOYEE_CREDENTIALS.map((emp) => {
-                const isSelected = email.toLowerCase() === emp.email.toLowerCase();
-                const isAdmin = emp.role === 'admin';
-                return (
-                  <button
-                    key={emp.email}
-                    type="button"
-                    onClick={() => {
-                      setEmail(emp.email);
-                      setPassword(DEFAULT_EMPLOYEE_PASSWORD);
-                      setLoginRole(isAdmin ? 'ADMIN' : 'CRA');
-                      setError(null);
-                    }}
-                    className={`text-left p-1.5 rounded-xl border text-[11px] transition flex items-center gap-1.5 ${
-                      isSelected
-                        ? isAdmin
-                          ? 'bg-amber-600/30 border-amber-400 text-white'
-                          : 'bg-purple-600/30 border-purple-400 text-white'
-                        : 'bg-gray-900/80 border-gray-800 text-gray-300 hover:text-white hover:bg-gray-800/60'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${emp.avatarBg}`} />
-                    <div className="truncate">
-                      <div className="font-bold truncate text-[11px] flex items-center gap-1">
-                        <span>{emp.name}</span>
-                        <span className="text-[9px] text-amber-300/80 font-mono">({emp.empId})</span>
-                      </div>
-                      <div className="text-[9px] text-gray-400 truncate">{emp.roleDisplay || (isAdmin ? 'Admin' : 'Employee')}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {error && (
           <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-semibold text-rose-300 flex items-start gap-2">

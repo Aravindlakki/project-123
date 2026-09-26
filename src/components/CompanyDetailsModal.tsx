@@ -309,6 +309,16 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
 
         {/* Modal Scrollable Content */}
         <div className="p-6 space-y-6 overflow-y-auto flex-1">
+          {/* Admin-only edit protection notice for CRAs */}
+          {!canEditCompany && (
+            <div className="p-3 bg-amber-950/40 border border-amber-700/50 rounded-xl text-xs text-amber-200 flex items-start gap-2.5">
+              <Lock className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>View-Only Company Profile:</strong> Once created, company profiles can only be edited by Admins. Other CRAs have view-only access. When adding a new JD is the only time a CRA can indirectly update opportunities under this company. Any company modifications must be done by an Admin.
+              </div>
+            </div>
+          )}
+
           {/* Company Key Metrics / Attributes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {/* Metric 1: How many people working */}

@@ -146,7 +146,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
       {/* 7 Required Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
         
-        {/* Card 1: Total Eligible JDs received this month */}
+        {/* Card 1: Total No of Eligible JDs received this month */}
         <div 
           onClick={() => setSelectedDrilldown('eligible_month')}
           className="p-5 rounded-2xl bg-gray-900/80 border border-blue-800/50 shadow-xl hover:border-blue-500/80 transition cursor-pointer relative overflow-hidden group"
@@ -154,7 +154,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           <div className="flex items-center justify-between text-xs text-blue-300 font-bold mb-2">
             <span className="flex items-center gap-1.5">
               <FileCheck className="h-4 w-4 text-blue-400" />
-              Eligible JDs (This Month)
+              Total Eligible JDs Received (This Month)
             </span>
             <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 font-mono">
               {currentMonthName.slice(0, 3)}
@@ -169,7 +169,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           </p>
         </div>
 
-        {/* Card 2: Total drives scheduled this month */}
+        {/* Card 2: Total drives scheduled in this month */}
         <div 
           onClick={() => setSelectedDrilldown('drives')}
           className="p-5 rounded-2xl bg-gray-900/80 border border-purple-800/50 shadow-xl hover:border-purple-500/80 transition cursor-pointer relative overflow-hidden group"
@@ -177,7 +177,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           <div className="flex items-center justify-between text-xs text-purple-300 font-bold mb-2">
             <span className="flex items-center gap-1.5">
               <CalendarCheck className="h-4 w-4 text-purple-400" />
-              Drives Scheduled (Month)
+              Total Drives Scheduled (In This Month)
             </span>
             <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 font-mono">
               Campus & Off-Campus
@@ -192,7 +192,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           </p>
         </div>
 
-        {/* Card 3: Today's team attendance */}
+        {/* Card 3: Attendance of team for that day */}
         <div 
           onClick={() => setSelectedDrilldown('attendance')}
           className="p-5 rounded-2xl bg-gray-900/80 border border-emerald-800/50 shadow-xl hover:border-emerald-500/80 transition cursor-pointer relative overflow-hidden group"
@@ -200,7 +200,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           <div className="flex items-center justify-between text-xs text-emerald-300 font-bold mb-2">
             <span className="flex items-center gap-1.5">
               <UserCheck className="h-4 w-4 text-emerald-400" />
-              Today's Attendance
+              Attendance of Team (For That Day)
             </span>
             <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 font-mono">
               {stats?.attendance_today_pct || 88}% Present
@@ -216,7 +216,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           </p>
         </div>
 
-        {/* Card 4: Total JDs received today */}
+        {/* Card 4: Total no of JD recieved in the current day */}
         <div 
           onClick={() => setSelectedDrilldown('jds_today')}
           className="p-5 rounded-2xl bg-gray-900/80 border border-amber-800/50 shadow-xl hover:border-amber-500/80 transition cursor-pointer relative overflow-hidden group"
@@ -224,7 +224,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           <div className="flex items-center justify-between text-xs text-amber-300 font-bold mb-2">
             <span className="flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-amber-400" />
-              Total JDs (Today)
+              Total No of JDs Received (Current Day)
             </span>
             <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 font-mono">
               Today
@@ -239,7 +239,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           </p>
         </div>
 
-        {/* Card 5: Total interviews scheduled for today */}
+        {/* Card 5: Total interviews scheduled for Today */}
         <div 
           onClick={() => setSelectedDrilldown('interviews_today')}
           className="p-5 rounded-2xl bg-gray-900/80 border border-teal-800/50 shadow-xl hover:border-teal-500/80 transition cursor-pointer relative overflow-hidden group"
@@ -247,7 +247,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           <div className="flex items-center justify-between text-xs text-teal-300 font-bold mb-2">
             <span className="flex items-center gap-1.5">
               <PhoneCall className="h-4 w-4 text-teal-400" />
-              Interviews Scheduled Today
+              Total Interviews Scheduled (For Today)
             </span>
             <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-teal-950 text-teal-300 font-mono">
               Interviews
@@ -262,7 +262,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           </p>
         </div>
 
-        {/* Card 6: Total interviews on hold for the month */}
+        {/* Card 6: Total Interviews on Hold for the month */}
         <div 
           onClick={() => setSelectedDrilldown('on_hold')}
           className="p-5 rounded-2xl bg-gray-900/80 border border-rose-800/50 shadow-xl hover:border-rose-500/80 transition cursor-pointer relative overflow-hidden group"
@@ -270,7 +270,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           <div className="flex items-center justify-between text-xs text-rose-300 font-bold mb-2">
             <span className="flex items-center gap-1.5">
               <PauseCircle className="h-4 w-4 text-rose-400" />
-              Interviews On Hold (Month)
+              Total Interviews on Hold (For the Month)
             </span>
             <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 font-mono">
               On Hold
@@ -285,7 +285,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           </p>
         </div>
 
-        {/* Card 7: % PF (Placement/Performance Fulfillment) Target Achievement (Span 2 cols on lg) */}
+        {/* Card 7: % PF TARGET ACHIEVEMENT */}
         <div 
           onClick={() => setSelectedDrilldown('pf_target')}
           className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/80 to-purple-950/80 border-2 border-indigo-500/60 shadow-xl hover:border-indigo-400 transition cursor-pointer sm:col-span-2 lg:col-span-2 relative overflow-hidden group"
