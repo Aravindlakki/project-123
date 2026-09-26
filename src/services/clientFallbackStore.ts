@@ -158,10 +158,23 @@ function initializeMockData() {
       const initialJDs: JD[] = [
         {
           id: 'jd-seed-1',
+          jd_id: 'JD-2026-0001',
           title: 'Data Engineer',
           company_id: 'comp_1',
           raw_text: 'Responsibilities include designing, building, and maintaining robust data pipelines and analytics systems.',
           is_verified: true,
+          eligibility_status: 'eligible',
+          interview_scheduled: 'yes',
+          interview_date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 16),
+          interview_round: 'Technical Screening',
+          interview_notes: 'Google Meet link shared with candidate',
+          hr_name: 'Rohit Verma',
+          hr_email: 'rohit.verma@techcorp.com',
+          hr_phone: '+91 98765 43210',
+          hr_designation: 'Senior Talent Acquisition Lead',
+          hr_feedback_status: 'received',
+          hr_feedback: 'Candidate profile matched expectations. Proceed with Round 2.',
+          hr_feedback_date: new Date().toISOString().slice(0, 10),
           verification_source: 'file_ai_extract',
           opportunity_type: 'existing_post',
           date_found: new Date().toISOString().slice(0, 10),
@@ -169,10 +182,18 @@ function initializeMockData() {
         },
         {
           id: 'jd-seed-2',
+          jd_id: 'JD-2026-0002',
           title: 'Senior Fullstack Engineer',
           company_id: 'comp_2',
           raw_text: 'Seeking a fullstack developer proficient in React, Node.js, and TypeScript with 3+ years experience.',
-          is_verified: true,
+          is_verified: false,
+          eligibility_status: 'pending_admin_review',
+          interview_scheduled: 'no',
+          hr_name: 'Priyanka Sharma',
+          hr_email: 'priyanka.s@innovatex.io',
+          hr_phone: '+91 98112 34567',
+          hr_designation: 'HR Lead',
+          hr_feedback_status: 'awaiting',
           verification_source: 'file_ai_extract',
           opportunity_type: 'existing_post',
           date_found: new Date().toISOString().slice(0, 10),
@@ -416,10 +437,17 @@ export const clientFallbackStore = {
         jds = inMemoryJDs;
       }
       const companies = this.getCompanies();
-      jds = jds.map((j) => ({
-        ...j,
-        company: j.company || companies.find((c) => c.id === j.company_id),
-      }));
+      jds = jds.map((j, idx) => {
+        const fallbackJdId = `JD-2026-${String(jds.length - idx).padStart(4, '0')}`;
+        return {
+          ...j,
+          jd_id: j.jd_id || fallbackJdId,
+          eligibility_status: j.eligibility_status || (j.is_verified ? 'eligible' : 'pending_admin_review'),
+          interview_scheduled: j.interview_scheduled || 'pending',
+          hr_feedback_status: j.hr_feedback_status || 'awaiting',
+          company: j.company || companies.find((c) => c.id === j.company_id),
+        };
+      });
       if (isVerified !== undefined) {
         jds = jds.filter((j) => j.is_verified === isVerified);
       }
@@ -457,6 +485,22 @@ export const clientFallbackStore = {
     }
   },
 
+  generateNextJdId(): string {
+    const existing = this.getJDs();
+    const currentYear = new Date().getFullYear();
+    let maxNum = 0;
+    for (const j of existing) {
+      if (j.jd_id) {
+        const match = j.jd_id.match(/JD-\d{4}-(\d+)/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    }
+    return `JD-${currentYear}-${String(maxNum + 1).padStart(4, '0')}`;
+  },
+
   saveJD(newJD: JD) {
     const existing = this.getJDs();
     const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -474,8 +518,99 @@ export const clientFallbackStore = {
       }
     }
 
+    // Auto-generate JD-ID if not supplied
+    if (!newJD.jd_id) {
+      newJD.jd_id = this.generateNextJdId();
+    }
+    // New uploaded JDs must default to pending_admin_review so admin evaluates eligibility
+    if (!newJD.eligibility_status) {
+      newJD.eligibility_status = newJD.is_verified ? 'eligible' : 'pending_admin_review';
+    }
+    if (!newJD.interview_scheduled) {
+      newJD.interview_scheduled = 'no';
+    }
+    if (!newJD.hr_feedback_status) {
+      newJD.hr_feedback_status = 'awaiting';
+    }
+
+    // Mandatory HR Details sync: if HR details provided, ensure contact exists in CRM contacts
+    if (newJD.company_id && newJD.hr_name) {
+      try {
+        const contacts = this.getContacts();
+        const existingContact = contacts.find(
+          (c) => c.company_id === newJD.company_id && 
+            (c.name.toLowerCase().trim() === newJD.hr_name?.toLowerCase().trim() ||
+             (newJD.hr_email && c.email?.toLowerCase().trim() === newJD.hr_email.toLowerCase().trim()))
+        );
+        if (!existingContact) {
+          const newContact: HRContact = {
+            id: 'contact_' + Date.now(),
+            company_id: newJD.company_id,
+            name: newJD.hr_name.trim(),
+            title: newJD.hr_designation?.trim() || 'HR Lead',
+            email: newJD.hr_email?.trim() || undefined,
+            phone: newJD.hr_phone?.trim() || undefined,
+            linkedin_url: newJD.hr_linkedin?.trim() || undefined,
+            source: 'manual',
+            created_at: new Date().toISOString(),
+          };
+          contacts.unshift(newContact);
+          this.saveContacts(contacts);
+        }
+      } catch (err) {
+        console.warn('[Storage] HR Contact auto-sync warning:', err);
+      }
+    }
+
     const updated = [newJD, ...existing.filter((j) => j.id !== newJD.id)];
     this.saveJDs(updated);
+  },
+
+  updateJD(jdId: string, updates: Partial<JD>): JD {
+    const existing = this.getJDs();
+    const targetIdx = existing.findIndex((j) => j.id === jdId || j.jd_id === jdId);
+    if (targetIdx === -1) {
+      const fallbackTarget: JD = {
+        id: jdId,
+        jd_id: updates.jd_id || this.generateNextJdId(),
+        title: updates.title || 'Job Opportunity',
+        company_id: updates.company_id || 'comp_default',
+        raw_text: updates.raw_text || '',
+        is_verified: updates.eligibility_status === 'eligible' ? true : false,
+        eligibility_status: updates.eligibility_status || 'pending_admin_review',
+        interview_scheduled: updates.interview_scheduled || 'no',
+        hr_feedback_status: updates.hr_feedback_status || 'awaiting',
+        opportunity_type: updates.opportunity_type || 'existing_post',
+        date_found: updates.date_found || new Date().toISOString(),
+        created_at: updates.created_at || new Date().toISOString(),
+        ...updates,
+      };
+      existing.unshift(fallbackTarget);
+      this.saveJDs(existing);
+      return fallbackTarget;
+    }
+
+    const currentItem = existing[targetIdx];
+    const newEligibility = updates.eligibility_status !== undefined ? updates.eligibility_status : currentItem.eligibility_status;
+    const isVerified = newEligibility === 'eligible';
+
+    const updatedJD: JD = {
+      ...currentItem,
+      ...updates,
+      is_verified: isVerified,
+      eligibility_status: newEligibility,
+    };
+
+    existing[targetIdx] = updatedJD;
+    this.saveJDs(existing);
+    return updatedJD;
+  },
+
+  deleteJD(jdId: string): boolean {
+    const existing = this.getJDs();
+    const filtered = existing.filter((j) => j.id !== jdId && j.jd_id !== jdId);
+    this.saveJDs(filtered);
+    return filtered.length < existing.length;
   },
 
   getStats(): DashboardStats {

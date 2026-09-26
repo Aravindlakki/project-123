@@ -61,6 +61,7 @@ export interface HRContact {
 
 export interface JD {
   id: string;
+  jd_id?: string; // Formatted unique record identifier e.g. "JD-2026-0042"
   title: string;
   company_id: string;
   raw_text: string;
@@ -72,6 +73,30 @@ export interface JD {
   created_at: string;
   company?: Company;
   creator?: CRA;
+
+  // Mandatory HR Details when JD is received
+  hr_name?: string;
+  hr_email?: string;
+  hr_phone?: string;
+  hr_designation?: string;
+  hr_linkedin?: string;
+
+  // Admin Eligibility Decision Workflow
+  eligibility_status?: 'pending_admin_review' | 'eligible' | 'not_eligible';
+  admin_review_notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+
+  // Interview Scheduling Tracking (for eligible JDs)
+  interview_scheduled?: 'yes' | 'no' | 'pending' | 'completed';
+  interview_date?: string;
+  interview_round?: string;
+  interview_notes?: string;
+
+  // HR Feedback Tracking
+  hr_feedback_status?: 'awaiting' | 'received';
+  hr_feedback?: string;
+  hr_feedback_date?: string;
 }
 
 export interface OutreachChannel {

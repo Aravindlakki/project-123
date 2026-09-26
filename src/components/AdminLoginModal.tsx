@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api, clearAuthToken } from '../services/api';
+import { api, clearAuthToken, getAuthToken, setAuthToken } from '../services/api';
 import { CRA } from '../types';
 import { ShieldAlert, ShieldCheck, Lock, Mail, Eye, EyeOff, AlertCircle, X, CheckCircle, ArrowRight, Key } from 'lucide-react';
 import { ALL_EMPLOYEE_CREDENTIALS, DEFAULT_EMPLOYEE_PASSWORD } from '../data/employeeCredentials';
@@ -21,8 +21,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   isInlineGate = false,
   onCancelToEmployee,
 }) => {
-  const [email, setEmail] = useState(initialEmail || 'aravindreddy.l@placemein.com');
-  const [password, setPassword] = useState(DEFAULT_EMPLOYEE_PASSWORD);
+  const [email, setEmail] = useState(initialEmail || '');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,15 +36,20 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
     try {
       if (!email.trim() || !password) {
-        throw new Error('Please enter both admin email and password.');
+        throw new Error('Please enter both administrator email and password.');
       }
 
+      const previousToken = getAuthToken();
       await api.login(email.trim(), password);
       const user = await api.getCurrentCRA();
 
       if (user.role !== 'admin') {
-        clearAuthToken();
-        throw new Error(`Access denied: "${user.name}" (${user.email}) is a CRA Employee account, not an Administrator. Please log in with an Admin account.`);
+        if (previousToken) {
+          setAuthToken(previousToken);
+        } else {
+          clearAuthToken();
+        }
+        throw new Error(`Direct Access Denied: "${user.name}" (${user.email}) is a CRA Employee account, not an Administrator. Employees cannot switch directly to Admin. You must log in with an authorized Administrator account.`);
       }
 
       sessionStorage.setItem('placemein:admin_verified', 'true');
@@ -122,7 +127,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                   type="button"
                   onClick={() => {
                     setEmail(admin.email);
-                    setPassword(admin.passwordDefault);
+                    setPassword('');
                   }}
                   className={`text-[11px] px-2 py-1 rounded-lg border transition font-medium flex items-center gap-1.5 ${
                     email === admin.email
@@ -141,14 +146,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-bold text-amber-200">Admin Password *</label>
-            <button
-              type="button"
-              onClick={() => setPassword(DEFAULT_EMPLOYEE_PASSWORD)}
-              className="text-[11px] text-amber-300/90 hover:text-amber-200 font-mono hover:underline flex items-center gap-1"
-            >
-              <Key className="h-3 w-3" />
-              <span>Autofill {DEFAULT_EMPLOYEE_PASSWORD}</span>
-            </button>
+            <span className="text-[11px] text-amber-400/80 font-medium">Password required</span>
           </div>
           <div className="relative">
             <Lock className="h-4 w-4 absolute left-3 top-3 text-amber-400/70" />

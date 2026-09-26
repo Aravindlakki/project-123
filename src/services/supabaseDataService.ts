@@ -916,6 +916,7 @@ export const supabaseDataService = {
 
     const fallbackJD: JD = {
       id: 'jd_' + Date.now(),
+      jd_id: jd.jd_id || clientFallbackStore.generateNextJdId(),
       title: jd.title || 'New Opportunity',
       company_id: jd.company_id || '',
       raw_text: (jd.raw_text || '').slice(0, 4000),
@@ -925,6 +926,22 @@ export const supabaseDataService = {
       date_found: jd.date_found || new Date().toISOString().slice(0, 10),
       created_at: new Date().toISOString(),
       company: matchedComp,
+      hr_name: jd.hr_name,
+      hr_email: jd.hr_email,
+      hr_phone: jd.hr_phone,
+      hr_designation: jd.hr_designation,
+      hr_linkedin: jd.hr_linkedin,
+      eligibility_status: jd.eligibility_status || (jd.is_verified ? 'eligible' : 'pending_admin_review'),
+      admin_review_notes: jd.admin_review_notes,
+      reviewed_by: jd.reviewed_by,
+      reviewed_at: jd.reviewed_at,
+      interview_scheduled: jd.interview_scheduled || 'no',
+      interview_date: jd.interview_date,
+      interview_round: jd.interview_round,
+      interview_notes: jd.interview_notes,
+      hr_feedback_status: jd.hr_feedback_status || 'awaiting',
+      hr_feedback: jd.hr_feedback,
+      hr_feedback_date: jd.hr_feedback_date,
     };
 
     if (!isSupabaseConfigured) {

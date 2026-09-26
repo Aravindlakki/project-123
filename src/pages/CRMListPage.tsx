@@ -24,6 +24,7 @@ import {
   AlertCircle,
   CheckCircle2,
   FileSpreadsheet,
+  Lock,
 } from 'lucide-react';
 import { CompanyDetailsModal } from '../components/CompanyDetailsModal';
 import { DocumentIntakeModal } from '../components/DocumentIntakeModal';
@@ -160,6 +161,13 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
 
   const handleSaveOutcome = async () => {
     if (!outcomeModal) return;
+    if (currentUser?.role !== 'admin') {
+      setFeedback({
+        type: 'error',
+        text: 'Permission Restricted: Employees cannot edit outreach outcomes. Only Administrator can update eligibility and status.',
+      });
+      return;
+    }
     try {
       const updated = await api.updateOutreachOutcome(outcomeModal.contact.id, {
         jd_received: outcomeModal.jdReceived,
@@ -1058,13 +1066,23 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
               </button>
             </div>
 
+            {currentUser?.role !== 'admin' && (
+              <div className="p-2.5 bg-amber-950/40 border border-amber-700/50 rounded-xl text-xs text-amber-200 flex items-center gap-2">
+                <Lock className="h-4 w-4 text-amber-400 shrink-0" />
+                <span>
+                  <strong>View-Only (Employee Mode):</strong> Employees cannot edit or modify outreach outcomes. Only Administrators can update status and eligibility.
+                </span>
+              </div>
+            )}
+
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-gray-400 font-semibold mb-1">Status</label>
                 <select
+                  disabled={currentUser?.role !== 'admin'}
                   value={outcomeModal.status}
                   onChange={(e: any) => setOutcomeModal({ ...outcomeModal, status: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="pending">Pending Outreach</option>
                   <option value="jd_received">JD Received</option>
@@ -1079,9 +1097,10 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
                 <input
                   type="checkbox"
                   id="jdReceived"
+                  disabled={currentUser?.role !== 'admin'}
                   checked={outcomeModal.jdReceived}
                   onChange={(e) => setOutcomeModal({ ...outcomeModal, jdReceived: e.target.checked })}
-                  className="rounded bg-gray-800 border-gray-700 text-purple-600 focus:ring-purple-500"
+                  className="rounded bg-gray-800 border-gray-700 text-purple-600 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <label htmlFor="jdReceived" className="text-gray-300 font-medium cursor-pointer">
                   JD Received from HR
@@ -1093,12 +1112,13 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
                   <input
                     type="checkbox"
                     id="isEligible"
+                    disabled={currentUser?.role !== 'admin'}
                     checked={outcomeModal.isEligible}
                     onChange={(e) => setOutcomeModal({ ...outcomeModal, isEligible: e.target.checked })}
-                    className="rounded bg-gray-800 border-gray-700 text-purple-600 focus:ring-purple-500"
+                    className="rounded bg-gray-800 border-gray-700 text-purple-600 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <label htmlFor="isEligible" className="text-gray-300 font-medium cursor-pointer">
-                    Eligible for Placement Drives
+                    Eligible for Placement Drives (Admin Verified)
                   </label>
                 </div>
               )}
@@ -1107,10 +1127,11 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
                 <label className="block text-gray-400 font-semibold mb-1">Conversation Notes</label>
                 <textarea
                   rows={3}
+                  disabled={currentUser?.role !== 'admin'}
                   value={outcomeModal.notes}
                   onChange={(e) => setOutcomeModal({ ...outcomeModal, notes: e.target.value })}
                   placeholder="e.g. HR requested candidate profiles for senior role..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -1120,14 +1141,16 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
                 onClick={() => setOutcomeModal(null)}
                 className="px-3 py-1.5 bg-gray-800 text-gray-300 hover:bg-gray-700 rounded-lg text-xs"
               >
-                Cancel
+                {currentUser?.role === 'admin' ? 'Cancel' : 'Close'}
               </button>
-              <button
-                onClick={handleSaveOutcome}
-                className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow"
-              >
-                Save Outcome
-              </button>
+              {currentUser?.role === 'admin' && (
+                <button
+                  onClick={handleSaveOutcome}
+                  className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow"
+                >
+                  Save Outcome
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import { Company, JD, CRA } from '../types';
 import { formatIndianDate } from '../utils/formatters';
+import { JDReviewModal } from '../components/JDReviewModal';
 import {
   FileText,
   CheckCircle,
@@ -23,6 +24,14 @@ import {
   RefreshCw,
   Info,
   Clock,
+  User,
+  Mail,
+  Phone,
+  UserCheck,
+  Video,
+  MessageSquare,
+  Filter,
+  Lock,
 } from 'lucide-react';
 
 interface StagedFileItem {
@@ -150,6 +159,27 @@ export const JDIntakePage: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [lastLoggedCompany, setLastLoggedCompany] = useState<string | null>(null);
 
+  // Mandatory HR Details (Required when JD is received)
+  const [hrName, setHrName] = useState('');
+  const [hrEmail, setHrEmail] = useState('');
+  const [hrPhone, setHrPhone] = useState('');
+  const [hrDesignation, setHrDesignation] = useState('HR Manager');
+  const [hrLinkedin, setHrLinkedin] = useState('');
+
+  // Batch upload HR details (for uploaded files)
+  const [batchHrName, setBatchHrName] = useState('');
+  const [batchHrEmail, setBatchHrEmail] = useState('');
+  const [batchHrPhone, setBatchHrPhone] = useState('');
+  const [batchHrDesignation, setBatchHrDesignation] = useState('HR Lead');
+
+  // Search & Filter controls for logged opportunities
+  const [searchQuery, setSearchQuery] = useState('');
+  const [eligibilityFilter, setEligibilityFilter] = useState<'all' | 'pending' | 'eligible' | 'not_eligible'>('all');
+
+  // Admin Review & View Modal state
+  const [selectedJdForReview, setSelectedJdForReview] = useState<JD | null>(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
   // File Extraction & Batch queue state
   const [stagedFiles, setStagedFiles] = useState<StagedFileItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -163,7 +193,7 @@ export const JDIntakePage: React.FC = () => {
   const [htmlVerification, setHtmlVerification] = useState<boolean | null>(null);
   const [extractionStatus, setExtractionStatus] = useState<{ ai_active: boolean; message: string } | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [formErrors, setFormErrors] = useState<{ company?: string; title?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ company?: string; title?: string; hrName?: string; hrEmail?: string; hrPhone?: string }>({});
 
   const handleQuickFillSample = () => {
     setCompanyInput('NStarX Technologies');
@@ -177,11 +207,16 @@ Requirements:
 - Passion for analytics and high-volume data engineering
 - Good communication and collaboration skills`);
     setOpportunityType('existing_post');
-    setIsVerified(true);
+    setIsVerified(false); // Initial status must go to admin for evaluation!
+    setHrName('Kavya Sharma');
+    setHrEmail('kavya.sharma@nstarx.com');
+    setHrPhone('+91 98765 43210');
+    setHrDesignation('Lead Technical Recruiter');
+    setHrLinkedin('https://linkedin.com/in/kavya-sharma-hr');
     setFormErrors({});
     setMessage({
       type: 'success',
-      text: 'Sample opportunity filled! Click "Submit & Save Opportunity to CRM" below to test saving.',
+      text: 'Sample opportunity and mandatory HR details filled! Click "Submit & Save Opportunity to CRM" to test submission.',
     });
   };
 
@@ -614,19 +649,29 @@ Requirements:
     e.preventDefault();
     setMessage(null);
 
-    const errors: { company?: string; title?: string } = {};
+    const errors: { company?: string; title?: string; hrName?: string; hrEmail?: string; hrPhone?: string } = {};
     if (!companyInput.trim()) {
       errors.company = 'Please enter or select a Company Name.';
     }
     if (!jdTitle.trim()) {
       errors.title = 'Please enter a Job Title (e.g. Senior Fullstack Engineer).';
     }
+    // Mandatory requirement: It is mandatory to have HR details if the JD is received
+    if (!hrName.trim()) {
+      errors.hrName = 'Mandatory: HR Contact Name is strictly required when a JD is received.';
+    }
+    if (!hrEmail.trim()) {
+      errors.hrEmail = 'Mandatory: HR Email Address is strictly required when a JD is received.';
+    }
+    if (!hrPhone.trim()) {
+      errors.hrPhone = 'Mandatory: HR Phone Number is strictly required when a JD is received.';
+    }
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       setMessage({
         type: 'error',
-        text: 'Please fill in Company Name and Job Title before saving the opportunity.',
+        text: 'Mandatory fields missing: Company Name, Job Title, HR Name, HR Email, and HR Phone are strictly required to record a received JD.',
       });
       return;
     }
@@ -647,7 +692,7 @@ Requirements:
       if (existingComp) {
         companyId = existingComp.id;
         // Check if role already exists for this company:
-        // Rule: "if it existed then see the role that entred if it is a different role add it but if it is a same role leave it dont allow to store"
+        // Rule: "if it existed then see the role that entered if it is a different role add it but if it is a same role leave it dont allow to store"
         const existingRolesForComp = recentJDs.filter((j) => j.company_id === existingComp.id);
         const dupRole = existingRolesForComp.find((j) => norm(j.title) === newNormTitle);
         if (dupRole) {
@@ -671,16 +716,24 @@ Requirements:
       const textToSave = (rawText.trim() || `Job opportunity for ${jdTitle.trim()} at ${companyInput.trim()}. Verified by CRA.`).slice(0, 4000);
 
       const isPdf = extractedFilename.toLowerCase().endsWith('.pdf') || (rawText && rawText.includes('[Source File:') && rawText.toLowerCase().includes('.pdf'));
-      const finalVerified = isPdf ? false : isVerified;
       const finalSource = isPdf ? 'pdf_upload' : intakeMethod;
 
+      // Created JD goes to admin for eligibility review; unique JD-ID assigned
       const createdJD = await api.createJD({
         company_id: companyId,
         title: jdTitle.trim(),
         raw_text: textToSave,
         opportunity_type: opportunityType,
-        is_verified: finalVerified,
+        is_verified: false, // Initial upload goes to admin for eligibility review
         verification_source: finalSource,
+        eligibility_status: 'pending_admin_review',
+        interview_scheduled: 'no',
+        hr_feedback_status: 'awaiting',
+        hr_name: hrName.trim(),
+        hr_email: hrEmail.trim(),
+        hr_phone: hrPhone.trim(),
+        hr_designation: hrDesignation.trim() || 'HR Manager',
+        hr_linkedin: hrLinkedin.trim() || undefined,
       });
 
       try {
@@ -695,15 +748,18 @@ Requirements:
 
       setMessage({
         type: 'success',
-        text: isPdf
-          ? `PDF Opportunity '${createdJD.title}' for '${savedCompName}' logged! It requires Manager/Admin approval before verification.`
-          : `Opportunity '${createdJD.title}' for '${savedCompName}' logged & saved to CRM successfully!`,
+        text: `Opportunity '${createdJD.title}' (ID: ${createdJD.jd_id || 'Recorded'}) for '${savedCompName}' submitted! It has been routed to Admin to determine eligibility, interview scheduling, and HR feedback.`,
       });
 
       setCompanyInput('');
       setIndustryInput('');
       setJdTitle('');
       setRawText('');
+      setHrName('');
+      setHrEmail('');
+      setHrPhone('');
+      setHrDesignation('HR Manager');
+      setHrLinkedin('');
       setIsVerified(false);
       setExtractionConfidence(null);
       setExtractedFilename('');
@@ -1010,6 +1066,53 @@ Requirements:
                   </div>
                 )}
 
+                {/* Mandatory HR Contact Details for Uploaded Files */}
+                {stagedFiles.some((f) => f.status !== 'done') && (
+                  <div className="p-4 bg-purple-950/30 border border-purple-800/40 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-200 flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-purple-400" />
+                        HR Contact Details for Uploaded JD(s) (Mandatory Record) *
+                      </span>
+                      <span className="text-[10px] bg-purple-900/60 text-purple-300 px-2 py-0.5 rounded border border-purple-700/50">
+                        Required
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                      <div>
+                        <label className="block text-[11px] text-gray-300 font-semibold mb-1">HR Contact Name *</label>
+                        <input
+                          type="text"
+                          value={batchHrName}
+                          onChange={(e) => setBatchHrName(e.target.value)}
+                          placeholder="e.g. Priyanshu Mehta"
+                          className="w-full bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1.5 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-gray-300 font-semibold mb-1">HR Email Address *</label>
+                        <input
+                          type="email"
+                          value={batchHrEmail}
+                          onChange={(e) => setBatchHrEmail(e.target.value)}
+                          placeholder="e.g. hr@company.com"
+                          className="w-full bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1.5 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-gray-300 font-semibold mb-1">HR Phone Number *</label>
+                        <input
+                          type="text"
+                          value={batchHrPhone}
+                          onChange={(e) => setBatchHrPhone(e.target.value)}
+                          placeholder="e.g. +91 98765 43210"
+                          className="w-full bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1.5 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Batch Action Button */}
                 {stagedFiles.some((f) => f.status !== 'done') && (
                   <div className="pt-2">
@@ -1209,6 +1312,98 @@ Requirements:
             </div>
           </div>
 
+          {/* MANDATORY HR DETAILS SECTION */}
+          <div className="space-y-3 bg-purple-950/30 p-4 rounded-xl border border-purple-700/50">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-bold text-purple-200 flex items-center gap-1.5">
+                <UserCheck className="h-4 w-4 text-purple-400" />
+                Mandatory HR Details (Strictly Required upon Receiving JD) *
+              </label>
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-950/80 border border-amber-600/50 px-2 py-0.5 rounded">
+                Mandatory
+              </span>
+            </div>
+            <p className="text-xs text-purple-300/80">
+              HR contact information is strictly required so Admin can evaluate eligibility, schedule interviews, and log HR feedback.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">HR Contact Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rohini Iyer"
+                  value={hrName}
+                  onChange={(e) => {
+                    setHrName(e.target.value);
+                    if (e.target.value.trim()) setFormErrors((p) => ({ ...p, hrName: undefined }));
+                  }}
+                  className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${
+                    formErrors.hrName ? 'border-rose-500 ring-1 ring-rose-500' : 'border-gray-700 focus:border-indigo-500'
+                  }`}
+                />
+                {formErrors.hrName && <p className="text-xs text-rose-400 mt-1">{formErrors.hrName}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">HR Email Address *</label>
+                <input
+                  type="email"
+                  placeholder="e.g. rohini@company.com"
+                  value={hrEmail}
+                  onChange={(e) => {
+                    setHrEmail(e.target.value);
+                    if (e.target.value.trim()) setFormErrors((p) => ({ ...p, hrEmail: undefined }));
+                  }}
+                  className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${
+                    formErrors.hrEmail ? 'border-rose-500 ring-1 ring-rose-500' : 'border-gray-700 focus:border-indigo-500'
+                  }`}
+                />
+                {formErrors.hrEmail && <p className="text-xs text-rose-400 mt-1">{formErrors.hrEmail}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">HR Phone Number *</label>
+                <input
+                  type="tel"
+                  placeholder="e.g. +91 98765 43210"
+                  value={hrPhone}
+                  onChange={(e) => {
+                    setHrPhone(e.target.value);
+                    if (e.target.value.trim()) setFormErrors((p) => ({ ...p, hrPhone: undefined }));
+                  }}
+                  className={`w-full bg-gray-900 border rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${
+                    formErrors.hrPhone ? 'border-rose-500 ring-1 ring-rose-500' : 'border-gray-700 focus:border-indigo-500'
+                  }`}
+                />
+                {formErrors.hrPhone && <p className="text-xs text-rose-400 mt-1">{formErrors.hrPhone}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">HR Designation / Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Senior Talent Acquisition Lead"
+                  value={hrDesignation}
+                  onChange={(e) => setHrDesignation(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">HR LinkedIn Profile (Optional)</label>
+                <input
+                  type="url"
+                  placeholder="https://linkedin.com/in/hr-profile"
+                  value={hrLinkedin}
+                  onChange={(e) => setHrLinkedin(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Raw Text */}
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -1237,7 +1432,7 @@ Requirements:
             ) : (
               <>
                 <Sparkles className="h-5 w-5" />
-                <span>Submit & Save Opportunity to CRM</span>
+                <span>Submit & Route Opportunity to Admin for Evaluation</span>
               </>
             )}
           </button>
@@ -1245,133 +1440,285 @@ Requirements:
       )}
 
       {/* Logged JDs & Verification Badges */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-4">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-indigo-400" />
-          Logged Opportunities & Verification Badges
-        </h2>
+      <div className="bg-gray-800 border border-gray-700 rounded-2xl p-4 sm:p-6 space-y-4">
+        {/* Header & Stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-700/80 pb-4">
+          <div>
+            <h2 className="text-lg font-black text-white flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-indigo-400" />
+              Logged Opportunities & JD Record Register
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Every received JD has a permanent JD-ID. Admin evaluates eligibility, manages interview schedules, and logs HR feedback.
+            </p>
+          </div>
+
+          {/* KPI Chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs px-2.5 py-1 rounded-xl bg-gray-900 border border-gray-700 text-gray-300 font-bold">
+              Total: <strong className="text-white">{recentJDs.length}</strong>
+            </span>
+            <span className="text-xs px-2.5 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-bold">
+              Eligible: <strong className="text-white">{recentJDs.filter((j) => j.eligibility_status === 'eligible' || j.is_verified).length}</strong>
+            </span>
+            <span className="text-xs px-2.5 py-1 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-300 font-bold">
+              Pending: <strong className="text-white">{recentJDs.filter((j) => (j.eligibility_status === 'pending_admin_review' || (!j.eligibility_status && !j.is_verified))).length}</strong>
+            </span>
+            <span className="text-xs px-2.5 py-1 rounded-xl bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 font-bold">
+              Interviews: <strong className="text-white">{recentJDs.filter((j) => j.interview_scheduled === 'yes').length}</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Search Bar & Filters */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by JD-ID (e.g. JD-2026), Job Title, Company, or HR Name..."
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            {(['all', 'pending', 'eligible', 'not_eligible'] as const).map((filterKey) => (
+              <button
+                key={filterKey}
+                type="button"
+                onClick={() => setEligibilityFilter(filterKey)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+                  eligibilityFilter === filterKey
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-gray-900 border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                {filterKey === 'all'
+                  ? 'All'
+                  : filterKey === 'pending'
+                  ? 'Pending Review'
+                  : filterKey === 'eligible'
+                  ? 'Eligible'
+                  : 'Not Eligible'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Opportunities Table */}
         {recentJDs.length === 0 ? (
-          <p className="text-sm text-gray-400">No opportunities logged yet.</p>
+          <p className="text-sm text-gray-400 py-6 text-center">No opportunities logged yet.</p>
         ) : (
           <div>
-            <div className="md:hidden px-3.5 py-2 bg-gray-900/90 border border-gray-700 rounded-t-lg flex items-center justify-between text-xs text-indigo-300">
-              <span className="flex items-center gap-1.5 font-medium">
-                <span>👉 Swipe sideways to view all details & approval actions</span>
-              </span>
-              <span className="text-[10px] text-indigo-300 font-semibold px-2 py-0.5 rounded bg-indigo-900/60 border border-indigo-700/50">
-                Scrollable
-              </span>
-            </div>
-            <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-600">
-              <table className="w-full min-w-[760px] text-left text-sm text-gray-300">
-              <thead className="bg-gray-900/60 text-xs uppercase text-gray-400 border-b border-gray-700">
-                <tr>
-                  <th className="px-4 py-3">Title</th>
-                  <th className="px-4 py-3">Company</th>
-                  <th className="px-4 py-3">Source</th>
-                  <th className="px-4 py-3">Verification Badge</th>
-                  <th className="px-4 py-3">Logged Date</th>
-                  <th className="px-4 py-3 text-right">Approval Status / Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700/50">
-                {recentJDs.map((jd) => {
-                  const isPdfSource = jd.verification_source === 'pdf_upload' || jd.raw_text?.toLowerCase().includes('.pdf');
-                  const autoVerified = jd.verification_source === 'html_url_parser' || jd.is_verified;
-                  return (
-                    <tr key={jd.id} className="hover:bg-gray-700/30">
-                      <td className="px-4 py-3 font-medium text-white">{jd.title}</td>
-                      <td className="px-4 py-3 text-gray-300">{jd.company?.name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-400 capitalize">
-                        {jd.verification_source === 'pdf_upload' ? 'PDF Upload' : (jd.verification_source || 'manual')}
-                      </td>
-                      <td className="px-4 py-3">
-                        {autoVerified ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                            <ShieldCheck className="h-3.5 w-3.5" />
-                            {isPdfSource ? 'Manager Approved' : 'Auto-Verified'}
-                          </span>
-                        ) : isPdfSource ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30" title="PDFs require manual manager/admin approval before verification">
-                            <Clock className="h-3.5 w-3.5 text-amber-400" />
-                            PDF · Needs Approval
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            Needs Review
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-400">
-                        {formatIndianDate(jd.created_at || jd.date_found)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {autoVerified ? (
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-semibold">
-                              <CheckCircle className="h-3.5 w-3.5" />
-                              Approved
+            <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-600 rounded-xl border border-gray-700/80">
+              <table className="w-full min-w-[920px] text-left text-xs text-gray-300">
+                <thead className="bg-gray-900/90 text-[11px] uppercase tracking-wider text-gray-400 border-b border-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 font-bold">JD-ID</th>
+                    <th className="px-4 py-3 font-bold">Role & Company</th>
+                    <th className="px-4 py-3 font-bold">Mandatory HR Contact</th>
+                    <th className="px-4 py-3 font-bold">Eligibility Decision</th>
+                    <th className="px-4 py-3 font-bold">Interview Schedule</th>
+                    <th className="px-4 py-3 font-bold">HR Feedback</th>
+                    <th className="px-4 py-3 text-right font-bold">Evaluation / Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700/50 bg-gray-900/40">
+                  {recentJDs
+                    .filter((jd) => {
+                      if (eligibilityFilter === 'pending') {
+                        if (jd.eligibility_status && jd.eligibility_status !== 'pending_admin_review') return false;
+                        if (!jd.eligibility_status && jd.is_verified) return false;
+                      }
+                      if (eligibilityFilter === 'eligible') {
+                        if (jd.eligibility_status !== 'eligible' && !jd.is_verified) return false;
+                      }
+                      if (eligibilityFilter === 'not_eligible') {
+                        if (jd.eligibility_status !== 'not_eligible') return false;
+                      }
+                      if (!searchQuery.trim()) return true;
+                      const q = searchQuery.toLowerCase().trim();
+                      return (
+                        (jd.jd_id && jd.jd_id.toLowerCase().includes(q)) ||
+                        jd.title.toLowerCase().includes(q) ||
+                        (jd.company?.name && jd.company.name.toLowerCase().includes(q)) ||
+                        (jd.hr_name && jd.hr_name.toLowerCase().includes(q)) ||
+                        (jd.hr_email && jd.hr_email.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((jd) => {
+                      const isEligible = jd.eligibility_status === 'eligible' || jd.is_verified;
+                      const isNotEligible = jd.eligibility_status === 'not_eligible';
+
+                      return (
+                        <tr key={jd.id} className="hover:bg-gray-800/50 transition">
+                          {/* JD-ID Badge */}
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-[11px] font-black uppercase px-2.5 py-1 rounded-md bg-purple-950 text-purple-200 border border-purple-600/60 shadow-xs inline-block">
+                              {jd.jd_id || 'JD-2026'}
                             </span>
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                disabled={verifyingJdId === jd.id}
-                                onClick={() => handleVerifyJD(jd.id, false)}
-                                className="text-[11px] text-gray-400 hover:text-rose-400 underline transition cursor-pointer"
-                                title="Revoke verification status"
-                              >
-                                Revoke
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            {isAdmin ? (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={verifyingJdId === jd.id}
-                                  onClick={() => handleVerifyJD(jd.id, true)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs transition cursor-pointer"
-                                  title="Manager/Admin Approval: Approve & Mark Verified"
-                                >
-                                  {verifyingJdId === jd.id ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <Check className="h-3.5 w-3.5" />
-                                  )}
-                                  <span>Approve & Verify</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={verifyingJdId === jd.id}
-                                  onClick={() => handleVerifyJD(jd.id, false)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-rose-900/40 text-gray-400 hover:text-rose-300 disabled:opacity-50 text-xs font-medium rounded-lg border border-gray-700 transition cursor-pointer"
-                                  title="Reject or Discard"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </>
+                          </td>
+
+                          {/* Role & Company */}
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-white text-xs">{jd.title}</div>
+                            <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5">
+                              <Building2 className="h-3 w-3 text-indigo-400 shrink-0" />
+                              <span>{jd.company?.name || 'Company'}</span>
+                            </div>
+                          </td>
+
+                          {/* Mandatory HR Contact Details */}
+                          <td className="px-4 py-3">
+                            {jd.hr_name ? (
+                              <div className="space-y-0.5">
+                                <div className="font-semibold text-white flex items-center gap-1">
+                                  <User className="h-3 w-3 text-purple-400 shrink-0" />
+                                  <span>{jd.hr_name}</span>
+                                </div>
+                                {jd.hr_phone && (
+                                  <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                                    <Phone className="h-2.5 w-2.5 shrink-0" />
+                                    <span>{jd.hr_phone}</span>
+                                  </div>
+                                )}
+                                {jd.hr_email && (
+                                  <div className="text-[10px] text-purple-300 truncate max-w-[150px] flex items-center gap-1">
+                                    <Mail className="h-2.5 w-2.5 shrink-0" />
+                                    <span>{jd.hr_email}</span>
+                                  </div>
+                                )}
+                              </div>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-300/90 bg-amber-950/40 border border-amber-800/40 px-2.5 py-1 rounded-full">
+                              <span className="text-[11px] text-rose-400 italic">No HR info recorded</span>
+                            )}
+                          </td>
+
+                          {/* Eligibility Status */}
+                          <td className="px-4 py-3">
+                            {isEligible ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                <Check className="h-3 w-3" />
+                                Eligible
+                              </span>
+                            ) : isNotEligible ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                <X className="h-3 w-3" />
+                                Not Eligible
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                                 <Clock className="h-3 w-3 text-amber-400" />
-                                Awaiting Manager Review
+                                Pending Admin Review
                               </span>
                             )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </td>
+
+                          {/* Interview Schedule */}
+                          <td className="px-4 py-3">
+                            {jd.interview_scheduled === 'yes' ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                  <Video className="h-3 w-3" />
+                                  Scheduled
+                                </span>
+                                {jd.interview_date && (
+                                  <div className="text-[10px] text-gray-400 mt-0.5 font-mono truncate max-w-[130px]">
+                                    {jd.interview_date.replace('T', ' ')}
+                                  </div>
+                                )}
+                              </div>
+                            ) : jd.interview_scheduled === 'completed' ? (
+                              <span className="text-[10px] font-bold text-emerald-400">Completed</span>
+                            ) : (
+                              <span className="text-[10px] text-gray-500">Not Scheduled</span>
+                            )}
+                          </td>
+
+                          {/* HR Feedback */}
+                          <td className="px-4 py-3">
+                            {jd.hr_feedback_status === 'received' || jd.hr_feedback ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                                  <MessageSquare className="h-3 w-3" />
+                                  Received
+                                </span>
+                                {jd.hr_feedback && (
+                                  <p className="text-[10px] text-gray-400 line-clamp-1 italic max-w-[140px]">
+                                    "{jd.hr_feedback}"
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-500">Awaiting Feedback</span>
+                            )}
+                          </td>
+
+                          {/* Actions: Admin Review vs Employee View */}
+                          <td className="px-4 py-3 text-right">
+                            {isAdmin ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedJdForReview(jd);
+                                  setIsReviewModalOpen(true);
+                                }}
+                                className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold rounded-xl text-xs shadow-md shadow-amber-600/20 transition flex items-center gap-1.5 ml-auto"
+                                title="Admin: Review Eligibility, Schedule Interviews & Track HR Feedback"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                                <span>Review & Schedule</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedJdForReview(jd);
+                                  setIsReviewModalOpen(true);
+                                }}
+                                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-semibold rounded-xl text-xs border border-gray-700 transition"
+                                title="View Opportunity & HR Record Details"
+                              >
+                                View Details
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
             </div>
+            {!isAdmin && (
+              <div className="mt-3 p-2.5 rounded-xl bg-gray-900/60 border border-gray-800 text-[11px] text-gray-400 flex items-center gap-2">
+                <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <span>
+                  Employees have view-only access to logged opportunities. Administrator permissions are required to edit eligibility, schedule interviews, and delete records.
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Admin Review & Employee View Modal */}
+      <JDReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => {
+          setIsReviewModalOpen(false);
+          setSelectedJdForReview(null);
+        }}
+        jd={selectedJdForReview}
+        isAdmin={isAdmin}
+        onSave={() => loadJDs()}
+        onDelete={() => loadJDs()}
+      />
     </div>
   );
 };
+
+export default JDIntakePage;
+
 

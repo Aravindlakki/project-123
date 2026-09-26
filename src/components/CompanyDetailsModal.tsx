@@ -96,11 +96,8 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
 
   if (!isOpen || !company) return null;
 
-  // Rule: Once a company profile is created, only Admins (or the original creator) may edit profile fields.
-  // Other CRAs have view-only access. Exception: any CRA may still add a new JD/role under this company.
-  const canEditCompany = currentUser?.role === 'admin' ||
-    (currentUser?.id && company.created_by === currentUser.id) ||
-    (currentUser?.name && company.entered_by_name?.toLowerCase() === currentUser.name.toLowerCase());
+  // Rule: Employees cannot edit or delete company profiles. Only Administrator can edit or delete company records.
+  const canEditCompany = currentUser?.role === 'admin';
 
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
@@ -740,21 +737,44 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                 {jdList.map((jd) => (
                   <div
                     key={jd.id}
-                    className="bg-gray-800/60 border border-gray-700/50 rounded-lg p-3 flex items-center justify-between gap-3"
+                    className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
-                    <div>
-                      <h5 className="font-semibold text-xs text-white">{jd.title}</h5>
-                      <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{jd.raw_text}</p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-[10px] font-black uppercase px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-700/60">
+                          {jd.jd_id || 'JD-2026'}
+                        </span>
+                        <h5 className="font-bold text-xs text-white">{jd.title}</h5>
+                      </div>
+                      <p className="text-[11px] text-gray-400 line-clamp-1">{jd.raw_text}</p>
+                      {jd.hr_name && (
+                        <p className="text-[10px] text-indigo-300/80">
+                          HR Contact: <strong>{jd.hr_name}</strong> {jd.hr_email ? `(${jd.hr_email})` : ''} {jd.hr_phone ? `• ${jd.hr_phone}` : ''}
+                        </p>
+                      )}
                     </div>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                        jd.is_verified
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      }`}
-                    >
-                      {jd.is_verified ? 'Verified' : 'Unverified'}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          jd.eligibility_status === 'eligible' || jd.is_verified
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : jd.eligibility_status === 'not_eligible'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
+                        {jd.eligibility_status === 'eligible' || jd.is_verified
+                          ? '✅ Eligible'
+                          : jd.eligibility_status === 'not_eligible'
+                          ? '❌ Not Eligible'
+                          : '⏳ Pending Admin Review'}
+                      </span>
+                      {jd.interview_scheduled === 'yes' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                          Interview: Scheduled
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

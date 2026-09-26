@@ -1119,6 +1119,59 @@ export const api = {
     return supabaseDataService.createJD(jd);
   },
 
+  async updateJD(jdId: string, updates: Partial<JD>): Promise<JD> {
+    try {
+      const res = await fetch(`${API_BASE}/jds/${jdId}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return clientFallbackStore.updateJD(jdId, updates);
+  },
+
+  async reviewJDEligibility(jdId: string, status: 'eligible' | 'not_eligible', notes?: string): Promise<JD> {
+    const updates: Partial<JD> = {
+      eligibility_status: status,
+      admin_review_notes: notes || '',
+      reviewed_at: new Date().toISOString(),
+      is_verified: status === 'eligible',
+    };
+    return this.updateJD(jdId, updates);
+  },
+
+  async updateJDInterviewSchedule(jdId: string, data: {
+    interview_scheduled: 'yes' | 'no' | 'pending' | 'completed';
+    interview_date?: string;
+    interview_round?: string;
+    interview_notes?: string;
+  }): Promise<JD> {
+    return this.updateJD(jdId, data);
+  },
+
+  async updateJDHRFeedback(jdId: string, data: {
+    hr_feedback_status: 'awaiting' | 'received';
+    hr_feedback?: string;
+    hr_feedback_date?: string;
+  }): Promise<JD> {
+    return this.updateJD(jdId, {
+      ...data,
+      hr_feedback_date: data.hr_feedback_date || (data.hr_feedback ? new Date().toISOString().slice(0, 10) : undefined),
+    });
+  },
+
+  async deleteJD(jdId: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/jds/${jdId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (res.ok) return true;
+    } catch (_) {}
+    return clientFallbackStore.deleteJD(jdId);
+  },
+
   async getOutreachChannels(): Promise<OutreachChannel[]> {
     if (isSupabaseConfigured) {
       return supabaseDataService.getOutreachChannels();

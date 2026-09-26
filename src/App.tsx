@@ -241,7 +241,7 @@ export const App: React.FC = () => {
               isInlineGate={true}
               onClose={() => navigate('dashboard')}
               onSuccess={handleAdminLoginSuccess}
-              initialEmail={currentUser.role === 'admin' ? currentUser.email : 'aravindreddy.l@placemein.com'}
+              initialEmail={currentUser.role === 'admin' ? currentUser.email : ''}
               onCancelToEmployee={handleExitAdmin}
             />
           </main>
@@ -454,7 +454,7 @@ export const App: React.FC = () => {
         isOpen={showAdminLoginModal}
         onClose={() => setShowAdminLoginModal(false)}
         onSuccess={handleAdminLoginSuccess}
-        initialEmail={currentUser.role === 'admin' ? currentUser.email : 'aravindreddy.l@placemein.com'}
+        initialEmail={currentUser.role === 'admin' ? currentUser.email : ''}
         onCancelToEmployee={handleExitAdmin}
       />
 

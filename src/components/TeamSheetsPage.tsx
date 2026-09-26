@@ -29,6 +29,7 @@ import {
   FileText,
   Sparkles,
   X,
+  Lock,
 } from 'lucide-react';
 import { HRContact, Company } from '../types';
 import { api } from '../services/api';
@@ -562,6 +563,13 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   };
 
   const handleUpdateRemarks = async (contactId: string, newRemark: string) => {
+    if (!adminMode && currentUser?.role !== 'admin') {
+      setImportNotification({
+        type: 'error',
+        message: 'Permission Restricted: Employees cannot edit lead status. Only Administrator can edit remarks.',
+      });
+      return;
+    }
     try {
       await api.updateContact(contactId, { remarks: newRemark });
       setLeads((prev) =>
@@ -574,6 +582,14 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
   const executeDeleteLead = async () => {
     if (!leadToDelete) return;
+    if (!adminMode && currentUser?.role !== 'admin') {
+      setImportNotification({
+        type: 'error',
+        message: 'Permission Restricted: Employees cannot delete records. Only Administrator can remove rows.',
+      });
+      setLeadToDelete(null);
+      return;
+    }
     const contactId = leadToDelete;
     setLeadToDelete(null);
     try {
@@ -1341,22 +1357,34 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                       </span>
                     </td>
 
-                    {/* Remarks / Status - Editable */}
+                    {/* Remarks / Status - Editable only by Admin */}
                     <td className="py-3 px-4">
-                      <select
-                        value={lead.remarks || 'Pending'}
-                        onChange={(e) => handleUpdateRemarks(lead.id, e.target.value)}
-                        className={`text-[11px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer ${getRemarksBadgeClass(
-                          lead.remarks
-                        )}`}
-                      >
-                        <option value="Responded" className="bg-gray-900 text-emerald-300">Responded</option>
-                        <option value="Hold" className="bg-gray-900 text-amber-300">Hold</option>
-                        <option value="Mail Sent" className="bg-gray-900 text-blue-300">Mail Sent</option>
-                        <option value="Pending" className="bg-gray-900 text-purple-300">Pending</option>
-                        <option value="Not Responded" className="bg-gray-900 text-gray-300">Not Responded</option>
-                        <option value="No Hirings" className="bg-gray-900 text-rose-300">No Openings</option>
-                      </select>
+                      {adminMode || currentUser?.role === 'admin' ? (
+                        <select
+                          value={lead.remarks || 'Pending'}
+                          onChange={(e) => handleUpdateRemarks(lead.id, e.target.value)}
+                          className={`text-[11px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer ${getRemarksBadgeClass(
+                            lead.remarks
+                          )}`}
+                        >
+                          <option value="Responded" className="bg-gray-900 text-emerald-300">Responded</option>
+                          <option value="Hold" className="bg-gray-900 text-amber-300">Hold</option>
+                          <option value="Mail Sent" className="bg-gray-900 text-blue-300">Mail Sent</option>
+                          <option value="Pending" className="bg-gray-900 text-purple-300">Pending</option>
+                          <option value="Not Responded" className="bg-gray-900 text-gray-300">Not Responded</option>
+                          <option value="No Hirings" className="bg-gray-900 text-rose-300">No Openings</option>
+                        </select>
+                      ) : (
+                        <div
+                          className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border inline-flex items-center gap-1.5 cursor-not-allowed ${getRemarksBadgeClass(
+                            lead.remarks
+                          )}`}
+                          title="View-Only: Only Administrator can modify lead remarks and status."
+                        >
+                          <Lock className="h-3 w-3 opacity-70" />
+                          <span>{lead.remarks || 'Pending'}</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Sheet SPOC / Entered By */}
@@ -1386,13 +1414,28 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                         >
                           <Building2 className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          onClick={() => setLeadToDelete(lead.id)}
-                          className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-gray-800 rounded transition-colors"
-                          title="Remove row from sheet"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {adminMode || currentUser?.role === 'admin' ? (
+                          <button
+                            onClick={() => setLeadToDelete(lead.id)}
+                            className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-gray-800 rounded transition-colors"
+                            title="Remove row from sheet (Admin Only)"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setImportNotification({
+                                type: 'error',
+                                message: 'Permission Denied: Employees cannot delete records. Only Administrator can remove rows.',
+                              })
+                            }
+                            className="p-1.5 text-gray-600 hover:text-gray-400 rounded transition-colors cursor-not-allowed opacity-50"
+                            title="Employees cannot delete records. Admin only."
+                          >
+                            <Lock className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
