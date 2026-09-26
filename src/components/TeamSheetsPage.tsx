@@ -39,10 +39,10 @@ import { supabaseDataService } from '../services/supabaseDataService';
 import { isSupabaseConfigured } from '../services/supabase';
 import { SPOC_MEMBERS } from '../data/pdfLeadsData';
 import { CompanyDetailsModal } from './CompanyDetailsModal';
-import { DocumentIntakeModal } from './DocumentIntakeModal';
 import { ExcelWorksheetImportModal } from './ExcelWorksheetImportModal';
 import { SystemReportModal } from './SystemReportModal';
 import { HtmlLeadImportModal } from './HtmlLeadImportModal';
+import { PdfLeadImportModal } from './PdfLeadImportModal';
 
 export interface TeamSheetsPageProps {
   initialSpoc?: string;
@@ -95,9 +95,9 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   // Modals
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
-  const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showHtmlModal, setShowHtmlModal] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
   const [excelFileToImport, setExcelFileToImport] = useState<File | null>(null);
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
@@ -904,65 +904,26 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Direct XLSX File Input */}
-            <input
-              type="file"
-              ref={excelFileInputRef}
-              accept=".xlsx, .xls, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv"
-              className="hidden"
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                const picked = e.target.files?.[0];
-                if (picked) {
-                  handleSpreadsheetPicked(picked);
-                  e.target.value = '';
-                }
-              }}
-            />
-
-            {/* HTML Lead Importer Button */}
+            {/* Option 1: HTML Upload Button */}
             <button
               onClick={() => setShowHtmlModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-purple-500/30"
-              title="Import lead from raw HTML, web snippet, or HTML file into selected member sheet"
-              aria-label="Import HTML Lead"
+              title="Upload HTML file or paste web snippet to import leads into member sheet"
+              aria-label="HTML Upload"
             >
               <Code2 className="h-4 w-4 text-pink-300" />
-              <span>Import HTML Lead</span>
+              <span>HTML Upload</span>
             </button>
 
-            {/* Quick Upload Button */}
+            {/* Option 2: PDF Upload Button */}
             <button
-              onClick={() => excelFileInputRef.current?.click()}
-              disabled={isParsingDirectFile}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 shadow-emerald-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-emerald-500/30"
-              title="Upload and parse an Excel (.xlsx, .xls) or CSV file directly"
-              aria-label="Upload Excel File"
+              onClick={() => setShowPdfModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-indigo-500/30"
+              title="Upload PDF document to extract and store leads into member sheet"
+              aria-label="PDF Upload"
             >
-              <FileSpreadsheet className="h-4 w-4" />
-              <span>{isParsingDirectFile ? 'Parsing...' : 'Upload Excel Sheet'}</span>
-            </button>
-
-            {/* Advanced Import Modal Button */}
-            <button
-              onClick={() => {
-                setExcelFileToImport(null);
-                setShowExcelModal(true);
-              }}
-              className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-800 hover:bg-gray-700 text-emerald-300 text-xs font-bold rounded-xl border border-emerald-500/30 transition-all cursor-pointer shadow-sm"
-              title="Open full Excel & CSV Import Wizard with column mapping and duplicate check"
-              aria-label="Import Excel Wizard"
-            >
-              <Sparkles className="h-4 w-4 text-emerald-400" />
-              <span>Import Wizard</span>
-            </button>
-
-            <button
-              onClick={() => setShowDocumentModal(true)}
-              className={`flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r ${adminMode ? 'from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-900/30' : 'from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-900/30'} text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer`}
-            >
-              <UploadCloud className="h-4 w-4" />
-              <span>Import New PDF / Doc</span>
+              <FileText className="h-4 w-4 text-indigo-300" />
+              <span>PDF Upload</span>
             </button>
 
             <button
@@ -1706,17 +1667,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         </div>
       )}
 
-      {/* Document & PDF Intake Modal */}
-      <DocumentIntakeModal
-        isOpen={showDocumentModal}
-        onClose={() => setShowDocumentModal(false)}
-        currentUser={currentUser}
-        onDataStored={(comp, contacts) => {
-          fetchLeads();
-        }}
-        onViewCompany={(comp) => {
-          setSelectedCompany(comp);
-          setShowCompanyModal(true);
+      {/* PDF Lead Import Modal */}
+      <PdfLeadImportModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        defaultMember={activeSheet !== 'all' ? activeSheet : 'Aravind'}
+        onSaveLeads={async (leadsToSave, targetSpoc) => {
+          await handleConfirmImport(leadsToSave);
+          setActiveSheet(targetSpoc);
+          setImportNotification({
+            type: 'success',
+            message: `Successfully imported ${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''} from PDF into ${targetSpoc}'s sheet!`,
+          });
         }}
       />
 
