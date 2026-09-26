@@ -245,7 +245,7 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800 print:divide-gray-200 text-gray-300 print:text-gray-800">
-                  {ALL_EMPLOYEE_CREDENTIALS.filter(e => !e.empId.includes('-ALT') && e.empId !== 'PM-001').map((emp) => {
+                  {ALL_EMPLOYEE_CREDENTIALS.map((emp) => {
                     const isDual = emp.isDualRole;
                     const isAdmin = emp.role === 'admin';
                     return (

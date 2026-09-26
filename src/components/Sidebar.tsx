@@ -157,27 +157,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Admin Portal Gateway Switcher inside Sidebar */}
-        <div className="px-3 pt-3">
-          <button
-            onClick={handlePortalSwitchClick}
-            title={collapsed ? (isAdmin ? 'Exit to Employee View' : 'Admin Portal (Login Required)') : undefined}
-            className={`w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-extrabold border transition shadow-lg ${
-              isAdmin
-                ? 'bg-purple-900/40 hover:bg-purple-800/60 border-purple-600/50 text-purple-200'
-                : 'bg-amber-900/40 hover:bg-amber-800/60 border-amber-600/50 text-amber-200'
-            }`}
-          >
-            {isAdmin ? (
+        {/* In Admin Mode only, allow exiting back to Employee view */}
+        {isAdmin && (
+          <div className="px-3 pt-3">
+            <button
+              onClick={handlePortalSwitchClick}
+              title={collapsed ? 'Exit to Employee View' : undefined}
+              className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-extrabold border transition shadow-lg bg-purple-900/40 hover:bg-purple-800/60 border-purple-600/50 text-purple-200"
+            >
               <User className="h-3.5 w-3.5 shrink-0 text-purple-300" />
-            ) : (
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-            )}
-            {!collapsed && (
-              <span>{isAdmin ? 'Exit to Employee View' : 'Admin Portal (Login)'}</span>
-            )}
-          </button>
-        </div>
+              {!collapsed && <span>Exit to Employee View</span>}
+            </button>
+          </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {!collapsed && (

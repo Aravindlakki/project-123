@@ -53,14 +53,14 @@ interface TeamMemberMeta {
 }
 
 const TEAM_MEMBERS: TeamMemberMeta[] = [
+  { name: 'Aravind Reddy', role: 'CEO Admin', id: 'usr_admin_aravind', avatarBg: 'bg-amber-600', badge: 'CEO ADMIN' },
+  { name: 'Mansi Ramesh Peddi', role: 'Team Lead & Admin', id: 'usr_admin_mansi', avatarBg: 'bg-purple-700', badge: 'ADMIN' },
+  { name: 'Vineela Bathula', role: 'Manager & Admin', id: 'usr_admin_vineela', avatarBg: 'bg-indigo-700', badge: 'ADMIN' },
   { name: 'Harish Reddy', role: 'CRA Specialist', id: 'usr_cra_harish', avatarBg: 'bg-purple-600', badge: 'EMP' },
-  { name: 'Aravind Reddy', role: 'CRA Specialist & Admin', id: 'usr_admin_aravind', avatarBg: 'bg-indigo-600', badge: 'EMP + ADMIN' },
-  { name: 'Charan', role: 'CRA Specialist & Admin', id: 'usr_cra_charan', avatarBg: 'bg-teal-600', badge: 'EMP + ADMIN' },
-  { name: 'Mrudula', role: 'CRA Specialist', id: 'usr_cra_mrudula', avatarBg: 'bg-pink-600', badge: 'EMP' },
-  { name: 'Namitha', role: 'CRA Specialist', id: 'usr_cra_namitha', avatarBg: 'bg-emerald-600', badge: 'EMP' },
-  { name: 'Soloman', role: 'CRA Specialist', id: 'usr_cra_soloman', avatarBg: 'bg-amber-600', badge: 'EMP' },
-  { name: 'Vineela', role: 'Manager & Admin', id: 'usr_admin_vineela', avatarBg: 'bg-rose-600', badge: 'MANAGER' },
-  { name: 'Mansi', role: 'Team Lead & Admin', id: 'usr_admin_mansi', avatarBg: 'bg-blue-600', badge: 'TEAM LEAD' },
+  { name: 'Solomon Raju', role: 'CRA Specialist', id: 'usr_cra_solomon', avatarBg: 'bg-blue-600', badge: 'EMP' },
+  { name: 'Charan Kumar N', role: 'CRA Specialist', id: 'usr_cra_charan', avatarBg: 'bg-teal-600', badge: 'EMP' },
+  { name: 'Mrudula T', role: 'CRA Specialist', id: 'usr_cra_mrudula', avatarBg: 'bg-pink-600', badge: 'EMP' },
+  { name: 'Namitha K', role: 'CRA Specialist', id: 'usr_cra_namitha', avatarBg: 'bg-emerald-600', badge: 'EMP' },
 ];
 
 export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {

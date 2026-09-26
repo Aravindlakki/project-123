@@ -20,44 +20,62 @@ const STORAGE_KEYS = {
   JDS: 'placemein_mock_jds',
 };
 
+// Obsolete or legacy duplicate emails that must be pruned from cache
+const OBSOLETE_EMAILS = [
+  'harish.r@placemein.com',
+  'harish.m@placemein.com',
+  'namitha.s@placemein.com',
+  'mrudula.k@placemein.com',
+  'mrudula@placemein.com',
+  'solomon.r@placemein.com',
+  'aliya.s@placemein.com',
+  'varshith.r@placemein.com',
+  'aasritha.k@placemein.com',
+  'cra_lead@placemein.com',
+  'aravindaravind3953@gmail.com', // canonical is aravindreddy.l@placemein.com
+];
+
 // Initial setup from seed data
 function initializeMockData() {
   // Synchronize active team roster into localStorage
   const existingUsersJson = localStorage.getItem(STORAGE_KEYS.USERS);
-  let defaultUsers: CRA[] = [];
+  let existingUsers: CRA[] = [];
   try {
-    defaultUsers = existingUsersJson ? JSON.parse(existingUsersJson) : [];
+    existingUsers = existingUsersJson ? JSON.parse(existingUsersJson) : [];
   } catch (_) {
-    defaultUsers = [];
+    existingUsers = [];
   }
 
-  ALL_EMPLOYEE_CREDENTIALS.forEach((emp) => {
-    const existingIndex = defaultUsers.findIndex(
-      (u) => u.email.toLowerCase() === emp.email.toLowerCase() || u.emp_id === emp.empId
-    );
-    const userEntry: CRA = {
+  // Purge any legacy duplicate / obsolete email items
+  existingUsers = existingUsers.filter((u) => !OBSOLETE_EMAILS.includes(u.email.toLowerCase()));
+
+  // Map the exact 8 canonical members
+  const canonicalUsers: CRA[] = ALL_EMPLOYEE_CREDENTIALS.map((emp) => {
+    const existing = existingUsers.find((u) => u.email.toLowerCase() === emp.email.toLowerCase());
+    return {
       id: emp.id,
       name: emp.name,
       email: emp.email,
       role: emp.role,
       emp_id: emp.empId,
-      monthly_jd_target: 20,
-      is_active: true,
-      created_at: new Date().toISOString(),
+      domain: emp.spocDomain,
+      designation: emp.designation,
+      monthly_jd_target: existing?.monthly_jd_target || 20,
+      is_active: existing?.is_active !== undefined ? existing.is_active : true,
+      created_at: existing?.created_at || new Date('2026-08-01T08:00:00Z').toISOString(),
     };
-    if (existingIndex >= 0) {
-      defaultUsers[existingIndex] = {
-        ...defaultUsers[existingIndex],
-        name: emp.name,
-        role: emp.role,
-        emp_id: emp.empId,
-      };
-    } else {
-      defaultUsers.push(userEntry);
-    }
   });
 
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(defaultUsers));
+  // Preserve any custom users created via "Add Team Member" modal
+  const customUsers = existingUsers.filter((u) => 
+    !ALL_EMPLOYEE_CREDENTIALS.some((c) => c.email.toLowerCase() === u.email.toLowerCase()) &&
+    !OBSOLETE_EMAILS.includes(u.email.toLowerCase()) &&
+    u.id.startsWith('usr_') && 
+    !['usr_admin_1', 'usr_admin_2', 'usr_admin_3', 'usr_admin_4', 'usr_cra_1', 'usr_cra_2', 'usr_cra_3', 'usr_cra_4', 'usr_cra_5', 'usr_cra_6', 'usr_cra_7'].includes(u.id)
+  );
+
+  const finalUsers = [...canonicalUsers, ...customUsers];
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
 
   if (!localStorage.getItem(STORAGE_KEYS.COMPANIES) || !localStorage.getItem(STORAGE_KEYS.CONTACTS)) {
     const companies: Company[] = [];
@@ -238,30 +256,60 @@ let inMemoryJDs: JD[] = [];
 export const clientFallbackStore = {
   getUsers(includeInactive: boolean = true): CRA[] {
     try {
-      const users: CRA[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+      let users: CRA[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+      // If empty or containing obsolete duplicate emails, re-initialize
+      if (!users.length || users.some((u) => OBSOLETE_EMAILS.includes(u.email.toLowerCase()))) {
+        initializeMockData();
+        users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+      }
+      // Guarantee each user has their domain, designation and emp_id
+      users = users.map((u) => {
+        const canonical = ALL_EMPLOYEE_CREDENTIALS.find(
+          (e) => e.email.toLowerCase() === u.email.toLowerCase() || e.id === u.id
+        );
+        if (canonical) {
+          return {
+            ...u,
+            name: canonical.name,
+            email: canonical.email,
+            emp_id: canonical.empId,
+            domain: canonical.spocDomain,
+            designation: canonical.designation,
+            role: canonical.role,
+          };
+        }
+        return u;
+      });
       if (includeInactive) return users;
       return users.filter((u) => u.is_active !== false && !u.deleted_at);
     } catch {
-      return [];
+      return ALL_EMPLOYEE_CREDENTIALS.map((e) => ({
+        id: e.id,
+        name: e.name,
+        email: e.email,
+        role: e.role,
+        emp_id: e.empId,
+        domain: e.spocDomain,
+        designation: e.designation,
+        monthly_jd_target: 20,
+        is_active: true,
+        created_at: new Date('2026-08-01T08:00:00Z').toISOString(),
+      }));
     }
   },
 
   getCurrentUser(): CRA {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!OBSOLETE_EMAILS.includes(parsed?.email?.toLowerCase())) {
+          return parsed;
+        }
+      }
     } catch {}
     const users = this.getUsers();
-    return users[0] || {
-      id: 'usr_admin_aravind',
-      name: 'Aravind Reddy',
-      email: 'aravindaravind3953@gmail.com',
-      role: 'admin',
-      emp_id: 'PM-CEO',
-      monthly_jd_target: 20,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
+    return users.find((u) => u.id === 'usr_admin_aravind') || users[0];
   },
 
   setCurrentUser(user: CRA) {
@@ -654,6 +702,8 @@ export const clientFallbackStore = {
       email: cleanEmail,
       role: userData.role || 'cra',
       emp_id: userData.emp_id || `PM-${Math.floor(100 + Math.random() * 900)}`,
+      domain: userData.domain || 'Recruitment Sourcing & IT Outreach',
+      designation: userData.designation || (userData.role === 'admin' ? 'Administrator' : 'CRA Specialist'),
       monthly_jd_target: userData.monthly_jd_target || 20,
       is_active: userData.is_active !== undefined ? userData.is_active : true,
       created_at: new Date().toISOString(),

@@ -5,6 +5,8 @@ export interface CRA {
   passwordHash: string;
   role: 'admin' | 'cra';
   emp_id?: string;
+  domain?: string;
+  designation?: string;
   monthly_jd_target: number;
   is_active: boolean;
   deleted_at?: string;

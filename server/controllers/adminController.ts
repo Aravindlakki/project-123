@@ -93,6 +93,8 @@ export function updateAdminUser(req: Request, res: Response) {
   if (req.body.email !== undefined) user.email = req.body.email;
   if (req.body.role !== undefined) user.role = req.body.role;
   if (req.body.emp_id !== undefined) user.emp_id = req.body.emp_id;
+  if (req.body.domain !== undefined) user.domain = req.body.domain;
+  if (req.body.designation !== undefined) user.designation = req.body.designation;
   if (req.body.monthly_jd_target !== undefined) user.monthly_jd_target = parseInt(req.body.monthly_jd_target, 10);
   if (req.body.is_active !== undefined) user.is_active = req.body.is_active;
   const { passwordHash: _, ...profile } = user;
@@ -100,7 +102,7 @@ export function updateAdminUser(req: Request, res: Response) {
 }
 
 export function createTeamMember(req: Request, res: Response) {
-  const { name, email, password, role, emp_id, monthly_jd_target, is_active } = req.body;
+  const { name, email, password, role, emp_id, domain, designation, monthly_jd_target, is_active } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ detail: 'Name, email, and password are required' });
   }
@@ -115,6 +117,8 @@ export function createTeamMember(req: Request, res: Response) {
     passwordHash: hashPassword(password),
     role: role || 'cra',
     emp_id: emp_id || `PM-${Math.floor(100 + Math.random() * 900)}`,
+    domain: domain || 'Recruitment Sourcing & IT Outreach',
+    designation: designation || (role === 'admin' ? 'Administrator' : 'CRA Specialist'),
     monthly_jd_target: monthly_jd_target ? parseInt(monthly_jd_target, 10) : systemSettings.default_monthly_jd_target,
     is_active: is_active !== undefined ? is_active : true,
     created_at: new Date().toISOString(),

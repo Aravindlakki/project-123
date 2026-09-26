@@ -63,7 +63,9 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'cra'>('cra');
   const [newUserEmpId, setNewUserEmpId] = useState('');
-  const [newUserTarget, setNewUserTarget] = useState<number>(10);
+  const [newUserDomain, setNewUserDomain] = useState('Cyber Security & IT Services');
+  const [newUserDesignation, setNewUserDesignation] = useState('CRA Specialist');
+  const [newUserTarget, setNewUserTarget] = useState<number>(20);
   const [newUserStatus, setNewUserStatus] = useState<'active' | 'inactive'>('active');
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
 
@@ -72,7 +74,9 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
   const [editName, setEditName] = useState<string>('');
   const [editEmail, setEditEmail] = useState<string>('');
   const [editEmpId, setEditEmpId] = useState<string>('');
-  const [editTarget, setEditTarget] = useState<number>(10);
+  const [editDomain, setEditDomain] = useState<string>('');
+  const [editDesignation, setEditDesignation] = useState<string>('');
+  const [editTarget, setEditTarget] = useState<number>(20);
   const [editRole, setEditRole] = useState<'admin' | 'cra'>('cra');
   const [editActive, setEditActive] = useState<boolean>(true);
 
@@ -192,6 +196,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
         password: newUserPassword,
         role: newUserRole,
         emp_id: newUserEmpId.trim() || undefined,
+        domain: newUserDomain.trim() || undefined,
+        designation: newUserDesignation.trim() || undefined,
         monthly_jd_target: newUserTarget,
         is_active: newUserStatus === 'active',
       });
@@ -200,6 +206,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserEmpId('');
+      setNewUserDomain('Cyber Security & IT Services');
+      setNewUserDesignation('CRA Specialist');
       setNewUserStatus('active');
       showNotification('success', `User account created successfully for ${newUserName.trim()}`);
       await loadData();
@@ -216,6 +224,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
         name: editName.trim() || undefined,
         email: editEmail.trim() || undefined,
         emp_id: editEmpId.trim() || undefined,
+        domain: editDomain.trim() || undefined,
+        designation: editDesignation.trim() || undefined,
         monthly_jd_target: editTarget,
         role: editRole,
         is_active: editActive,
@@ -584,19 +594,21 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
               <table className="w-full text-left text-xs text-amber-100">
                 <thead className="bg-amber-900/30 text-amber-300 font-semibold border-b border-amber-800/50">
                   <tr>
-                    <th className="py-3 px-4">Employee</th>
-                    <th className="py-3 px-4">Emp ID</th>
-                    <th className="py-3 px-4">Role</th>
-                    <th className="py-3 px-4">Monthly Target</th>
-                    <th className="py-3 px-4">Status & Access</th>
-                    <th className="py-3 px-4">Created Date</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4">Employee Name</th>
+                    <th className="py-3 px-3">Emp ID</th>
+                    <th className="py-3 px-4">Mail ID</th>
+                    <th className="py-3 px-4">Specialization Domain</th>
+                    <th className="py-3 px-3">Role</th>
+                    <th className="py-3 px-3">Monthly Target</th>
+                    <th className="py-3 px-3">Status & Access</th>
+                    <th className="py-3 px-3">Created Date</th>
+                    <th className="py-3 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-amber-800/30">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-amber-300/60">
+                      <td colSpan={9} className="py-8 text-center text-amber-300/60">
                         No team members match the search and filter criteria.
                       </td>
                     </tr>
@@ -605,12 +617,15 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                       const isEditing = editingUserId === user.id;
                       const isDeleted = !!user.deleted_at;
                       const isActive = user.is_active !== false && !isDeleted;
+                      const isCeo = user.emp_id === 'PM-CEO' || user.email.toLowerCase().includes('aravind');
 
                       return (
                         <tr key={user.id} className={`hover:bg-amber-900/20 transition ${!isActive ? 'opacity-70 bg-amber-950/10' : ''}`}>
+                          {/* 1. Employee Name */}
                           <td className="py-3 px-4">
                             {isEditing ? (
-                              <div className="space-y-1 max-w-[200px]">
+                              <div className="space-y-1 max-w-[170px]">
+                                <label className="text-[10px] text-amber-300/70 block">Name</label>
                                 <input
                                   type="text"
                                   placeholder="Full Name"
@@ -618,29 +633,47 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                                   onChange={(e) => setEditName(e.target.value)}
                                   className="w-full bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
                                 />
+                                <label className="text-[10px] text-amber-300/70 block mt-1">Designation</label>
                                 <input
-                                  type="email"
-                                  placeholder="Email"
-                                  value={editEmail}
-                                  onChange={(e) => setEditEmail(e.target.value)}
+                                  type="text"
+                                  placeholder="Designation"
+                                  value={editDesignation}
+                                  onChange={(e) => setEditDesignation(e.target.value)}
                                   className="w-full bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
                                 />
                               </div>
                             ) : (
-                              <div>
-                                <div className="font-bold text-white flex items-center gap-1.5">
-                                  <span>{user.name}</span>
-                                  {isDeleted && (
-                                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold uppercase">
-                                      Soft-Deleted
-                                    </span>
-                                  )}
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm ${
+                                    isCeo
+                                      ? 'bg-amber-600 border border-amber-400'
+                                      : user.role === 'admin'
+                                      ? 'bg-purple-700 border border-purple-400'
+                                      : 'bg-indigo-600 border border-indigo-400'
+                                  }`}
+                                >
+                                  {user.name.charAt(0)}
                                 </div>
-                                <div className="text-[11px] text-amber-300/60">{user.email}</div>
+                                <div>
+                                  <div className="font-bold text-white flex items-center gap-1.5">
+                                    <span>{user.name}</span>
+                                    {isDeleted && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold uppercase">
+                                        Soft-Deleted
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-amber-300/70 font-medium">
+                                    {user.designation || (isCeo ? 'Founder & CEO (CEO Admin)' : user.role === 'admin' ? 'Administrator' : 'CRA Specialist')}
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 font-mono text-[11px] text-amber-300/80">
+
+                          {/* 2. Emp ID */}
+                          <td className="py-3 px-3">
                             {isEditing ? (
                               <input
                                 type="text"
@@ -650,32 +683,94 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                                 className="w-20 bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white font-mono"
                               />
                             ) : (
-                              user.emp_id || '—'
+                              <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-amber-900/50 text-amber-300 border border-amber-700/60 font-bold whitespace-nowrap">
+                                {user.emp_id || 'PM-100'}
+                              </span>
                             )}
                           </td>
+
+                          {/* 3. Mail ID */}
                           <td className="py-3 px-4">
+                            {isEditing ? (
+                              <input
+                                type="email"
+                                placeholder="Email"
+                                value={editEmail}
+                                onChange={(e) => setEditEmail(e.target.value)}
+                                className="w-full min-w-[170px] bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
+                              />
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <a
+                                  href={`mailto:${user.email}`}
+                                  className="font-mono text-xs text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1"
+                                >
+                                  <Mail className="h-3 w-3 text-sky-400/80 shrink-0" />
+                                  <span>{user.email}</span>
+                                </a>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(user.email);
+                                    showNotification('success', `Copied ${user.email} to clipboard!`);
+                                  }}
+                                  className="p-1 hover:bg-amber-800/40 text-amber-300/60 hover:text-amber-200 rounded transition"
+                                  title="Copy Email Address"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* 4. Specialization Domain */}
+                          <td className="py-3 px-4">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                placeholder="Specialization Domain"
+                                value={editDomain}
+                                onChange={(e) => setEditDomain(e.target.value)}
+                                className="w-full min-w-[180px] bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
+                              />
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-gray-900/80 text-amber-200/90 border border-amber-800/50 max-w-[220px] truncate"
+                                title={user.domain || 'Recruitment Sourcing & IT Outreach'}
+                              >
+                                <Tag className="h-3 w-3 text-amber-400/80 shrink-0" />
+                                <span className="truncate">{user.domain || 'Recruitment Sourcing & IT Outreach'}</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 5. Role */}
+                          <td className="py-3 px-3">
                             {isEditing ? (
                               <select
                                 value={editRole}
                                 onChange={(e) => setEditRole(e.target.value as any)}
                                 className="bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
                               >
-                                <option value="cra">CRA</option>
+                                <option value="cra">CRA Employee</option>
                                 <option value="admin">Admin</option>
                               </select>
                             ) : (
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                  user.role === 'admin'
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                    : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${
+                                  isCeo
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-sm'
+                                    : user.role === 'admin'
+                                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/50 shadow-sm'
+                                    : 'bg-purple-500/20 text-purple-300 border border-purple-400/50 shadow-sm'
                                 }`}
                               >
-                                {user.role}
+                                {isCeo ? 'CEO Admin' : user.role === 'admin' ? 'Admin' : 'CRA Employee'}
                               </span>
                             )}
                           </td>
-                          <td className="py-3 px-4">
+
+                          {/* 6. Monthly Target */}
+                          <td className="py-3 px-3">
                             {isEditing ? (
                               <input
                                 type="number"
@@ -685,12 +780,14 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                                 className="w-16 bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
                               />
                             ) : (
-                              <span className="font-bold text-white">
-                                {user.monthly_jd_target || 10} JDs / mo
+                              <span className="font-bold text-white whitespace-nowrap">
+                                {user.monthly_jd_target || 20} JDs / mo
                               </span>
                             )}
                           </td>
-                          <td className="py-3 px-4">
+
+                          {/* 7. Status & Access */}
+                          <td className="py-3 px-3">
                             {isEditing ? (
                               <select
                                 value={editActive ? 'active' : 'inactive'}
@@ -718,10 +815,14 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-amber-300/70">
+
+                          {/* 8. Created Date */}
+                          <td className="py-3 px-3 text-amber-300/70 whitespace-nowrap">
                             {formatIndianDate(user.created_at)}
                           </td>
-                          <td className="py-3 px-4 text-right">
+
+                          {/* 9. Actions */}
+                          <td className="py-3 px-3 text-right">
                             {isEditing ? (
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
@@ -747,7 +848,9 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                                     setEditName(user.name);
                                     setEditEmail(user.email);
                                     setEditEmpId(user.emp_id || '');
-                                    setEditTarget(user.monthly_jd_target || 10);
+                                    setEditDomain(user.domain || '');
+                                    setEditDesignation(user.designation || '');
+                                    setEditTarget(user.monthly_jd_target || 20);
                                     setEditRole(user.role);
                                     setEditActive(user.is_active !== false);
                                   }}
@@ -1444,6 +1547,35 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   onChange={(e) => setNewUserEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-amber-200 font-semibold mb-1">
+                    Specialization Domain *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Cyber Security & IT Services"
+                    value={newUserDomain}
+                    onChange={(e) => setNewUserDomain(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-amber-200 font-semibold mb-1">
+                    Designation
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CRA Specialist"
+                    value={newUserDesignation}
+                    onChange={(e) => setNewUserDesignation(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
               </div>
 
               <div>

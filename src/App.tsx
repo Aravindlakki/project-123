@@ -350,22 +350,14 @@ export const App: React.FC = () => {
               />
             </div>
 
-            {/* Admin Portal Gateway Controls - Visible on tablet/desktop */}
-            {adminMode ? (
+            {/* Admin Portal Gateway Controls - Visible in adminMode to return to Employee */}
+            {adminMode && (
               <button
                 onClick={handleExitAdmin}
                 className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-purple-900/50 hover:bg-purple-800/70 text-purple-200 border border-purple-600/50 shadow-sm"
               >
                 <User className="h-3.5 w-3.5 text-purple-300" />
                 <span>Exit to Employee</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowAdminLoginModal(true)}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all bg-amber-900/50 hover:bg-amber-800/70 text-amber-200 border border-amber-600/50 shadow-sm"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-amber-300" />
-                <span>Admin Login</span>
               </button>
             )}
 
