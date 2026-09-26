@@ -214,8 +214,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
               <p className={isAdmin ? 'text-amber-300 font-medium' : 'text-purple-300 font-medium'}>
                 {currentUser.email?.toLowerCase().includes('aravind') || currentUser.name?.toLowerCase().includes('aravind')
-                  ? 'CRA for Placemein'
-                  : (currentUser.role === 'admin' ? (isAdmin ? 'Admin Portal Active' : 'Admin (Employee Mode)') : 'CRA Employee')}
+                  ? 'Founder & CEO (CEO Admin)'
+                  : (currentUser.designation || (currentUser.role === 'admin' ? (isAdmin ? 'Admin Portal Active' : 'Admin (Employee Mode)') : 'CRA Employee'))}
               </p>
             </div>
           )}

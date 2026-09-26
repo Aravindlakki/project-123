@@ -122,11 +122,12 @@ export const App: React.FC = () => {
     api.getCurrentCRA()
       .then((user) => {
         setCurrentUser(user);
-        const adminVerified = sessionStorage.getItem('placemein:admin_verified') === 'true';
-        if (user.role === 'admin' && adminVerified) {
+        if (user.role === 'admin') {
           setIsAdminVerified(true);
+          sessionStorage.setItem('placemein:admin_verified', 'true');
         } else {
           setIsAdminVerified(false);
+          sessionStorage.removeItem('placemein:admin_verified');
         }
       })
       .catch(() => {
@@ -185,15 +186,20 @@ export const App: React.FC = () => {
     setActiveTab('admin-users');
   };
 
-  const handleLoginSuccess = (role?: 'admin' | 'cra') => {
+  const handleLoginSuccess = (role?: 'admin' | 'cra', user?: CRA) => {
     setIsAuthenticated(true);
-    const verified = sessionStorage.getItem('placemein:admin_verified') === 'true';
-    if (role === 'admin' && verified) {
+    if (user) setCurrentUser(user);
+    const isAdmin = role === 'admin' || user?.role === 'admin';
+    if (isAdmin) {
       setIsAdminVerified(true);
+      sessionStorage.setItem('placemein:admin_verified', 'true');
+      localStorage.setItem('placemein:preferred_portal', 'admin');
       window.location.hash = '/admin/users';
       setActiveTab('admin-users');
     } else {
       setIsAdminVerified(false);
+      sessionStorage.removeItem('placemein:admin_verified');
+      localStorage.setItem('placemein:preferred_portal', 'employee');
       window.location.hash = '/dashboard';
       setActiveTab('dashboard');
     }
@@ -395,8 +401,8 @@ export const App: React.FC = () => {
                 <br />
                 <span className={adminMode ? 'text-amber-300 font-medium' : 'text-purple-300 font-medium'}>
                   {currentUser.email?.toLowerCase().includes('aravind') || currentUser.name?.toLowerCase().includes('aravind')
-                    ? 'CRA for Placemein'
-                    : (adminMode ? 'Admin Portal' : 'Employee Portal')}
+                    ? 'Founder & CEO (CEO Admin)'
+                    : (currentUser.designation || (adminMode ? 'Admin Portal' : 'CRA Employee'))}
                 </span>
               </span>
               <span className={`p-2 rounded-xl shrink-0 ${adminMode ? 'bg-amber-700 text-white' : 'bg-purple-700 text-white'}`}>

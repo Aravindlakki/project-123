@@ -61,21 +61,14 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       );
 
       const currentUser = loginRes.user || (await api.getCurrentCRA());
-      const roleToCheck = expectedRole || loginRole;
 
-      if (roleToCheck === 'ADMIN' && currentUser.role !== 'admin') {
-        clearAuthToken();
-        sessionStorage.removeItem('placemein:admin_verified');
-        setError(`Access denied: "${currentUser.name}" has a CRA Employee account, which cannot access the Admin Portal. Please use an authorized Admin account.`);
-        setLoading(false);
-        return;
-      }
-
-      if (currentUser.role === 'admin' && roleToCheck === 'ADMIN') {
+      // If user is an Admin, always verify and grant full Admin Portal privileges
+      if (currentUser.role === 'admin') {
         sessionStorage.setItem('placemein:admin_verified', 'true');
         localStorage.setItem('placemein:preferred_portal', 'admin');
         onLoginSuccess('admin', currentUser);
       } else {
+        // CRA employee account
         sessionStorage.removeItem('placemein:admin_verified');
         localStorage.setItem('placemein:preferred_portal', 'employee');
         onLoginSuccess('cra', currentUser);

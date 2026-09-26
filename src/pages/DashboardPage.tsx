@@ -117,7 +117,7 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
     const n = name?.toLowerCase() || '';
 
     if (e.includes('aravindreddy') || n.includes('aravind') || e.includes('aravind')) {
-      return { title: 'CRA for Placemein', access: 'Super Admin & CRA Portal', badgeColor: 'bg-purple-500/20 text-purple-200 border-purple-400/40' };
+      return { title: 'Founder & CEO (CEO Admin)', access: 'Super Admin & Executive Authority', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
     }
     if (e.includes('mansi') || n.includes('mansi')) {
       return { title: 'Team Leader & Operations Manager', access: 'Admin Portal Access', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
@@ -176,8 +176,8 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
             
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
               {userName.toLowerCase().includes('aravind') ? 'Aravind Reddy' : userName}{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-purple-300 to-indigo-200">
-                CRA for Placemein
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-purple-300 to-indigo-200">
+                · {roleInfo.title}
               </span>
             </h1>
             
