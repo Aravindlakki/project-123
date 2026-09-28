@@ -17,7 +17,6 @@ import {
   User,
   ArrowLeftRight,
   FileSpreadsheet,
-  Palette,
 } from 'lucide-react';
 import { CRA } from '../types';
 
@@ -43,7 +42,6 @@ const employeeItems = [
   { id: 'crm', label: 'CRM Directory', icon: Users },
   { id: 'tasks', label: 'My Tasks', icon: CheckSquare },
   { id: 'performance', label: 'My Performance', icon: Award },
-  { id: 'design-system', label: 'Design System', icon: Palette, badge: 'UI' },
 ];
 
 const adminItems = [
@@ -55,7 +53,6 @@ const adminItems = [
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
   { id: 'admin-performance', label: 'Team Performance', icon: Award },
   { id: 'admin-settings', label: 'System Settings', icon: Settings },
-  { id: 'design-system', label: 'Design System', icon: Palette, badge: 'UI' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
