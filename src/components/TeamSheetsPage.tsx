@@ -76,17 +76,38 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   currentUser,
   adminMode = false,
 }) => {
+  // Determine canonical user SPOC ID and Display Name for single-worksheet mode
+  const userSpocId = useMemo(() => {
+    if (!currentUser) return 'Aravind';
+    const matched = SPOC_MEMBERS.find((m) =>
+      (currentUser.name && currentUser.name.toLowerCase().includes(m.id.toLowerCase())) ||
+      (currentUser.email && currentUser.email.toLowerCase().includes(m.id.toLowerCase())) ||
+      (m.name && currentUser.name && currentUser.name.toLowerCase().includes(m.name.toLowerCase()))
+    );
+    if (matched) return matched.id;
+    if (currentUser.name) return currentUser.name.trim().split(' ')[0];
+    return 'Aravind';
+  }, [currentUser]);
+
+  const userDisplayName = useMemo(() => {
+    if (!currentUser) return 'Aravind Reddy';
+    if (currentUser.name) return currentUser.name;
+    return `${userSpocId} Reddy`;
+  }, [currentUser, userSpocId]);
+
+  // In Team Worksheet (non-admin mode), strictly lock activeSheet to the logged-in user's sheet.
+  // There is only one worksheet and it is the user's; viewing/editing rest of employees is not permitted.
   const [activeSheet, setActiveSheet] = useState<string>(() => {
+    if (!adminMode) return userSpocId;
     if (initialSpoc) return initialSpoc;
-    if (adminMode) return 'all';
-    if (currentUser?.name) {
-      const matched = SPOC_MEMBERS.find((m) =>
-        currentUser.name.toLowerCase().includes(m.id.toLowerCase())
-      );
-      if (matched) return matched.id;
-    }
     return 'all';
   });
+
+  useEffect(() => {
+    if (!adminMode) {
+      setActiveSheet(userSpocId);
+    }
+  }, [adminMode, userSpocId]);
 
   const [leads, setLeads] = useState<HRContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -143,7 +164,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [newDomain, setNewDomain] = useState('Cyber Security');
   const [newLocation, setNewLocation] = useState('Hyderabad');
   const [newRemarks, setNewRemarks] = useState('Pending');
-  const [newSpoc, setNewSpoc] = useState('Namitha');
+  const [newSpoc, setNewSpoc] = useState(() => (!adminMode ? userSpocId : 'Aravind'));
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -208,8 +229,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       }
 
       const allExtractedLeads: PreparedWorksheetLead[] = [];
-      const defaultSpoc = activeSheet !== 'all' ? activeSheet : 'Namitha';
-      const enteredBy = currentUser?.name || 'Aravind Reddy';
+      const defaultSpoc = !adminMode ? userSpocId : (activeSheet !== 'all' ? activeSheet : userSpocId);
+      const enteredBy = currentUser?.name || userDisplayName;
 
       const HEADER_KEYWORDS = [
         'company', 'organisation', 'organization', 'client', 'firm', 'employer',
@@ -493,8 +514,26 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   // Filter leads based on active sheet tab and search filters
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
-      // Sheet tab filter
-      if (activeSheet !== 'all') {
+      // IN TEAM WORKSHEET (NON-ADMIN MODE):
+      // There should ONLY be one worksheet and it is the logged-in user's worksheet.
+      // Rest of employees' worksheet viewing and editing is not allowed.
+      if (!adminMode) {
+        const leadSpoc = (lead.spoc || '').toLowerCase();
+        const enteredBy = (lead.entered_by_name || '').toLowerCase();
+        const target = userSpocId.toLowerCase();
+        const nameLower = (currentUser?.name || '').toLowerCase();
+        const emailLower = (currentUser?.email || '').toLowerCase();
+
+        const matchesUser =
+          leadSpoc.includes(target) ||
+          enteredBy.includes(target) ||
+          (nameLower && (leadSpoc.includes(nameLower) || enteredBy.includes(nameLower))) ||
+          (emailLower && (leadSpoc.includes(emailLower) || enteredBy.includes(emailLower)));
+
+        if (!matchesUser) {
+          return false;
+        }
+      } else if (activeSheet !== 'all') {
         const leadSpoc = (lead.spoc || '').toLowerCase();
         const enteredBy = (lead.entered_by_name || '').toLowerCase();
         const tabKey = activeSheet.toLowerCase();
@@ -545,16 +584,30 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
       return true;
     });
-  }, [leads, activeSheet, selectedDomain, selectedRemarks, selectedLocation, searchQuery]);
+  }, [leads, activeSheet, adminMode, userSpocId, currentUser, selectedDomain, selectedRemarks, selectedLocation, searchQuery]);
 
   // Statistics for current sheet
   const stats = useMemo(() => {
-    const sheetData = activeSheet === 'all'
-      ? leads
-      : leads.filter((l) =>
-          (l.spoc || '').toLowerCase().includes(activeSheet.toLowerCase()) ||
-          (l.entered_by_name || '').toLowerCase().includes(activeSheet.toLowerCase())
-        );
+    const sheetData = !adminMode
+      ? leads.filter((l) => {
+          const leadSpoc = (l.spoc || '').toLowerCase();
+          const enteredBy = (l.entered_by_name || '').toLowerCase();
+          const target = userSpocId.toLowerCase();
+          const nameLower = (currentUser?.name || '').toLowerCase();
+          const emailLower = (currentUser?.email || '').toLowerCase();
+          return (
+            leadSpoc.includes(target) ||
+            enteredBy.includes(target) ||
+            (nameLower && (leadSpoc.includes(nameLower) || enteredBy.includes(nameLower))) ||
+            (emailLower && (leadSpoc.includes(emailLower) || enteredBy.includes(emailLower)))
+          );
+        })
+      : activeSheet === 'all'
+        ? leads
+        : leads.filter((l) =>
+            (l.spoc || '').toLowerCase().includes(activeSheet.toLowerCase()) ||
+            (l.entered_by_name || '').toLowerCase().includes(activeSheet.toLowerCase())
+          );
 
     const total = sheetData.length;
     const withPhone = sheetData.filter((l) => l.phone && l.phone.trim().length > 5).length;
@@ -567,7 +620,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     }).length;
 
     return { total, withPhone, withEmail, responded, hold, pendingOrMail };
-  }, [leads, activeSheet]);
+  }, [leads, activeSheet, adminMode, userSpocId, currentUser]);
 
   // Count per sheet for badges
   const sheetCounts = useMemo(() => {
@@ -1011,16 +1064,16 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 <FileSpreadsheet className="h-5 w-5" />
               </span>
               <span className={`text-xs font-bold uppercase tracking-wider ${adminMode ? 'text-amber-300' : 'text-purple-300'}`}>
-                {adminMode ? 'Admin Portal · Master Worksheets & PDF Database' : 'Data Management & Sourcing Worksheets'}
+                {adminMode ? 'Admin Portal · Master Worksheets & PDF Database' : 'My Outreach Worksheet · Single User View'}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              {adminMode ? 'All Worksheets & PDF Database' : 'Team Worksheets & PDF Database'}
+              {adminMode ? 'All Worksheets & PDF Database' : `${userDisplayName}'s Worksheet`}
             </h1>
             <p className="text-sm text-gray-300 mt-1 max-w-2xl">
               {adminMode
                 ? 'Centralized admin oversight of all parsed company numbers, employee headcounts, and verified HR contacts from uploaded PDFs. Filter across all SPOC sheets or export master records.'
-                : 'All parsed company numbers, employee headcounts, and verified HR contacts from the uploaded PDF. Each team member has their dedicated separate sheet with full contact details.'}
+                : 'Your dedicated personal sourcing and candidate outreach worksheet. View your assigned company contacts, update outreach statuses, attach proof of screenshot, and import leads directly.'}
             </p>
           </div>
 
@@ -1029,7 +1082,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             <button
               onClick={() => setShowHtmlModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-purple-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-purple-500/30"
-              title="Upload HTML file or paste web snippet to import leads into member sheet"
+              title="Upload HTML file or paste web snippet to import leads into your worksheet"
               aria-label="HTML Upload"
             >
               <Code2 className="h-4 w-4 text-pink-300" />
@@ -1040,7 +1093,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             <button
               onClick={() => setShowPdfModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-950/40 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer border border-indigo-500/30"
-              title="Upload PDF document to extract and store leads into member sheet"
+              title="Upload PDF document to extract and store leads into your worksheet"
               aria-label="PDF Upload"
             >
               <FileText className="h-4 w-4 text-indigo-300" />
@@ -1049,7 +1102,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
             <button
               onClick={() => {
-                setNewSpoc(activeSheet !== 'all' ? activeSheet : 'Namitha');
+                setNewSpoc(userSpocId);
                 setShowAddLeadModal(true);
               }}
               className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-bold rounded-xl border border-gray-700 transition-all cursor-pointer"
@@ -1068,16 +1121,6 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             </button>
 
             <button
-              onClick={() => setShowReportModal(true)}
-              className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-950/80 hover:bg-indigo-900/90 text-indigo-200 text-xs font-bold rounded-xl border border-indigo-700/60 transition-all cursor-pointer shadow-sm"
-              title="View End-to-End System Report & Print as PDF"
-            >
-              <FileText className="h-4 w-4 text-indigo-400" />
-              <span className="hidden sm:inline">System Report</span>
-              <span className="text-[9px] bg-indigo-500/30 px-1 py-0.2 rounded text-indigo-200 font-extrabold uppercase">PDF</span>
-            </button>
-
-            <button
               onClick={fetchLeads}
               className="p-2.5 bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-white rounded-xl border border-gray-700 transition-all cursor-pointer"
               title="Refresh sheet data"
@@ -1088,65 +1131,91 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         </div>
       </div>
 
-      {/* Team Member Tabs ("everyone have their separate sheet") */}
-      <div className="bg-gray-900/90 border border-gray-800 rounded-2xl p-2 shadow-lg backdrop-blur-md">
-        <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1 flex items-center justify-between">
-          <span>{adminMode ? 'Filter by Team Member Sheet:' : 'Select Dedicated Team Sheet:'}</span>
-          <span className="text-gray-500 text-[10px]">Click any tab to switch individual view</span>
-        </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-thin">
-          {/* Master View */}
-          <button
-            onClick={() => setActiveSheet('all')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-              activeSheet === 'all'
-                ? adminMode
-                  ? 'bg-amber-600 text-white shadow-md shadow-amber-900/40'
-                  : 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
-                : 'bg-gray-800/60 hover:bg-gray-800 text-gray-300 border border-gray-700/50'
-            }`}
-          >
-            <Users className="h-3.5 w-3.5" />
-            <span>Master View (All Sheets)</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-              activeSheet === 'all'
-                ? adminMode ? 'bg-amber-800 text-amber-100' : 'bg-purple-800 text-purple-200'
-                : 'bg-gray-700 text-gray-300'
-            }`}>
-              {sheetCounts.all || 0}
-            </span>
-          </button>
-
-          {/* Individual SPOC Sheet Tabs */}
-          {SPOC_MEMBERS.map((member) => {
-            const isActive = activeSheet.toLowerCase() === member.id.toLowerCase();
-            const count = sheetCounts[member.id] || 0;
-            return (
-              <button
-                key={member.id}
-                onClick={() => setActiveSheet(member.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  isActive
-                    ? adminMode
-                      ? 'bg-gradient-to-r from-amber-700 to-amber-800 text-white shadow-md shadow-amber-950 border border-amber-400/40'
-                      : 'bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-md shadow-purple-950 border border-purple-400/40'
-                    : 'bg-gray-800/60 hover:bg-gray-800 text-gray-300 border border-gray-700/50'
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${member.avatarBg}`} />
-                <span>{member.name}'s Sheet</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  isActive
-                    ? adminMode ? 'bg-amber-900 text-amber-200' : 'bg-purple-900 text-purple-200'
-                    : 'bg-gray-700 text-gray-300'
-                }`}>
-                  {count}
+      {/* Team Member Tabs ("everyone have their separate sheet" replaced with single user worksheet for employee) */}
+      {!adminMode ? (
+        <div className="bg-gray-900/90 border border-purple-800/40 rounded-2xl p-4 shadow-lg backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-300 font-bold shrink-0">
+              <User className="h-5 w-5 text-purple-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white">
+                  {userDisplayName}'s Dedicated Worksheet
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                  <Check className="h-3 w-3 text-purple-300" />
+                  Your Worksheet
                 </span>
-              </button>
-            );
-          })}
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Single worksheet mode active · Viewing and editing other employees' worksheets is restricted
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-right sm:border-r sm:border-gray-800 sm:pr-4">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500 block">Owner</span>
+              <span className="text-xs font-bold text-purple-200">{userDisplayName}</span>
+            </div>
+            <div className="px-3.5 py-1.5 bg-purple-950/80 border border-purple-700/60 rounded-xl text-center">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-purple-400 block">Allocated Leads</span>
+              <span className="text-sm font-black text-white">{stats.total}</span>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-gray-900/90 border border-gray-800 rounded-2xl p-2 shadow-lg backdrop-blur-md">
+          <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1 flex items-center justify-between">
+            <span>Filter by Team Member Sheet:</span>
+            <span className="text-gray-500 text-[10px]">Click any tab to switch individual view</span>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-thin">
+            {/* Master View */}
+            <button
+              onClick={() => setActiveSheet('all')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeSheet === 'all'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-900/40'
+                  : 'bg-gray-800/60 hover:bg-gray-800 text-gray-300 border border-gray-700/50'
+              }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span>Master View (All Sheets)</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                activeSheet === 'all' ? 'bg-amber-800 text-amber-100' : 'bg-gray-700 text-gray-300'
+              }`}>
+                {sheetCounts.all || 0}
+              </span>
+            </button>
+
+            {/* Individual SPOC Sheet Tabs */}
+            {SPOC_MEMBERS.map((member) => {
+              const isActive = activeSheet.toLowerCase() === member.id.toLowerCase();
+              const count = sheetCounts[member.id] || 0;
+              return (
+                <button
+                  key={member.id}
+                  onClick={() => setActiveSheet(member.id)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-gradient-to-r from-amber-700 to-amber-800 text-white shadow-md shadow-amber-950 border border-amber-400/40'
+                      : 'bg-gray-800/60 hover:bg-gray-800 text-gray-300 border border-gray-700/50'
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${member.avatarBg}`} />
+                  <span>{member.name}'s Sheet</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    isActive ? 'bg-amber-900 text-amber-200' : 'bg-gray-700 text-gray-300'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards for the active sheet */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1157,7 +1226,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </div>
           <div className="text-2xl font-black text-white mt-1.5">{stats.total}</div>
           <div className="text-[11px] text-gray-400 mt-0.5 truncate">
-            {activeSheet === 'all' ? 'All CRA sheets' : `${activeSheet}'s allocated leads`}
+            {!adminMode ? `${userDisplayName}'s allocated leads` : activeSheet === 'all' ? 'All CRA sheets' : `${activeSheet}'s allocated leads`}
           </div>
         </div>
 
@@ -1297,7 +1366,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 <th className="py-3 px-3 min-w-[110px]">Location</th>
                 <th className="py-3 px-4 min-w-[140px]">Remarks / Status</th>
                 <th className="py-3 px-4 min-w-[160px]">Proof of Screenshot</th>
-                <th className="py-3 px-4 min-w-[120px]">Sheet SPOC</th>
+                <th className="py-3 px-4 min-w-[120px]">{!adminMode ? 'Worksheet' : 'Sheet SPOC'}</th>
                 <th className="py-3 px-3 w-20 text-center">Actions</th>
               </tr>
             </thead>
@@ -1567,19 +1636,35 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
                     {/* Sheet SPOC / Entered By */}
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-purple-900 text-purple-300 border border-purple-700 flex items-center justify-center text-[10px] font-bold">
-                          {(lead.spoc || lead.entered_by_name || 'A')[0]}
+                      {!adminMode ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full bg-purple-900 text-purple-300 border border-purple-700 flex items-center justify-center text-[10px] font-bold">
+                            {(userDisplayName || 'U')[0]}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-semibold text-gray-200">
+                              {userDisplayName}
+                            </span>
+                            <span className="text-[9px] text-purple-300/80 font-medium">
+                              Your Lead
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-[11px] font-semibold text-gray-200">
-                            {lead.spoc || 'Assigned'}
-                          </span>
-                          <span className="text-[9px] text-gray-400 truncate max-w-[80px]">
-                            {lead.entered_by_name || 'Placemein'}
-                          </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full bg-purple-900 text-purple-300 border border-purple-700 flex items-center justify-center text-[10px] font-bold">
+                            {(lead.spoc || lead.entered_by_name || 'A')[0]}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-semibold text-gray-200">
+                              {lead.spoc || 'Assigned'}
+                            </span>
+                            <span className="text-[9px] text-gray-400 truncate max-w-[80px]">
+                              {lead.entered_by_name || 'Placemein'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </td>
 
                     {/* Quick Actions */}
@@ -1659,18 +1744,30 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
               {/* Target Sheet Selection */}
               <div>
-                <label className="block text-gray-400 font-bold mb-1">Target Team Sheet (SPOC)</label>
-                <select
-                  value={newSpoc}
-                  onChange={(e) => setNewSpoc(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white font-semibold"
-                >
-                  {SPOC_MEMBERS.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}'s Dedicated Sheet
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-gray-400 font-bold mb-1">Target Worksheet</label>
+                {!adminMode ? (
+                  <div className="w-full px-3 py-2 bg-gray-800/90 border border-purple-700/50 rounded-xl text-purple-200 font-semibold flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-purple-400" />
+                      {userDisplayName}'s Dedicated Sheet
+                    </span>
+                    <span className="text-[10px] bg-purple-900/60 text-purple-300 px-2 py-0.5 rounded font-bold border border-purple-700/50">
+                      Your Sheet (Locked)
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    value={newSpoc}
+                    onChange={(e) => setNewSpoc(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white font-semibold"
+                  >
+                    {SPOC_MEMBERS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}'s Dedicated Sheet
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Company Info */}
@@ -1883,13 +1980,19 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       <PdfLeadImportModal
         isOpen={showPdfModal}
         onClose={() => setShowPdfModal(false)}
-        defaultMember={activeSheet !== 'all' ? activeSheet : 'Aravind'}
+        defaultMember={!adminMode ? userSpocId : (activeSheet !== 'all' ? activeSheet : userSpocId)}
         onSaveLeads={async (leadsToSave, targetSpoc) => {
-          await handleConfirmImport(leadsToSave);
-          setActiveSheet(targetSpoc);
+          const effectiveSpoc = !adminMode ? userSpocId : targetSpoc;
+          const assignedLeads = leadsToSave.map((l) => ({
+            ...l,
+            spoc: effectiveSpoc,
+            entered_by_name: currentUser?.name || userDisplayName,
+          }));
+          await handleConfirmImport(assignedLeads);
+          if (adminMode) setActiveSheet(targetSpoc);
           setImportNotification({
             type: 'success',
-            message: `Successfully imported ${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''} from PDF into ${targetSpoc}'s sheet!`,
+            message: `Successfully imported ${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''} from PDF into ${!adminMode ? userDisplayName : targetSpoc}'s sheet!`,
           });
         }}
       />
@@ -1902,7 +2005,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           setExcelFileToImport(null);
         }}
         currentUser={currentUser}
-        defaultSpoc={activeSheet}
+        defaultSpoc={!adminMode ? userSpocId : activeSheet}
         adminMode={adminMode}
         initialFile={excelFileToImport}
         onImportSuccess={() => {
@@ -1910,23 +2013,23 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         }}
       />
 
-      {/* End-to-End System Report & PDF Modal */}
-      <SystemReportModal
-        isOpen={showReportModal}
-        onClose={() => setShowReportModal(false)}
-      />
-
       {/* HTML Lead Import Modal */}
       <HtmlLeadImportModal
         isOpen={showHtmlModal}
         onClose={() => setShowHtmlModal(false)}
-        defaultMember={activeSheet !== 'all' ? activeSheet : 'Aravind'}
+        defaultMember={!adminMode ? userSpocId : (activeSheet !== 'all' ? activeSheet : userSpocId)}
         onSaveLeads={async (leadsToSave, targetSpoc) => {
-          await handleConfirmImport(leadsToSave);
-          setActiveSheet(targetSpoc);
+          const effectiveSpoc = !adminMode ? userSpocId : targetSpoc;
+          const assignedLeads = leadsToSave.map((l) => ({
+            ...l,
+            spoc: effectiveSpoc,
+            entered_by_name: currentUser?.name || userDisplayName,
+          }));
+          await handleConfirmImport(assignedLeads);
+          if (adminMode) setActiveSheet(targetSpoc);
           setImportNotification({
             type: 'success',
-            message: `Successfully imported ${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''} from HTML into ${targetSpoc}'s sheet!`,
+            message: `Successfully imported ${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''} from HTML into ${!adminMode ? userDisplayName : targetSpoc}'s sheet!`,
           });
         }}
       />

@@ -21,6 +21,10 @@ import { ShieldCheck, User, Lock, LogIn, Menu, FileText, Database } from 'lucide
 const getRouteFromUrl = (): string => {
   const hash = window.location.hash.replace(/^#\/?/, '/');
   if (hash && hash !== '/') {
+    if (hash.includes('design-system') || hash.includes('design')) {
+      window.location.hash = '/dashboard';
+      return '/dashboard';
+    }
     return hash;
   }
   let path = window.location.pathname;
@@ -28,6 +32,9 @@ const getRouteFromUrl = (): string => {
   const cleanBase = base.replace(/\/$/, '');
   if (cleanBase && path.startsWith(cleanBase)) {
     path = path.slice(cleanBase.length);
+  }
+  if (path.includes('design-system') || path.includes('design')) {
+    return '/dashboard';
   }
   return path || '/dashboard';
 };
@@ -277,7 +284,7 @@ export const App: React.FC = () => {
       case 'team-lead-dashboard':
         return 'Team Lead Dashboard';
       case 'team-sheets':
-        return 'Team Worksheets';
+        return 'Team Worksheet';
       case 'dashboard':
         return 'My Dashboard';
       case 'hr-sourcing':
@@ -370,30 +377,9 @@ export const App: React.FC = () => {
                 <span>Exit to Employee</span>
               </button>
             )}
-
-            {/* Quick System Report PDF Generator */}
-            <button
-              onClick={() => setShowSystemReportModal(true)}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-purple-800/60 to-indigo-800/60 hover:from-purple-700 hover:to-indigo-700 text-white border border-purple-500/40 shadow-sm cursor-pointer shrink-0"
-              title="Open System Architecture Report & Export PDF"
-            >
-              <FileText className="h-3.5 w-3.5 text-purple-300" />
-              <span className="hidden md:inline">System Report</span>
-              <span className="text-[9px] bg-purple-500/30 px-1.5 py-0.5 rounded text-purple-200 font-extrabold uppercase">PDF</span>
-            </button>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Mobile PDF export shortcut button */}
-            <button
-              onClick={() => setShowSystemReportModal(true)}
-              className="sm:hidden p-2 rounded-xl text-purple-200 hover:text-white bg-purple-900/40 border border-purple-700/50 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
-              title="System Report PDF"
-              aria-label="Export System Report PDF"
-            >
-              <FileText className="h-4 w-4 text-purple-300" />
-            </button>
-
             {/* Profile Avatar Button */}
             <button
               onClick={() => navigate(adminMode ? 'admin-performance' : 'performance')}

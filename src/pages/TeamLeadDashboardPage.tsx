@@ -463,7 +463,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
               onClick={() => setActiveTab(adminMode ? 'admin-sheets' : 'team-sheets')}
               className="text-xs font-bold text-blue-300 hover:text-white hover:underline"
             >
-              {adminMode ? 'All Worksheets & PDF →' : 'Team Worksheets →'}
+              {adminMode ? 'All Worksheets & PDF →' : 'Team Worksheet →'}
             </button>
           </div>
         )}

@@ -35,7 +35,7 @@ interface SidebarProps {
 const employeeItems = [
   { id: 'dashboard', label: 'My Dashboard', icon: LayoutDashboard },
   { id: 'team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
-  { id: 'team-sheets', label: 'Team Worksheets', icon: FileSpreadsheet },
+  { id: 'team-sheets', label: 'Team Worksheet', icon: FileSpreadsheet },
   { id: 'hr-sourcing', label: 'HR Sourcing', icon: Search },
   { id: 'jd-intake', label: 'JD Intake', icon: FileText },
   { id: 'jd-list', label: 'JD List', icon: Briefcase },

@@ -278,8 +278,8 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
             <FileSpreadsheet className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-bold text-white group-hover:text-purple-200 truncate">Team Worksheets</p>
-            <p className="text-[11px] text-purple-300/80 font-semibold truncate">Separate Sheets</p>
+            <p className="text-xs font-bold text-white group-hover:text-purple-200 truncate">Team Worksheet</p>
+            <p className="text-[11px] text-purple-300/80 font-semibold truncate">My Dedicated Sheet</p>
           </div>
         </button>
 
@@ -332,22 +332,6 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
           <div className="min-w-0">
             <p className="text-xs font-bold text-white group-hover:text-amber-200 truncate">My Performance</p>
             <p className="text-[11px] text-purple-300/70 truncate">View Analytics</p>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setShowReportModal(true)}
-          className="bg-gradient-to-br from-indigo-900/60 to-purple-950/70 hover:from-indigo-800/70 hover:to-purple-900/80 border border-indigo-500/40 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 text-left transition-all hover:scale-[1.02] shadow-lg group flex items-center space-x-3 min-h-[52px] cursor-pointer"
-        >
-          <div className="p-2.5 sm:p-3 bg-indigo-500/20 text-indigo-300 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition shrink-0">
-            <FileText className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-white group-hover:text-indigo-200 truncate">System Report</p>
-            <p className="text-[11px] text-indigo-300/80 font-semibold flex items-center gap-1 truncate">
-              <span>Export PDF</span>
-              <span className="text-[9px] bg-indigo-500/30 px-1 rounded text-indigo-200 uppercase font-black">PDF</span>
-            </p>
           </div>
         </button>
       </div>

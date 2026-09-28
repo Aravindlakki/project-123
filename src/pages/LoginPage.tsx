@@ -11,8 +11,6 @@ import {
 } from 'lucide-react';
 import {
   Button,
-  SocialButton,
-  Divider,
   Input,
   PasswordInput,
   Alert,
@@ -79,21 +77,6 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     } catch (err: any) {
       setError(err.message || 'Login failed. Please verify email and password.');
       setLoading(false);
-    }
-  };
-
-  const handleSocialClick = (providerName: string) => {
-    // Fill credentials for demo convenience or prompt
-    if (loginRole === 'ADMIN') {
-      setEmail('aravind@placemein.com');
-      setPassword('admin123');
-      setError(null);
-      setSuccessMessage(`Simulated ${providerName} SSO for CEO Admin account. Click Sign In to proceed.`);
-    } else {
-      setEmail('employee@placemein.com');
-      setPassword('cra123');
-      setError(null);
-      setSuccessMessage(`Simulated ${providerName} SSO for CRA Specialist. Click Sign In to proceed.`);
     }
   };
 
@@ -202,23 +185,6 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             {loginRole}
           </Badge>
         </div>
-
-        {/* Social Authentication Section as featured in UX Pilot designs */}
-        {!isForgotMode && (
-          <div className="space-y-2">
-            <SocialButton
-              provider="google"
-              label="Continue with Google"
-              onClick={() => handleSocialClick('Google')}
-            />
-            <SocialButton
-              provider="microsoft"
-              label="Continue with Microsoft"
-              onClick={() => handleSocialClick('Microsoft')}
-            />
-            <Divider label="Or continue with email" />
-          </div>
-        )}
 
         {/* Status Alerts */}
         {error && (

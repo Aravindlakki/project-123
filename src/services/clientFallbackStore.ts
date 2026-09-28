@@ -19,10 +19,12 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'placemein_current_user',
   JDS: 'placemein_mock_jds',
   ROSTER_VERSION: 'placemein_roster_version_v6',
+  WORKSHEET_VERSION: 'placemein_worksheet_version_v8',
 };
 
 // Target Roster Version: triggers automatic cleanup of any old cached duplicates in browser localStorage
 const CURRENT_ROSTER_VERSION = 'v7_canonical_8_team_roster_reverted_4';
+const CURRENT_WORKSHEET_VERSION = 'v8_team_worksheets_single_roster';
 
 // Obsolete or legacy duplicate emails that must be pruned from cache
 const OBSOLETE_EMAILS = [
@@ -112,9 +114,18 @@ function initializeMockData(forceResetRoster: boolean = false) {
     localStorage.setItem(STORAGE_KEYS.ROSTER_VERSION, CURRENT_ROSTER_VERSION);
   }
 
-  if (!localStorage.getItem(STORAGE_KEYS.COMPANIES) || !localStorage.getItem(STORAGE_KEYS.CONTACTS)) {
-    const companies: Company[] = [];
-    const contacts: HRContact[] = [];
+  const storedWorksheetVersion = localStorage.getItem(STORAGE_KEYS.WORKSHEET_VERSION);
+  const shouldResetContacts = storedWorksheetVersion !== CURRENT_WORKSHEET_VERSION;
+
+  if (!localStorage.getItem(STORAGE_KEYS.COMPANIES) || !localStorage.getItem(STORAGE_KEYS.CONTACTS) || shouldResetContacts) {
+    const existingCompanies: Company[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]');
+    const existingContacts: HRContact[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONTACTS) || '[]');
+    // Preserve custom user-added contacts
+    const customContacts = existingContacts.filter((c) => !c.id.startsWith('lead_'));
+    const customCompanies = existingCompanies.filter((comp) => !comp.id.startsWith('comp_lead_'));
+
+    const companies: Company[] = [...customCompanies];
+    const contacts: HRContact[] = [...customContacts];
 
     INITIAL_PDF_LEADS.forEach((lead) => {
       let company = companies.find((c) => c.name.toLowerCase() === lead.company_name.toLowerCase());
@@ -156,6 +167,7 @@ function initializeMockData(forceResetRoster: boolean = false) {
 
     localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
     localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
+    localStorage.setItem(STORAGE_KEYS.WORKSHEET_VERSION, CURRENT_WORKSHEET_VERSION);
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
