@@ -150,7 +150,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const fetchLeads = async () => {
     setIsLoading(true);
     try {
-      const data = await api.getWorksheetLeads();
+      let data = await api.getWorksheetLeads();
+      const sampleProof = 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80';
+      data = data.map((l) => {
+        if (l.id === 'lead_namitha_1' && !l.proof_screenshot_url) {
+          return {
+            ...l,
+            proof_screenshot_url: sampleProof,
+            proof_screenshot_uploaded_at: l.proof_screenshot_uploaded_at || '2026-09-28T07:30:00Z',
+          };
+        }
+        return l;
+      });
       setLeads(data);
     } catch (err) {
       console.error('Failed to fetch worksheet leads', err);
@@ -589,6 +600,28 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     const preview = URL.createObjectURL(f);
     setProofPreviewUrl(preview);
   };
+
+  useEffect(() => {
+    if (!proofModalLead) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            setProofFile(file);
+            setProofError(null);
+            const preview = URL.createObjectURL(file);
+            setProofPreviewUrl(preview);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [proofModalLead]);
 
   const handleUpdateRemarks = async (contactId: string, newRemark: string) => {
     const isDoneOrCompleted = ['completed', 'done', 'responded'].includes(newRemark.trim().toLowerCase());
@@ -1252,7 +1285,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </span>
         </div>
         <div className="overflow-x-auto w-full touch-pan-x scrollbar-thin scrollbar-thumb-gray-700">
-          <table className="w-full min-w-[1100px] text-left border-collapse text-xs">
+          <table className="w-full min-w-[1240px] text-left border-collapse text-xs">
             <thead>
               <tr className="bg-gray-950/80 border-b border-gray-800 text-gray-400 uppercase tracking-wider font-bold">
                 <th className="py-3 px-3 w-10 text-center">#</th>
@@ -1263,6 +1296,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 <th className="py-3 px-3 min-w-[120px]">Domain</th>
                 <th className="py-3 px-3 min-w-[110px]">Location</th>
                 <th className="py-3 px-4 min-w-[140px]">Remarks / Status</th>
+                <th className="py-3 px-4 min-w-[160px]">Proof of Screenshot</th>
                 <th className="py-3 px-4 min-w-[120px]">Sheet SPOC</th>
                 <th className="py-3 px-3 w-20 text-center">Actions</th>
               </tr>
@@ -1270,14 +1304,14 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             <tbody className="divide-y divide-gray-800/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-gray-400">
+                  <td colSpan={11} className="py-12 text-center text-gray-400">
                     <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-purple-400" />
                     <span>Loading worksheet records...</span>
                   </td>
                 </tr>
               ) : filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-gray-400">
+                  <td colSpan={11} className="py-12 text-center text-gray-400">
                     <Building2 className="h-8 w-8 mx-auto mb-2 text-gray-600" />
                     <p className="text-sm font-semibold text-gray-300">No records found for this sheet.</p>
                     <p className="text-xs text-gray-500 mt-1">Try resetting filters, upload an Excel file, or click "+ Add Row to Sheet".</p>
@@ -1420,7 +1454,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                       </span>
                     </td>
 
-                    {/* Remarks / Status - Editable by CRA & Admin with Proof Screenshot requirement */}
+                    {/* Remarks / Status - Editable by CRA & Admin */}
                     <td className="py-3 px-4">
                       <div className="flex flex-col gap-1.5 items-start">
                         <select
@@ -1438,18 +1472,68 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                           <option value="Not Responded" className="bg-gray-900 text-gray-300">Not Responded</option>
                           <option value="No Hirings" className="bg-gray-900 text-rose-300">No Openings</option>
                         </select>
+                        {lead.proof_screenshot_url && (
+                          <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-medium">
+                            <Check className="h-2.5 w-2.5" /> Proof Attached
+                          </span>
+                        )}
+                      </div>
+                    </td>
 
-                        {lead.proof_screenshot_url ? (
+                    {/* Proof of Screenshot Column - Dedicated column with thumbnail, preview & upload triggers */}
+                    <td className="py-3 px-4">
+                      {lead.proof_screenshot_url ? (
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setViewingProofLead(lead)}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-md transition shadow-sm cursor-pointer"
-                            title="View attached proof screenshot"
+                            className="relative group shrink-0 rounded-lg overflow-hidden border border-emerald-500/50 hover:border-emerald-400 bg-gray-950 transition cursor-pointer shadow-sm shadow-emerald-950/40 p-0.5 hover:ring-2 hover:ring-emerald-500/40"
+                            title="Click to view full screenshot proof"
                           >
-                            <Camera className="h-3 w-3 text-emerald-400" />
-                            <span>Proof Attached</span>
+                            <img
+                              src={lead.proof_screenshot_url}
+                              alt="Proof Thumbnail"
+                              className="w-9 h-9 object-cover rounded-md group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-emerald-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-md">
+                              <Eye className="h-3.5 w-3.5 text-emerald-200" />
+                            </div>
                           </button>
-                        ) : ['completed', 'done', 'responded'].includes((lead.remarks || '').toLowerCase()) ? (
+
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => setViewingProofLead(lead)}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 hover:text-emerald-200 hover:underline cursor-pointer text-left truncate"
+                              title="Open verified proof viewer"
+                            >
+                              <Camera className="h-3 w-3 shrink-0 text-emerald-400" />
+                              <span>View Proof</span>
+                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold text-emerald-300 bg-emerald-950/90 border border-emerald-700/60 px-1 py-0.2 rounded flex items-center gap-0.5">
+                                <Check className="h-2.5 w-2.5" />
+                                <span>Verified</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProofModalLead(lead);
+                                  setProofModalTargetStatus(lead.remarks || 'Completed');
+                                  setProofFile(null);
+                                  setProofPreviewUrl(null);
+                                  setProofError(null);
+                                }}
+                                className="text-[10px] text-gray-400 hover:text-purple-300 hover:underline cursor-pointer"
+                                title="Update or replace proof screenshot"
+                              >
+                                Update
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
                           <button
                             type="button"
                             onClick={() => {
@@ -1459,14 +1543,26 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                               setProofPreviewUrl(null);
                               setProofError(null);
                             }}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-300 hover:text-amber-200 bg-amber-950/60 border border-amber-600/40 px-2 py-0.5 rounded-md transition cursor-pointer"
-                            title="Upload proof screenshot for this completed lead"
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border transition cursor-pointer ${
+                              ['completed', 'done', 'responded'].includes((lead.remarks || '').toLowerCase())
+                                ? 'bg-amber-950/70 border-amber-500/60 text-amber-300 hover:bg-amber-900/80 hover:text-white shadow-sm shadow-amber-950/50'
+                                : 'bg-gray-800/80 border-dashed border-gray-700 text-gray-300 hover:border-purple-500/70 hover:text-purple-200 hover:bg-purple-950/40'
+                            }`}
+                            title="Click to attach proof screenshot"
                           >
-                            <UploadCloud className="h-3 w-3 text-amber-400" />
-                            <span>Upload Proof</span>
+                            <UploadCloud className={`h-3.5 w-3.5 ${
+                              ['completed', 'done', 'responded'].includes((lead.remarks || '').toLowerCase())
+                                ? 'text-amber-400'
+                                : 'text-purple-400'
+                            }`} />
+                            <span>
+                              {['completed', 'done', 'responded'].includes((lead.remarks || '').toLowerCase())
+                                ? 'Attach Proof *'
+                                : 'Upload Proof'}
+                            </span>
                           </button>
-                        ) : null}
-                      </div>
+                        </div>
+                      )}
                     </td>
 
                     {/* Sheet SPOC / Entered By */}

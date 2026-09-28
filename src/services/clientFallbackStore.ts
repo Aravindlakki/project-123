@@ -142,6 +142,8 @@ function initializeMockData(forceResetRoster: boolean = false) {
         phone: lead.phone,
         linkedin_url: lead.hr_linkedin,
         remarks: lead.remarks,
+        proof_screenshot_url: lead.proof_screenshot_url,
+        proof_screenshot_uploaded_at: lead.proof_screenshot_uploaded_at,
         spoc: lead.spoc,
         domain: lead.domain,
         location: lead.location,

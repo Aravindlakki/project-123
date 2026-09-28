@@ -498,6 +498,8 @@ export const supabaseDataService = {
         domain: c.domain,
         location: c.location,
         remarks: c.remarks,
+        proof_screenshot_url: c.proof_screenshot_url,
+        proof_screenshot_uploaded_at: c.proof_screenshot_uploaded_at,
         spoc: c.spoc,
         source: c.source || 'manual',
         created_at: c.created_at,

@@ -15,6 +15,8 @@ export interface PDFLeadRecord {
   remarks: string;
   spoc: string; // Sheet owner: 'Namitha' | 'Aliya' | 'Solomon' | 'Harish' | 'Varshith' | 'Aasritha' | 'Charan'
   entered_by_name: string;
+  proof_screenshot_url?: string;
+  proof_screenshot_uploaded_at?: string;
 }
 
 export const INITIAL_PDF_LEADS: PDFLeadRecord[] = [
@@ -34,6 +36,8 @@ export const INITIAL_PDF_LEADS: PDFLeadRecord[] = [
     domain: 'Cyber Security',
     location: 'Mumbai / Hyderabad',
     remarks: 'Responded',
+    proof_screenshot_url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+    proof_screenshot_uploaded_at: '2026-09-28T07:30:00Z',
     spoc: 'Namitha',
     entered_by_name: 'Namitha K',
   },
