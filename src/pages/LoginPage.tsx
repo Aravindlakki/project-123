@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
-import { api, clearAuthToken } from '../services/api';
+import { api } from '../services/api';
 import { CRA } from '../types';
 import {
   Lock,
   Mail,
   UserCheck,
-  AlertCircle,
   ShieldCheck,
   User,
-  Eye,
-  EyeOff,
-  CheckCircle,
   LogIn,
-  Loader2,
 } from 'lucide-react';
+import {
+  Button,
+  SocialButton,
+  Divider,
+  Input,
+  PasswordInput,
+  Alert,
+  Badge,
+} from '../components/ui';
 
 interface Props {
   onLoginSuccess: (role?: 'admin' | 'cra', user?: CRA) => void;
@@ -29,7 +33,6 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,7 +44,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     setSuccessMessage(null);
   };
 
-  const performLogin = async (targetEmail: string, targetPass: string, expectedRole?: 'CRA' | 'ADMIN') => {
+  const performLogin = async (targetEmail: string, targetPass: string) => {
     setError(null);
     setSuccessMessage(null);
     setLoading(true);
@@ -79,6 +82,21 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
     }
   };
 
+  const handleSocialClick = (providerName: string) => {
+    // Fill credentials for demo convenience or prompt
+    if (loginRole === 'ADMIN') {
+      setEmail('aravind@placemein.com');
+      setPassword('admin123');
+      setError(null);
+      setSuccessMessage(`Simulated ${providerName} SSO for CEO Admin account. Click Sign In to proceed.`);
+    } else {
+      setEmail('employee@placemein.com');
+      setPassword('cra123');
+      setError(null);
+      setSuccessMessage(`Simulated ${providerName} SSO for CRA Specialist. Click Sign In to proceed.`);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -100,16 +118,10 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       } else if (isRegisterMode) {
         setLoading(true);
         setLoadingStep('Registering account...');
-        await api.register(
-          name || email.split('@')[0],
-          email.trim(),
-          password,
-          loginRole === 'ADMIN' ? 'admin' : 'cra'
-        );
-        setSuccessMessage(`Account registered as ${loginRole === 'ADMIN' ? 'Admin' : 'CRA Employee'}. Logging in...`);
-        await performLogin(email.trim(), password, loginRole);
+        await api.register(name.trim(), email.trim(), password, loginRole === 'ADMIN' ? 'admin' : 'cra');
+        await performLogin(email.trim(), password);
       } else {
-        await performLogin(email.trim(), password, loginRole);
+        await performLogin(email.trim(), password);
       }
     } catch (err: any) {
       setError(err.message || (isRegisterMode ? 'Registration failed' : 'Login failed'));
@@ -118,16 +130,18 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-gray-950 to-amber-950 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div className="max-w-md w-full bg-gray-900/90 border border-purple-800/60 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl shadow-black/80">
-        
+    <div className="min-h-screen bg-[#030712] text-neutral-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+      {/* Subtle ambient lighting */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="max-w-md w-full bg-[#0B0F19]/95 border border-neutral-800/90 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-xl relative z-10">
         {/* Header Branding */}
         <div className="text-center space-y-3">
-          <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-xl shadow-purple-600/30 border border-purple-200 flex items-center justify-center">
+          <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-xl shadow-purple-600/20 border border-neutral-200 flex items-center justify-center">
             <img
               src="/placemein-logo.png"
               alt="Placemein Logo"
-              className="h-12 w-12 object-contain"
+              className="h-10 w-10 object-contain"
               onError={(e) => {
                 const target = e.currentTarget;
                 if (!target.src.endsWith('placemein-symbol.svg')) {
@@ -138,20 +152,22 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">PLACEMEIN</h1>
-            <p className="text-xs sm:text-sm text-purple-200/80 font-medium">Recruitment Automation & CRA Sourcing CRM</p>
+            <p className="text-xs sm:text-sm text-neutral-400 font-normal">
+              Recruitment Automation & CRA Sourcing CRM
+            </p>
           </div>
         </div>
 
         {/* Dual Portal Selection Tabs */}
         {!isForgotMode && (
-          <div className="grid grid-cols-2 gap-2 bg-purple-900/30 p-1.5 rounded-2xl border border-purple-800/50">
+          <div className="grid grid-cols-2 gap-1.5 bg-[#0D1322] p-1 rounded-2xl border border-neutral-800">
             <button
               type="button"
               onClick={() => handleRoleTabChange('ADMIN')}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm font-extrabold rounded-xl transition-all ${
+              className={`flex items-center justify-center gap-2 py-2 px-3 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                 loginRole === 'ADMIN'
-                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/40 border border-amber-400/30'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
+                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/40 border border-amber-400/40'
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.04]'
               }`}
             >
               <ShieldCheck className="h-4 w-4" />
@@ -160,10 +176,10 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             <button
               type="button"
               onClick={() => handleRoleTabChange('CRA')}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm font-extrabold rounded-xl transition-all ${
+              className={`flex items-center justify-center gap-2 py-2 px-3 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                 loginRole === 'CRA'
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/40 border border-purple-400/30'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-800/40'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40 border border-purple-400/40'
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.04]'
               }`}
             >
               <User className="h-4 w-4" />
@@ -172,151 +188,130 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
           </div>
         )}
 
-        {/* Header Indicator Notice */}
-        <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between border ${
-          loginRole === 'ADMIN' 
-            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
-            : 'bg-purple-500/10 border-purple-500/30 text-purple-300'
-        }`}>
-          <span className="flex items-center gap-2 font-medium">
-            {loginRole === 'ADMIN' ? <ShieldCheck className="h-4 w-4 text-amber-400" /> : <User className="h-4 w-4 text-purple-400" />}
-            {loginRole === 'ADMIN' ? 'Leadership & Admin Portal Access' : 'CRA Specialist Portal Access'}
+        {/* Role Access Tag */}
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#0D1322] border border-neutral-800 text-xs">
+          <span className="flex items-center gap-2 text-neutral-300 font-medium">
+            {loginRole === 'ADMIN' ? (
+              <ShieldCheck className="h-4 w-4 text-amber-400" />
+            ) : (
+              <User className="h-4 w-4 text-purple-400" />
+            )}
+            <span>{loginRole === 'ADMIN' ? 'Leadership Access' : 'CRA Specialist Portal'}</span>
           </span>
-          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-950 border border-purple-700/50">
+          <Badge variant={loginRole === 'ADMIN' ? 'amber' : 'primary'} size="sm">
             {loginRole}
-          </span>
+          </Badge>
         </div>
 
-        {error && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-semibold text-rose-300 flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
+        {/* Social Authentication Section as featured in UX Pilot designs */}
+        {!isForgotMode && (
+          <div className="space-y-2">
+            <SocialButton
+              provider="google"
+              label="Continue with Google"
+              onClick={() => handleSocialClick('Google')}
+            />
+            <SocialButton
+              provider="microsoft"
+              label="Continue with Microsoft"
+              onClick={() => handleSocialClick('Microsoft')}
+            />
+            <Divider label="Or continue with email" />
           </div>
         )}
 
+        {/* Status Alerts */}
+        {error && (
+          <Alert type="danger">
+            {error}
+          </Alert>
+        )}
+
         {successMessage && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-semibold text-emerald-300 flex items-start gap-2">
-            <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{successMessage}</span>
-          </div>
+          <Alert type="success">
+            {successMessage}
+          </Alert>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegisterMode && !isForgotMode && (
-            <div>
-              <label className="block text-xs font-semibold text-purple-200 mb-1">Full Name *</label>
-              <div className="relative">
-                <UserCheck className="h-4 w-4 absolute left-3 top-3 text-purple-400" />
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter full name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-gray-500"
-                />
-              </div>
-            </div>
+            <Input
+              label="Full Name"
+              type="text"
+              required
+              placeholder="e.g. Aravind Reddy"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              leftIcon={<UserCheck className="h-4 w-4" />}
+            />
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-purple-200 mb-1">
-              {loginRole === 'ADMIN' ? 'Admin Email Address *' : 'Employee Email Address *'}
-            </label>
-            <div className="relative">
-              <Mail className="h-4 w-4 absolute left-3 top-3 text-purple-400" />
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                placeholder={loginRole === 'ADMIN' ? 'admin@placemein.com' : 'employee@placemein.com'}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-gray-500"
-              />
-            </div>
-          </div>
+          <Input
+            label={loginRole === 'ADMIN' ? 'Admin Email Address' : 'Employee Email Address'}
+            type="email"
+            required
+            autoComplete="email"
+            placeholder={loginRole === 'ADMIN' ? 'aravind@placemein.com' : 'employee@placemein.com'}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            leftIcon={<Mail className="h-4 w-4" />}
+          />
 
           {!isForgotMode && (
-            <div>
-              <label className="block text-xs font-semibold text-purple-200 mb-1">Password *</label>
-              <div className="relative">
-                <Lock className="h-4 w-4 absolute left-3 top-3 text-purple-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-gray-500 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-white"
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+            <PasswordInput
+              label="Password"
+              required
+              autoComplete="current-password"
+              placeholder="Enter password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              leftIcon={<Lock className="h-4 w-4" />}
+            />
           )}
 
           {isForgotMode && (
-            <div>
-              <label className="block text-xs font-semibold text-purple-200 mb-1">Reset Token (optional)</label>
-              <input
-                type="text"
-                placeholder="Leave empty to request a reset link"
-                value={resetToken}
-                onChange={(e) => setResetToken(e.target.value)}
-                className="w-full bg-gray-950/80 border border-purple-700/60 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-400 placeholder-gray-500 font-mono"
-              />
-            </div>
+            <Input
+              label="Reset Token (optional)"
+              placeholder="Leave empty to request a reset link"
+              value={resetToken}
+              onChange={(e) => setResetToken(e.target.value)}
+            />
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={loading}
-            className={`w-full font-extrabold py-3.5 rounded-xl transition shadow-xl disabled:opacity-50 mt-2 text-sm flex items-center justify-center gap-2 ${
-              loginRole === 'ADMIN' 
-                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30' 
-                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30'
-            }`}
+            variant={loginRole === 'ADMIN' ? 'amber' : 'primary'}
+            size="lg"
+            className="w-full mt-2"
+            isLoading={loading}
+            loadingText={loadingStep || 'Signing In...'}
+            leftIcon={<LogIn className="h-4 w-4" />}
           >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>{loadingStep || 'Signing In...'}</span>
-              </>
-            ) : (
-              <>
-                <LogIn className="h-4 w-4" />
-                <span>
-                  {isForgotMode 
-                    ? (resetToken ? 'Reset Password' : 'Send Recovery Email') 
-                    : isRegisterMode 
-                    ? `Register as ${loginRole === 'ADMIN' ? 'Admin' : 'CRA Employee'}` 
-                    : `Sign In to ${loginRole === 'ADMIN' ? 'Admin Portal' : 'Employee Portal'}`
-                  }
-                </span>
-              </>
-            )}
-          </button>
+            {isForgotMode
+              ? resetToken
+                ? 'Reset Password'
+                : 'Send Recovery Email'
+              : isRegisterMode
+              ? `Register as ${loginRole === 'ADMIN' ? 'Admin' : 'CRA Employee'}`
+              : `Sign In to ${loginRole === 'ADMIN' ? 'Admin Portal' : 'Employee Portal'}`}
+          </Button>
         </form>
 
         {!isRegisterMode && !isForgotMode && (
           <button
             type="button"
-            onClick={() => { setIsForgotMode(true); setError(null); setSuccessMessage(null); }}
-            className="w-full text-xs text-purple-300 hover:text-white hover:underline font-semibold text-center block"
+            onClick={() => {
+              setIsForgotMode(true);
+              setError(null);
+              setSuccessMessage(null);
+            }}
+            className="w-full text-xs text-neutral-400 hover:text-white transition font-medium text-center block cursor-pointer"
           >
             Forgot password? Reset password
           </button>
         )}
 
-        <div className="text-center pt-2 border-t border-purple-800/40">
+        <div className="text-center pt-2 border-t border-neutral-800">
           <button
             type="button"
             onClick={() => {
@@ -331,12 +326,18 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               setError(null);
               setSuccessMessage(null);
             }}
-            className="text-xs text-purple-300 hover:text-white hover:underline font-semibold"
+            className="text-xs text-purple-400 hover:text-purple-300 font-medium cursor-pointer"
           >
-            {isForgotMode ? 'Back to login' : isRegisterMode ? 'Already registered? Login here' : 'Need a new account? Register here'}
+            {isForgotMode
+              ? 'Back to login'
+              : isRegisterMode
+              ? 'Already registered? Login here'
+              : 'Need a new account? Register here'}
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+export default LoginPage;

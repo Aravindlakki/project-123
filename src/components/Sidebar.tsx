@@ -17,6 +17,7 @@ import {
   User,
   ArrowLeftRight,
   FileSpreadsheet,
+  Palette,
 } from 'lucide-react';
 import { CRA } from '../types';
 
@@ -42,6 +43,7 @@ const employeeItems = [
   { id: 'crm', label: 'CRM Directory', icon: Users },
   { id: 'tasks', label: 'My Tasks', icon: CheckSquare },
   { id: 'performance', label: 'My Performance', icon: Award },
+  { id: 'design-system', label: 'Design System', icon: Palette, badge: 'UI' },
 ];
 
 const adminItems = [
@@ -53,6 +55,7 @@ const adminItems = [
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
   { id: 'admin-performance', label: 'Team Performance', icon: Award },
   { id: 'admin-settings', label: 'System Settings', icon: Settings },
+  { id: 'design-system', label: 'Design System', icon: Palette, badge: 'UI' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -179,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </p>
           )}
           <div className="space-y-1">
-            {items.map(({ id, label, icon: Icon }) => {
+            {items.map(({ id, label, icon: Icon, badge }: any) => {
               const active =
                 id === activeTab ||
                 (id === 'admin-sheets' && activeTab === 'team-sheets') ||
@@ -189,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={id}
                   onClick={() => handleItemClick(id)}
                   title={collapsed ? label : undefined}
-                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold transition ${
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
                     active
                       ? isAdmin
                         ? 'bg-amber-600 border border-amber-400/50 text-white shadow-lg shadow-amber-900/30'
@@ -199,8 +202,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'text-purple-100/80 hover:bg-purple-900/40'
                   } ${collapsed ? 'justify-center px-0' : ''}`}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && label}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span className="truncate">{label}</span>}
+                  </div>
+                  {!collapsed && badge && (
+                    <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                      {badge}
+                    </span>
+                  )}
                 </button>
               );
             })}

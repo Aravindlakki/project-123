@@ -13,6 +13,7 @@ import { TeamSheetsPage } from './pages/TeamSheetsPage';
 import { TeamLeadDashboardPage } from './pages/TeamLeadDashboardPage';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { SystemReportModal } from './components/SystemReportModal';
+import { DesignSystemShowcasePage } from './pages/DesignSystemShowcasePage';
 import { api, getAuthToken, clearAuthToken } from './services/api';
 import { isSupabaseConfigured } from './services/supabase';
 import { CRA } from './types';
@@ -44,6 +45,8 @@ const routeToTab = (rawPath: string) => {
     '/crm': 'crm',
     '/tasks': 'tasks',
     '/performance': 'performance',
+    '/design-system': 'design-system',
+    '/admin/design-system': 'design-system',
     '/admin/users': 'admin-users',
     '/admin/worksheets': 'admin-sheets',
     '/admin/team-sheets': 'admin-sheets',
@@ -78,6 +81,7 @@ const tabToRoute: Record<string, string> = {
   crm: '/crm',
   tasks: '/tasks',
   performance: '/performance',
+  'design-system': '/design-system',
   'admin-users': '/admin/users',
   'admin-sheets': '/admin/worksheets',
   'admin-jd-list': '/admin/jd-list',
@@ -294,6 +298,8 @@ export const App: React.FC = () => {
         return 'My Tasks';
       case 'performance':
         return 'My Performance';
+      case 'design-system':
+        return 'Design System & UI Tokens';
       default:
         return activeTab.replace(/^admin-/, '').replace(/-/g, ' ');
     }
@@ -422,6 +428,7 @@ export const App: React.FC = () => {
           {activeTab === 'team-sheets' && <TeamSheetsPage currentUser={currentUser} />}
           {activeTab === 'tasks' && <TaskManagementPage employeeMode />}
           {activeTab === 'performance' && <PerformancePage employeeMode />}
+          {activeTab === 'design-system' && <DesignSystemShowcasePage />}
           {activeTab === 'jd-intake' && <JDIntakePage />}
           {activeTab === 'jd-list' && <JDListPage currentUser={currentUser} />}
           {activeTab === 'hr-sourcing' && <HRSourcingPage onNavigateToJDIntake={() => navigate('jd-intake')} />}

@@ -8,6 +8,25 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Luxury Dark Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #030712;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
 @media print {
   body {
     background-color: #ffffff !important;
