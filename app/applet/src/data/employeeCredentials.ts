@@ -13,7 +13,10 @@ export interface EmployeeCredential {
   notes?: string;
 }
 
-export const DEFAULT_EMPLOYEE_PASSWORD = 'Password123!';
+export const DEFAULT_EMPLOYEE_PASSWORD =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_DEFAULT_EMPLOYEE_PASSWORD) ||
+  (typeof process !== 'undefined' && process.env?.DEFAULT_EMPLOYEE_PASSWORD) ||
+  '';
 
 // THE CANONICAL 8-MEMBER TEAM ROSTER (EXACTLY 8, NO DUPLICATES)
 // 1 CEO Admin + 2 Admins + 5 CRA Employees (reverted 4 employees back to previous canonical names & emails)

@@ -300,11 +300,11 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
     }
   };
 
-  const handleVerifyJD = async (jdId: string, isVerified: boolean) => {
+  const handleVerifyJD = async (jdId: string, isVerified: boolean, rejectionReason?: string) => {
     try {
-      await api.verifyJD(jdId, isVerified);
+      await api.verifyJD(jdId, isVerified, rejectionReason);
       setUnverifiedJDs((prev) => prev.filter((j) => j.id !== jdId));
-      showNotification('success', isVerified ? 'JD marked as verified.' : 'JD unverified.');
+      showNotification('success', isVerified ? 'JD marked as verified and approved.' : 'JD rejected (not eligible).');
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to verify JD');
     }
@@ -313,7 +313,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
   const handleOpenJdReview = (jd: JD) => {
     setSelectedJdForReview(jd);
     setReviewEligibilityStatus(jd.eligibility_status || (jd.is_verified ? 'eligible' : 'pending_admin_review'));
-    setReviewEligibilityNotes(jd.admin_review_notes || '');
+    setReviewEligibilityNotes(jd.rejection_reason || jd.admin_review_notes || '');
     setReviewInterviewScheduled(jd.interview_scheduled || 'pending');
     setReviewInterviewDate(jd.interview_date || '');
     setReviewInterviewRound(jd.interview_round || 'Technical Round 1');
@@ -326,12 +326,21 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
   const handleSaveJdReview = async () => {
     if (!selectedJdForReview) return;
+    if (reviewEligibilityStatus === 'not_eligible' && !reviewEligibilityNotes.trim()) {
+      showNotification('error', 'A rejection reason is strictly required when rejecting a JD.');
+      return;
+    }
+
     setIsSavingReview(true);
     try {
+      const isApproved = reviewEligibilityStatus === 'eligible';
+      const isRejected = reviewEligibilityStatus === 'not_eligible';
       const updated = await api.updateJD(selectedJdForReview.id, {
+        status: isApproved ? 'approved' : isRejected ? 'rejected' : 'pending',
         eligibility_status: reviewEligibilityStatus,
-        admin_review_notes: reviewEligibilityNotes,
-        is_verified: reviewEligibilityStatus === 'eligible',
+        admin_review_notes: reviewEligibilityNotes.trim(),
+        rejection_reason: isRejected ? reviewEligibilityNotes.trim() : undefined,
+        is_verified: isApproved,
         reviewed_at: new Date().toISOString(),
         interview_scheduled: reviewInterviewScheduled,
         interview_date: reviewInterviewDate || undefined,
@@ -341,6 +350,9 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
         hr_feedback: reviewHRFeedbackNotes || undefined,
         hr_feedback_date: reviewHRFeedbackDate || undefined,
       });
+
+      await api.verifyJD(selectedJdForReview.id, isApproved, isRejected ? reviewEligibilityNotes.trim() : undefined)
+        .catch(() => undefined);
 
       setAllJDs((prev) => prev.map((j) => (j.id === selectedJdForReview.id ? updated : j)));
       setUnverifiedJDs((prev) =>
@@ -363,7 +375,16 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
   const handleQuickEligibility = async (jd: JD, status: 'eligible' | 'not_eligible') => {
     try {
-      const updated = await api.reviewJDEligibility(jd.id, status);
+      let reason: string | undefined = undefined;
+      if (status === 'not_eligible') {
+        const inputReason = window.prompt(`Enter rejection reason for "${jd.title}":`, 'Requirements do not match candidate batch');
+        if (!inputReason || !inputReason.trim()) {
+          showNotification('error', 'Rejection reason is required to reject a JD.');
+          return;
+        }
+        reason = inputReason.trim();
+      }
+      const updated = await api.reviewJDEligibility(jd.id, status, reason);
       setAllJDs((prev) => prev.map((j) => (j.id === jd.id ? updated : j)));
       setUnverifiedJDs((prev) => prev.filter((j) => j.id !== jd.id));
       showNotification('success', `JD ${jd.jd_id || jd.title} marked as ${status.replace('_', ' ').toUpperCase()}.`);

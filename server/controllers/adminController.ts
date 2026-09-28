@@ -11,6 +11,7 @@ import {
   attendanceRecords,
   leaves,
   systemSettings,
+  auditLogs,
   enrichContact,
   enrichJD,
 } from '../models/db';
@@ -23,15 +24,60 @@ export function getAdminJDs(req: Request, res: Response) {
 }
 
 export function getAdminUnverifiedJDs(req: Request, res: Response) {
-  const unv = jds.filter((j) => !j.is_verified).map(enrichJD);
+  const unv = jds.filter((j) => !j.is_verified || j.status === 'pending').map(enrichJD);
   return res.json(unv);
 }
 
 export function verifyAdminJD(req: Request, res: Response) {
+  const user = (req as any).user as CRA;
   const jd = jds.find((j) => j.id === req.params.jdId);
   if (!jd) return res.status(404).json({ detail: 'JD not found' });
-  const isV = req.query.is_verified === 'true';
-  jd.is_verified = isV;
+
+  const statusParam = req.body?.status || req.query.status;
+  const isVQuery = req.query.is_verified !== undefined ? req.query.is_verified === 'true' : undefined;
+  const isVBody = req.body?.is_verified !== undefined ? Boolean(req.body.is_verified) : undefined;
+  const isApproved = statusParam === 'approved' || isVQuery === true || isVBody === true;
+  const isRejected = statusParam === 'rejected' || isVQuery === false || isVBody === false;
+
+  const rejectionReason = (req.body?.rejection_reason || req.query.rejection_reason || req.body?.reason || req.query.reason || '').toString().trim();
+
+  if (isRejected || (!isApproved && statusParam !== 'pending')) {
+    if (!rejectionReason) {
+      return res.status(400).json({ detail: 'A rejection reason is strictly required when rejecting a JD.' });
+    }
+    jd.is_verified = false;
+    jd.status = 'rejected';
+    jd.rejection_reason = rejectionReason;
+
+    auditLogs.unshift({
+      id: `log_${Date.now()}`,
+      action: 'JD_REJECTED',
+      entity: 'jd',
+      entity_id: jd.id,
+      details: `JD "${jd.title}" rejected (not eligible) by ${user?.name || 'Admin'}. Reason: ${rejectionReason}`,
+      actor: user?.name || 'Admin',
+      timestamp: new Date().toISOString(),
+    });
+  } else if (isApproved) {
+    jd.is_verified = true;
+    jd.status = 'approved';
+    jd.rejection_reason = undefined;
+
+    auditLogs.unshift({
+      id: `log_${Date.now()}`,
+      action: 'JD_APPROVED',
+      entity: 'jd',
+      entity_id: jd.id,
+      details: `JD "${jd.title}" approved and verified by ${user?.name || 'Admin'}`,
+      actor: user?.name || 'Admin',
+      timestamp: new Date().toISOString(),
+    });
+  } else {
+    jd.is_verified = false;
+    jd.status = 'pending';
+    jd.rejection_reason = undefined;
+  }
+
   return res.json(enrichJD(jd));
 }
 
@@ -44,13 +90,6 @@ export function updateSystemSettings(req: Request, res: Response) {
 }
 
 export function getAuditLogs(req: Request, res: Response) {
-  const auditLogs = [
-    { id: 'log_1', action: 'JD_VERIFIED', entity: 'jd', entity_id: 'jd_1', details: 'Cyber Security Analyst JD marked verified via URL parser', actor: 'Aravind Reddy', timestamp: '2026-08-22T14:30:00Z' },
-    { id: 'log_2', action: 'OUTREACH_LOGGED', entity: 'outreach', entity_id: 'out_2', details: 'Call completed with Monisha Kanduri (320s)', actor: 'Harish Reddy', timestamp: '2026-08-21T11:05:00Z' },
-    { id: 'log_3', action: 'CONTACT_ENRICHED', entity: 'contact', entity_id: 'cont_1', details: 'Apollo enriched contact profile', actor: 'Aravind Reddy', timestamp: '2026-08-19T09:12:00Z' },
-    { id: 'log_4', action: 'CAMPAIGN_LAUNCHED', entity: 'campaign', entity_id: 'camp_1', details: 'Q3 Cyber Security Campus Outreach started', actor: 'Harish Reddy', timestamp: '2026-08-20T09:00:00Z' },
-    { id: 'log_5', action: 'PDF_BATCH_INGESTED', entity: 'system', entity_id: 'batch_pdf_1', details: 'Automated ingestion of master outreach sheet with separate CRA sheets', actor: 'System Import', timestamp: '2026-08-20T10:00:00Z' },
-  ];
   return res.json(auditLogs);
 }
 

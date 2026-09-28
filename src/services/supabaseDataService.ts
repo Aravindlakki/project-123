@@ -883,6 +883,8 @@ export const supabaseDataService = {
         company_id: j.company_id,
         raw_text: j.raw_text,
         is_verified: j.is_verified,
+        status: j.status || (j.is_verified ? 'approved' : 'pending'),
+        rejection_reason: j.rejection_reason || undefined,
         verification_source: j.verification_source,
         opportunity_type: j.opportunity_type,
         date_found: j.date_found,
@@ -943,7 +945,8 @@ export const supabaseDataService = {
       title: jd.title || 'New Opportunity',
       company_id: jd.company_id || '',
       raw_text: (jd.raw_text || '').slice(0, 4000),
-      is_verified: jd.is_verified ?? false,
+      is_verified: false,
+      status: 'pending',
       opportunity_type: jd.opportunity_type || 'existing_post',
       verification_source: jd.verification_source || 'manual_entry',
       date_found: jd.date_found || new Date().toISOString().slice(0, 10),
@@ -954,7 +957,7 @@ export const supabaseDataService = {
       hr_phone: jd.hr_phone,
       hr_designation: jd.hr_designation,
       hr_linkedin: jd.hr_linkedin,
-      eligibility_status: jd.eligibility_status || (jd.is_verified ? 'eligible' : 'pending_admin_review'),
+      eligibility_status: 'pending_admin_review',
       admin_review_notes: jd.admin_review_notes,
       reviewed_by: jd.reviewed_by,
       reviewed_at: jd.reviewed_at,
@@ -983,7 +986,8 @@ export const supabaseDataService = {
           company_id: jd.company_id,
           title: jd.title,
           raw_text: (jd.raw_text || '').slice(0, 4000),
-          is_verified: jd.is_verified ?? false,
+          is_verified: false,
+          status: 'pending',
           verification_source: jd.verification_source || 'manual_entry',
           opportunity_type: jd.opportunity_type || 'existing_post',
           date_found: jd.date_found || new Date().toISOString().slice(0, 10),
@@ -1005,7 +1009,7 @@ export const supabaseDataService = {
     }
   },
 
-  async verifyJD(jdId: string, isVerified: boolean): Promise<JD> {
+  async verifyJD(jdId: string, isVerified: boolean, rejectionReason?: string): Promise<JD> {
     if (!isSupabaseConfigured) {
       throw new Error('Supabase not configured');
     }
@@ -1014,6 +1018,8 @@ export const supabaseDataService = {
       .from('jds')
       .update({
         is_verified: isVerified,
+        status: isVerified ? 'approved' : 'rejected',
+        rejection_reason: isVerified ? null : (rejectionReason || null),
         verification_source: 'manual_entry',
       })
       .eq('id', jdId)

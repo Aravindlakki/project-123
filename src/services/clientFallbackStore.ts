@@ -558,10 +558,16 @@ export const clientFallbackStore = {
       const companies = this.getCompanies();
       jds = jds.map((j, idx) => {
         const fallbackJdId = `JD-2026-${String(jds.length - idx).padStart(4, '0')}`;
+        const isAppr = j.status === 'approved' || (j.is_verified && j.status !== 'rejected' && j.status !== 'pending');
+        const isRej = j.status === 'rejected' || j.eligibility_status === 'not_eligible';
+        const inferredStatus: 'approved' | 'rejected' | 'pending' = isAppr ? 'approved' : (isRej ? 'rejected' : 'pending');
         return {
           ...j,
           jd_id: j.jd_id || fallbackJdId,
-          eligibility_status: j.eligibility_status || (j.is_verified ? 'eligible' : 'pending_admin_review'),
+          status: j.status || inferredStatus,
+          is_verified: isAppr,
+          eligibility_status: j.eligibility_status || (isAppr ? 'eligible' : (isRej ? 'not_eligible' : 'pending_admin_review')),
+          rejection_reason: j.rejection_reason || j.admin_review_notes,
           interview_scheduled: j.interview_scheduled || 'pending',
           hr_feedback_status: j.hr_feedback_status || 'awaiting',
           company: j.company || companies.find((c) => c.id === j.company_id),
@@ -641,9 +647,12 @@ export const clientFallbackStore = {
     if (!newJD.jd_id) {
       newJD.jd_id = this.generateNextJdId();
     }
-    // New uploaded JDs must default to pending_admin_review so admin evaluates eligibility
+    // New uploaded JDs must default to pending and pending_admin_review
+    if (!newJD.status) {
+      newJD.status = newJD.is_verified ? 'approved' : 'pending';
+    }
     if (!newJD.eligibility_status) {
-      newJD.eligibility_status = newJD.is_verified ? 'eligible' : 'pending_admin_review';
+      newJD.eligibility_status = newJD.status === 'approved' ? 'eligible' : (newJD.status === 'rejected' ? 'not_eligible' : 'pending_admin_review');
     }
     if (!newJD.interview_scheduled) {
       newJD.interview_scheduled = 'no';
@@ -689,14 +698,18 @@ export const clientFallbackStore = {
     const existing = this.getJDs();
     const targetIdx = existing.findIndex((j) => j.id === jdId || j.jd_id === jdId);
     if (targetIdx === -1) {
+      const isAppr = updates.status === 'approved' || updates.eligibility_status === 'eligible' || (updates.is_verified === true && updates.status !== 'rejected');
+      const isRej = updates.status === 'rejected' || updates.eligibility_status === 'not_eligible';
       const fallbackTarget: JD = {
         id: jdId,
         jd_id: updates.jd_id || this.generateNextJdId(),
         title: updates.title || 'Job Opportunity',
         company_id: updates.company_id || 'comp_default',
         raw_text: updates.raw_text || '',
-        is_verified: updates.eligibility_status === 'eligible' ? true : false,
-        eligibility_status: updates.eligibility_status || 'pending_admin_review',
+        status: isAppr ? 'approved' : (isRej ? 'rejected' : 'pending'),
+        is_verified: isAppr,
+        eligibility_status: isAppr ? 'eligible' : (isRej ? 'not_eligible' : 'pending_admin_review'),
+        rejection_reason: isRej ? (updates.rejection_reason || updates.admin_review_notes) : undefined,
         interview_scheduled: updates.interview_scheduled || 'no',
         hr_feedback_status: updates.hr_feedback_status || 'awaiting',
         opportunity_type: updates.opportunity_type || 'existing_post',
@@ -710,14 +723,18 @@ export const clientFallbackStore = {
     }
 
     const currentItem = existing[targetIdx];
-    const newEligibility = updates.eligibility_status !== undefined ? updates.eligibility_status : currentItem.eligibility_status;
-    const isVerified = newEligibility === 'eligible';
+    const isAppr = updates.status === 'approved' || updates.eligibility_status === 'eligible' || (updates.is_verified === true && updates.status !== 'rejected');
+    const isRej = updates.status === 'rejected' || updates.eligibility_status === 'not_eligible';
+    const newStatus: 'approved' | 'rejected' | 'pending' = isAppr ? 'approved' : (isRej ? 'rejected' : (updates.status || currentItem.status || 'pending'));
+    const isVerified = newStatus === 'approved';
 
     const updatedJD: JD = {
       ...currentItem,
       ...updates,
+      status: newStatus,
       is_verified: isVerified,
-      eligibility_status: newEligibility,
+      eligibility_status: isAppr ? 'eligible' : (isRej ? 'not_eligible' : (updates.eligibility_status || currentItem.eligibility_status || 'pending_admin_review')),
+      rejection_reason: isRej ? (updates.rejection_reason || updates.admin_review_notes || currentItem.rejection_reason) : undefined,
     };
 
     existing[targetIdx] = updatedJD;
@@ -735,8 +752,10 @@ export const clientFallbackStore = {
   getStats(): DashboardStats {
     const contacts = this.getContacts();
     const companies = this.getCompanies();
+    const jds = this.getJDs();
+    const approvedJDs = jds.filter((j) => j.status === 'approved' || (j.is_verified && j.status !== 'rejected' && j.status !== 'pending')).length;
     return {
-      total_verified_opportunities: 14,
+      total_verified_opportunities: approvedJDs,
       total_contacts: contacts.length || 28,
       total_companies: companies.length || 12,
       active_campaign_count: 3,
@@ -945,8 +964,10 @@ export const clientFallbackStore = {
       return dateStr.startsWith(todayStr);
     };
 
-    // 1. Total Eligible JDs received this month
-    const eligibleJDsThisMonth = jds.filter((j) => (j.is_verified || j.opportunity_type) && isThisMonth(j.date_found || j.created_at)).length;
+    // 1. Total Eligible/Approved JDs received this month (APPROVED JDs only)
+    const eligibleJDsThisMonth = jds.filter(
+      (j) => (j.status === 'approved' || (j.is_verified && j.status !== 'rejected' && j.status !== 'pending')) && isThisMonth(j.date_found || j.created_at)
+    ).length;
 
     // 2. Total drives scheduled this month
     const drivesScheduledThisMonth = tasks.filter(
@@ -959,8 +980,8 @@ export const clientFallbackStore = {
     const presentTodayCount = Math.min(totalActiveCras, Math.max(1, Math.round(totalActiveCras * 0.88)));
     const attendancePct = Math.round((presentTodayCount / totalActiveCras) * 100);
 
-    // 4. Total JDs received today
-    const jdsReceivedToday = jds.filter((j) => isToday(j.date_found || j.created_at)).length;
+    // 4. Total JDs received today (Approved only)
+    const jdsReceivedToday = jds.filter((j) => (j.status === 'approved' || (j.is_verified && j.status !== 'rejected' && j.status !== 'pending')) && isToday(j.date_found || j.created_at)).length;
 
     // 5. Total interviews scheduled for today
     const interviewsScheduledToday = tasks.filter(
@@ -977,9 +998,9 @@ export const clientFallbackStore = {
         isThisMonth(t.created_at)
     ).length + 1;
 
-    // 7. % PF (Placement/Performance Fulfillment) Target Achievement
+    // 7. % PF (Placement/Performance Fulfillment) Target Achievement (Approved JDs only)
     const totalGoal = activeCras.reduce((acc, c) => acc + (c.monthly_jd_target || 20), 0) || 160;
-    const verifiedThisMonth = jds.filter((j) => j.is_verified && isThisMonth(j.date_found || j.created_at)).length;
+    const verifiedThisMonth = jds.filter((j) => (j.status === 'approved' || (j.is_verified && j.status !== 'rejected' && j.status !== 'pending')) && isThisMonth(j.date_found || j.created_at)).length;
     const pfPct = Math.min(100, Math.round((verifiedThisMonth / totalGoal) * 100));
 
     return {

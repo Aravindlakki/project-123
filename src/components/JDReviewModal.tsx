@@ -77,26 +77,43 @@ export const JDReviewModal: React.FC<JDReviewModalProps> = ({
     e.preventDefault();
     if (!isAdmin) return;
 
+    if (eligibilityStatus === 'not_eligible' && !adminNotes.trim()) {
+      setFeedback({ type: 'error', text: 'A rejection reason is strictly required when rejecting a JD.' });
+      return;
+    }
+
     setIsSaving(true);
     setFeedback(null);
 
     try {
+      const isApproved = eligibilityStatus === 'eligible';
+      const isRejected = eligibilityStatus === 'not_eligible';
       const updates: Partial<JD> = {
+        status: isApproved ? 'approved' : isRejected ? 'rejected' : 'pending',
         eligibility_status: eligibilityStatus,
         admin_review_notes: adminNotes.trim(),
-        is_verified: eligibilityStatus === 'eligible',
+        rejection_reason: isRejected ? adminNotes.trim() : undefined,
+        is_verified: isApproved,
         reviewed_at: new Date().toISOString(),
-        interview_scheduled: eligibilityStatus === 'eligible' ? interviewScheduled : 'no',
-        interview_date: eligibilityStatus === 'eligible' && interviewScheduled === 'yes' ? interviewDate : undefined,
-        interview_round: eligibilityStatus === 'eligible' && interviewScheduled === 'yes' ? interviewRound : undefined,
-        interview_notes: eligibilityStatus === 'eligible' && interviewScheduled === 'yes' ? interviewNotes.trim() : undefined,
+        interview_scheduled: isApproved ? interviewScheduled : 'no',
+        interview_date: isApproved && interviewScheduled === 'yes' ? interviewDate : undefined,
+        interview_round: isApproved && interviewScheduled === 'yes' ? interviewRound : undefined,
+        interview_notes: isApproved && interviewScheduled === 'yes' ? interviewNotes.trim() : undefined,
         hr_feedback_status: hrFeedbackStatus,
         hr_feedback: hrFeedback.trim() || undefined,
         hr_feedback_date: hrFeedback.trim() ? (hrFeedbackDate || new Date().toISOString().slice(0, 10)) : undefined,
       };
 
-      const updated = await api.updateJD(jd.id, updates);
-      setFeedback({ type: 'success', text: `Evaluation & tracking updated for ${jd.title} (${jd.jd_id || 'JD'})` });
+      const updated = await api.verifyJD(jd.id, isApproved, isRejected ? adminNotes.trim() : undefined)
+        .catch(() => api.updateJD(jd.id, updates));
+      setFeedback({
+        type: 'success',
+        text: isApproved
+          ? `JD "${jd.title}" approved and verified.`
+          : isRejected
+          ? `JD "${jd.title}" marked as Not Eligible / Rejected with reason.`
+          : `JD status set to Pending Review.`,
+      });
       onSave?.(updated);
       setTimeout(() => {
         onClose();
@@ -338,23 +355,42 @@ export const JDReviewModal: React.FC<JDReviewModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-amber-200 mb-1">
-                    Admin Review Notes / Eligibility Justification
+                    {eligibilityStatus === 'not_eligible' ? 'Rejection Reason (Required) *' : 'Admin Review Notes / Eligibility Justification'}
                   </label>
                   <textarea
                     rows={2}
                     value={adminNotes}
                     onChange={(e) => setAdminNotes(e.target.value)}
-                    placeholder="e.g. Approved. Requirements match candidate batch. Placement drive scheduled for 20 candidates."
-                    className="w-full bg-gray-950 border border-amber-700/50 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                    placeholder={
+                      eligibilityStatus === 'not_eligible'
+                        ? 'Explain why this JD is not eligible (e.g. Experience requirement exceeds fresher limits, unpaid internship, duplicate post)...'
+                        : 'e.g. Approved. Requirements match candidate batch. Placement drive scheduled.'
+                    }
+                    className={`w-full bg-gray-950 rounded-xl p-2.5 text-xs text-white focus:outline-none ${
+                      eligibilityStatus === 'not_eligible'
+                        ? 'border-2 border-rose-500/70 focus:border-rose-400'
+                        : 'border border-amber-700/50 focus:border-amber-400'
+                    }`}
                   />
+                  {eligibilityStatus === 'not_eligible' && !adminNotes.trim() && (
+                    <p className="text-[11px] text-rose-400 mt-1 font-semibold">
+                      * Rejection reason is mandatory when marking a JD as not eligible.
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
-              <div className="bg-gray-950 p-3.5 rounded-xl border border-gray-800 text-xs text-gray-300">
-                <span className="text-gray-400 block mb-1">Admin Evaluation Notes:</span>
-                <p className="italic text-gray-300">{jd.admin_review_notes || 'No review notes entered yet by Administrator.'}</p>
+              <div className="bg-gray-950 p-3.5 rounded-xl border border-gray-800 text-xs text-gray-300 space-y-2">
+                <div>
+                  <span className="text-gray-400 block mb-1 font-semibold">
+                    {jd.status === 'rejected' || jd.eligibility_status === 'not_eligible' ? 'Rejection Reason:' : 'Admin Evaluation Notes:'}
+                  </span>
+                  <p className={`italic ${jd.status === 'rejected' || jd.eligibility_status === 'not_eligible' ? 'text-rose-300 font-semibold' : 'text-gray-300'}`}>
+                    {jd.rejection_reason || jd.admin_review_notes || 'No review notes entered yet by Administrator.'}
+                  </p>
+                </div>
                 {jd.reviewed_at && (
-                  <span className="text-[10px] text-gray-500 block mt-2">
+                  <span className="text-[10px] text-gray-500 block pt-1 border-t border-gray-800/80">
                     Evaluated on: {formatIndianDate(jd.reviewed_at)}
                   </span>
                 )}

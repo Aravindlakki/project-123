@@ -611,14 +611,15 @@ Requirements:
           title: titleName,
           raw_text: textContent,
           opportunity_type: 'existing_post',
-          is_verified: verified,
+          is_verified: false,
+          status: 'pending',
           verification_source: isPdf ? 'pdf_upload' : 'file_ai_extract',
         });
 
         setStagedFiles((prev) =>
           prev.map((sf) =>
             sf.id === item.id
-              ? { ...sf, status: 'done', title: titleName, company: compName, isVerified: verified }
+              ? { ...sf, status: 'done', title: titleName, company: compName, isVerified: false }
               : sf
           )
         );
@@ -725,6 +726,7 @@ Requirements:
         raw_text: textToSave,
         opportunity_type: opportunityType,
         is_verified: false, // Initial upload goes to admin for eligibility review
+        status: 'pending',
         verification_source: finalSource,
         eligibility_status: 'pending_admin_review',
         interview_scheduled: 'no',
@@ -1459,10 +1461,13 @@ Requirements:
               Total: <strong className="text-white">{recentJDs.length}</strong>
             </span>
             <span className="text-xs px-2.5 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-bold">
-              Eligible: <strong className="text-white">{recentJDs.filter((j) => j.eligibility_status === 'eligible' || j.is_verified).length}</strong>
+              Approved: <strong className="text-white">{recentJDs.filter((j) => j.status === 'approved' || (j.is_verified && j.status !== 'rejected' && j.status !== 'pending')).length}</strong>
             </span>
             <span className="text-xs px-2.5 py-1 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-300 font-bold">
-              Pending: <strong className="text-white">{recentJDs.filter((j) => (j.eligibility_status === 'pending_admin_review' || (!j.eligibility_status && !j.is_verified))).length}</strong>
+              Pending: <strong className="text-white">{recentJDs.filter((j) => (j.status === 'pending' || j.eligibility_status === 'pending_admin_review' || (!j.status && !j.is_verified)) && j.status !== 'rejected' && j.status !== 'approved').length}</strong>
+            </span>
+            <span className="text-xs px-2.5 py-1 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-300 font-bold">
+              Rejected: <strong className="text-white">{recentJDs.filter((j) => j.status === 'rejected' || j.eligibility_status === 'not_eligible').length}</strong>
             </span>
             <span className="text-xs px-2.5 py-1 rounded-xl bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 font-bold">
               Interviews: <strong className="text-white">{recentJDs.filter((j) => j.interview_scheduled === 'yes').length}</strong>
@@ -1500,8 +1505,8 @@ Requirements:
                   : filterKey === 'pending'
                   ? 'Pending Review'
                   : filterKey === 'eligible'
-                  ? 'Eligible'
-                  : 'Not Eligible'}
+                  ? 'Approved'
+                  : 'Not Eligible / Rejected'}
               </button>
             ))}
           </div>
@@ -1519,7 +1524,7 @@ Requirements:
                     <th className="px-4 py-3 font-bold">JD-ID</th>
                     <th className="px-4 py-3 font-bold">Role & Company</th>
                     <th className="px-4 py-3 font-bold">Mandatory HR Contact</th>
-                    <th className="px-4 py-3 font-bold">Eligibility Decision</th>
+                    <th className="px-4 py-3 font-bold">Status & Decision</th>
                     <th className="px-4 py-3 font-bold">Interview Schedule</th>
                     <th className="px-4 py-3 font-bold">HR Feedback</th>
                     <th className="px-4 py-3 text-right font-bold">Evaluation / Action</th>
@@ -1528,16 +1533,14 @@ Requirements:
                 <tbody className="divide-y divide-gray-700/50 bg-gray-900/40">
                   {recentJDs
                     .filter((jd) => {
-                      if (eligibilityFilter === 'pending') {
-                        if (jd.eligibility_status && jd.eligibility_status !== 'pending_admin_review') return false;
-                        if (!jd.eligibility_status && jd.is_verified) return false;
-                      }
-                      if (eligibilityFilter === 'eligible') {
-                        if (jd.eligibility_status !== 'eligible' && !jd.is_verified) return false;
-                      }
-                      if (eligibilityFilter === 'not_eligible') {
-                        if (jd.eligibility_status !== 'not_eligible') return false;
-                      }
+                      const isApproved = jd.status === 'approved' || (jd.is_verified && jd.status !== 'rejected' && jd.status !== 'pending');
+                      const isRejected = jd.status === 'rejected' || jd.eligibility_status === 'not_eligible';
+                      const isPending = !isApproved && !isRejected;
+
+                      if (eligibilityFilter === 'pending' && !isPending) return false;
+                      if (eligibilityFilter === 'eligible' && !isApproved) return false;
+                      if (eligibilityFilter === 'not_eligible' && !isRejected) return false;
+
                       if (!searchQuery.trim()) return true;
                       const q = searchQuery.toLowerCase().trim();
                       return (
@@ -1549,8 +1552,9 @@ Requirements:
                       );
                     })
                     .map((jd) => {
-                      const isEligible = jd.eligibility_status === 'eligible' || jd.is_verified;
-                      const isNotEligible = jd.eligibility_status === 'not_eligible';
+                      const isApproved = jd.status === 'approved' || (jd.is_verified && jd.status !== 'rejected' && jd.status !== 'pending');
+                      const isRejected = jd.status === 'rejected' || jd.eligibility_status === 'not_eligible';
+                      const rejectionReason = jd.rejection_reason || jd.admin_review_notes;
 
                       return (
                         <tr key={jd.id} className="hover:bg-gray-800/50 transition">
@@ -1596,22 +1600,29 @@ Requirements:
                             )}
                           </td>
 
-                          {/* Eligibility Status */}
+                          {/* Status & Decision */}
                           <td className="px-4 py-3">
-                            {isEligible ? (
+                            {isApproved ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                                 <Check className="h-3 w-3" />
-                                Eligible
+                                Approved
                               </span>
-                            ) : isNotEligible ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                                <X className="h-3 w-3" />
-                                Not Eligible
-                              </span>
+                            ) : isRejected ? (
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                  <X className="h-3 w-3" />
+                                  Not Eligible
+                                </span>
+                                {rejectionReason && (
+                                  <p className="text-[10px] text-rose-300/90 italic line-clamp-2 max-w-[170px]" title={rejectionReason}>
+                                    Reason: {rejectionReason}
+                                  </p>
+                                )}
+                              </div>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                                 <Clock className="h-3 w-3 text-amber-400" />
-                                Pending Admin Review
+                                Pending Review
                               </span>
                             )}
                           </td>

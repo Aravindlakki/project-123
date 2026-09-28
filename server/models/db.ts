@@ -1,18 +1,21 @@
-import { 
-  CRA, 
-  Company, 
-  HRContact, 
-  JD, 
-  Campaign, 
-  OutreachChannel, 
-  OutreachOutcome, 
-  Task, 
-  Attendance, 
-  LeaveRequest, 
-  SystemSettings 
+import {
+  CRA,
+  Company,
+  HRContact,
+  JD,
+  Campaign,
+  OutreachChannel,
+  OutreachOutcome,
+  Task,
+  Attendance,
+  LeaveRequest,
+  SystemSettings,
+  AuditLog
 } from './types';
 import { INITIAL_PDF_LEADS } from '../../src/data/pdfLeadsData';
 import { hashPassword } from '../middlewares/authMiddleware';
+
+const defaultPassword = process.env.DEFAULT_EMPLOYEE_PASSWORD || '';
 
 // Initial Seed Users (Canonical 8 Team Members: 1 CEO Admin + 2 Admins + 5 CRA Employees)
 export const users: CRA[] = [
@@ -20,7 +23,7 @@ export const users: CRA[] = [
     id: 'usr_admin_aravind',
     name: 'Aravind Reddy',
     email: 'aravindreddy.l@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'admin',
     emp_id: 'PM-CEO',
     domain: 'Executive Strategy & Corporate Outreach',
@@ -33,7 +36,7 @@ export const users: CRA[] = [
     id: 'usr_admin_mansi',
     name: 'Mansi Ramesh Peddi',
     email: 'mansi.p@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'admin',
     emp_id: 'PM-002',
     domain: 'Lead Verification, JDs Governance & Approvals',
@@ -46,7 +49,7 @@ export const users: CRA[] = [
     id: 'usr_admin_vineela',
     name: 'Vineela Bathula',
     email: 'Vineela.b@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'admin',
     emp_id: 'PM-003',
     domain: 'Corporate Relations, Operations & HR Management',
@@ -59,7 +62,7 @@ export const users: CRA[] = [
     id: 'usr_cra_harish',
     name: 'Harish Reddy',
     email: 'harish.r@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'cra',
     emp_id: 'PM-101',
     domain: 'Cyber Security & IT Services',
@@ -72,7 +75,7 @@ export const users: CRA[] = [
     id: 'usr_cra_solomon',
     name: 'Solomon Raj',
     email: 'solomon.r@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'cra',
     emp_id: 'PM-102',
     domain: 'Cloud & Cyber Security Tech',
@@ -85,7 +88,7 @@ export const users: CRA[] = [
     id: 'usr_cra_charan',
     name: 'Charan Kumar',
     email: 'charankumar.n@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'cra',
     emp_id: 'PM-103',
     domain: 'Gen AI & Recruitment Automation',
@@ -98,7 +101,7 @@ export const users: CRA[] = [
     id: 'usr_cra_mrudula',
     name: 'Mrudula',
     email: 'mrudula.k@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'cra',
     emp_id: 'PM-104',
     domain: 'Cloud Infrastructure & Enterprise Sourcing',
@@ -111,7 +114,7 @@ export const users: CRA[] = [
     id: 'usr_cra_namitha',
     name: 'Namitha K',
     email: 'namitha.k@placemein.com',
-    passwordHash: hashPassword('Password123!'),
+    passwordHash: hashPassword(defaultPassword),
     role: 'cra',
     emp_id: 'PM-105',
     domain: 'Cyber Security & AI Enterprise Leads',
@@ -142,17 +145,17 @@ export const companies: Company[] = [
 
 // Initial Seed HR Contacts
 export const hrContacts: HRContact[] = [
-  { id: 'cont_1', name: 'Monisha Kanduri', title: 'HR Manager', company_id: 'comp_1', email: 'monisha@iglobuscc.com', phone: '7330715197', linkedin_url: 'https://www.linkedin.com/in/monishak', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_2', name: 'Steven Lobu', title: 'Talent Acquisition Lead', company_id: 'comp_2', phone: '8806803989', linkedin_url: 'https://www.linkedin.com/in/stevenlobu', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_3', name: 'Sugitha Mohan', title: 'Recruiter', company_id: 'comp_3', email: 'rashmikhanna@66degrees.com', phone: '9986039547', linkedin_url: 'https://www.linkedin.com/in/sugitha', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_4', name: 'Sharmila Shaik', title: 'Head of People', company_id: 'comp_4', email: 'sharmila.shaik@artmacsoft.com', phone: '7013271253', linkedin_url: 'https://www.linkedin.com/in/sharmilashaik', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_5', name: 'Nishant Dhakulkar', title: 'Senior Tech Recruiter', company_id: 'comp_5', email: 'nishant.dhakulkar@jadeglobal.com', phone: '9209198120', linkedin_url: 'https://www.linkedin.com/in/nishantd', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_6', name: 'Nijansh Verma', title: 'HR Specialist', company_id: 'comp_6', email: 'Deepshikha.anand@gmail.com', linkedin_url: 'https://www.linkedin.com/in/nijansh', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_7', name: 'Sai Sandesh', title: 'Director of HR', company_id: 'comp_7', email: 'sai@tetrahed.com', linkedin_url: 'https://www.linkedin.com/in/saisandesh', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_8', name: 'Varun Joshi', title: 'Campus Relations Lead', company_id: 'comp_10', email: 'varun.joshi@crowdstrike.com', phone: '5103704605', linkedin_url: 'https://www.linkedin.com/in/varunjoshi', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_9', name: 'Pallavi Vishnoi', title: 'Staffing Lead', company_id: 'comp_12', email: 'pvishnoi@fortinet.com', phone: '9910571481', linkedin_url: 'https://www.linkedin.com/in/pallaviv', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
-  { id: 'cont_10', name: 'Sarath Chandra', title: 'Founder & Hiring Lead', company_id: 'comp_13', email: 'sarathpenmatsa@quickhyre.ai', phone: '9494663000', linkedin_url: 'https://www.linkedin.com/in/sarathc', source: 'import', created_by: 'usr_cra_2', created_at: new Date('2026-08-20').toISOString() },
-  { id: 'cont_11', name: 'Deepika Agarwal', title: 'Talent Acquisition Partner', company_id: 'comp_14', email: 'deepika.agarwal@tensorgo.com', phone: '9963499004', linkedin_url: 'https://www.linkedin.com/in/deepikaa', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_1', name: 'Monisha Kanduri', title: 'HR Manager', company_id: 'comp_1', email: 'monisha@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/monishak', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_2', name: 'Steven Lobu', title: 'Talent Acquisition Lead', company_id: 'comp_2', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/stevenlobu', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_3', name: 'Sugitha Mohan', title: 'Recruiter', company_id: 'comp_3', email: 'sugitha@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/sugitha', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_4', name: 'Sharmila Shaik', title: 'Head of People', company_id: 'comp_4', email: 'sharmila@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/sharmilashaik', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_5', name: 'Nishant Dhakulkar', title: 'Senior Tech Recruiter', company_id: 'comp_5', email: 'nishant@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/nishantd', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_6', name: 'Nijansh Verma', title: 'HR Specialist', company_id: 'comp_6', email: 'nijansh@example.com', linkedin_url: 'https://www.linkedin.com/in/nijansh', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_7', name: 'Sai Sandesh', title: 'Director of HR', company_id: 'comp_7', email: 'sai@example.com', linkedin_url: 'https://www.linkedin.com/in/saisandesh', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_8', name: 'Varun Joshi', title: 'Campus Relations Lead', company_id: 'comp_10', email: 'varun@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/varunjoshi', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_9', name: 'Pallavi Vishnoi', title: 'Staffing Lead', company_id: 'comp_12', email: 'pallavi@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/pallaviv', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
+  { id: 'cont_10', name: 'Sarath Chandra', title: 'Founder & Hiring Lead', company_id: 'comp_13', email: 'sarath@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/sarathc', source: 'import', created_by: 'usr_cra_2', created_at: new Date('2026-08-20').toISOString() },
+  { id: 'cont_11', name: 'Deepika Agarwal', title: 'Talent Acquisition Partner', company_id: 'comp_14', email: 'deepika@example.com', phone: '+91 98000 00000', linkedin_url: 'https://www.linkedin.com/in/deepikaa', source: 'import', created_by: 'usr_cra_1', created_at: new Date('2026-08-19').toISOString() },
 ];
 
 // Seed leads from initial PDF sheet data
@@ -207,6 +210,7 @@ export const jds: JD[] = [
     company_id: 'comp_1',
     raw_text: 'Role: Cyber Security Analyst. Key skills: Network security, SOC operations, SIEM tools, vulnerability assessment. Fresh graduates or 0-1 yr exp welcome.',
     is_verified: true,
+    status: 'approved',
     verification_source: 'html_url_parser',
     opportunity_type: 'existing_post',
     date_found: '2026-08-19',
@@ -219,6 +223,7 @@ export const jds: JD[] = [
     company_id: 'comp_2',
     raw_text: 'Looking for enthusiastic Data Analysts with proficiency in SQL, Python, Tableau or Power BI. Hyderabad/Pune locations.',
     is_verified: true,
+    status: 'approved',
     verification_source: 'manual_entry',
     opportunity_type: 'existing_post',
     date_found: '2026-08-19',
@@ -231,6 +236,7 @@ export const jds: JD[] = [
     company_id: 'comp_4',
     raw_text: 'Artmac Soft is hiring Full Stack Developers with strong JavaScript/TypeScript skills. React frontend, Node/Express backend.',
     is_verified: true,
+    status: 'approved',
     verification_source: 'manual_entry',
     opportunity_type: 'cold_outreach',
     date_found: '2026-08-19',
@@ -243,6 +249,7 @@ export const jds: JD[] = [
     company_id: 'comp_13',
     raw_text: 'Immediate opening for Generative AI engineers. Experience with fine-tuning open-source models, vector databases, RAG architecture.',
     is_verified: false,
+    status: 'pending',
     verification_source: 'file_ai_extract',
     opportunity_type: 'existing_post',
     date_found: '2026-08-20',
@@ -255,6 +262,7 @@ export const jds: JD[] = [
     company_id: 'comp_11',
     raw_text: 'Seeking Cloud Security Engineers for Palo Alto Networks Bangalore engineering team. Must understand container security, Kubernetes, AWS/GCP IAM policies, and Prisma Cloud postures. Open to verified campus talent pipelines.',
     is_verified: true,
+    status: 'approved',
     verification_source: 'html_url_parser',
     opportunity_type: 'existing_post',
     date_found: '2026-08-21',
@@ -267,12 +275,21 @@ export const jds: JD[] = [
     company_id: 'comp_8',
     raw_text: 'OATI is hiring high-potential software engineering graduates for energy grid orchestration software. C++, Python, Linux systems, real-time message brokers. Strong foundation in algorithms and distributed state management.',
     is_verified: true,
+    status: 'approved',
     verification_source: 'html_url_parser',
     opportunity_type: 'cold_outreach',
     date_found: '2026-08-22',
     created_by: 'usr_cra_1',
     created_at: new Date('2026-08-22T14:15:00Z').toISOString(),
   },
+];
+
+export const auditLogs: AuditLog[] = [
+  { id: 'log_1', action: 'JD_VERIFIED', entity: 'jd', entity_id: 'jd_1', details: 'Cyber Security Analyst JD marked verified via URL parser', actor: 'Aravind Reddy', timestamp: '2026-08-22T14:30:00Z' },
+  { id: 'log_2', action: 'OUTREACH_LOGGED', entity: 'outreach', entity_id: 'out_2', details: 'Call completed with Monisha Kanduri (320s)', actor: 'Harish Reddy', timestamp: '2026-08-21T11:05:00Z' },
+  { id: 'log_3', action: 'CONTACT_ENRICHED', entity: 'contact', entity_id: 'cont_1', details: 'Apollo enriched contact profile', actor: 'Aravind Reddy', timestamp: '2026-08-19T09:12:00Z' },
+  { id: 'log_4', action: 'CAMPAIGN_LAUNCHED', entity: 'campaign', entity_id: 'camp_1', details: 'Q3 Cyber Security Campus Outreach started', actor: 'Harish Reddy', timestamp: '2026-08-20T09:00:00Z' },
+  { id: 'log_5', action: 'PDF_BATCH_INGESTED', entity: 'system', entity_id: 'batch_pdf_1', details: 'Automated ingestion of master outreach sheet with separate CRA sheets', actor: 'System Import', timestamp: '2026-08-20T10:00:00Z' },
 ];
 
 export const campaigns: Campaign[] = [

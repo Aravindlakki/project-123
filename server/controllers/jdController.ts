@@ -1,13 +1,17 @@
 import { Request, Response } from 'express';
-import { jds, enrichJD } from '../models/db';
+import { jds, enrichJD, auditLogs } from '../models/db';
 import { JD, CRA } from '../models/types';
 import { generateWithGeminiRetry, extractHeuristicJobDetails } from '../services/geminiService';
 
 export function getJDs(req: Request, res: Response) {
   const isVerifiedStr = req.query.is_verified as string;
   const oppType = req.query.opportunity_type as string;
+  const status = req.query.status as string;
 
   let list = jds.map(enrichJD);
+  if (status) {
+    list = list.filter((j) => (j.status || (j.is_verified ? 'approved' : 'pending')) === status);
+  }
   if (isVerifiedStr !== undefined) {
     const isV = isVerifiedStr === 'true';
     list = list.filter((j) => j.is_verified === isV);
@@ -20,7 +24,7 @@ export function getJDs(req: Request, res: Response) {
 
 export function createJD(req: Request, res: Response) {
   const user = (req as any).user as CRA;
-  const { title, company_id, raw_text, opportunity_type, is_verified, verification_source } = req.body;
+  const { title, company_id, raw_text, opportunity_type, verification_source } = req.body;
   if (!title || !company_id) {
     return res.status(400).json({ detail: 'JD title and company are required' });
   }
@@ -45,7 +49,9 @@ export function createJD(req: Request, res: Response) {
     title: title.trim(),
     company_id,
     raw_text: (raw_text || '').slice(0, 4000),
-    is_verified: is_verified !== undefined ? !!is_verified : (user?.role === 'admin'),
+    is_verified: false,
+    status: 'pending',
+    rejection_reason: undefined,
     verification_source: verification_source || 'manual_entry',
     opportunity_type: opportunity_type || 'existing_post',
     date_found: new Date().toISOString().slice(0, 10),
@@ -150,6 +156,37 @@ export function getJDById(req: Request, res: Response) {
 export function updateJD(req: Request, res: Response) {
   const jd = jds.find((j) => j.id === req.params.id);
   if (!jd) return res.status(404).json({ detail: 'JD not found' });
+  const user = (req as any).user as CRA;
+
+  if (req.body.status === 'rejected' && (!req.body.rejection_reason || !req.body.rejection_reason.trim())) {
+    return res.status(400).json({ detail: 'Rejection reason is required to reject a JD' });
+  }
+
+  if (req.body.status === 'approved') {
+    req.body.is_verified = true;
+    req.body.rejection_reason = undefined;
+    auditLogs.unshift({
+      id: `log_${Date.now()}`,
+      action: 'JD_APPROVED',
+      entity: 'jd',
+      entity_id: jd.id,
+      details: `JD "${jd.title}" approved by ${user?.name || 'Admin'}`,
+      actor: user?.name || 'Admin',
+      timestamp: new Date().toISOString(),
+    });
+  } else if (req.body.status === 'rejected') {
+    req.body.is_verified = false;
+    auditLogs.unshift({
+      id: `log_${Date.now()}`,
+      action: 'JD_REJECTED',
+      entity: 'jd',
+      entity_id: jd.id,
+      details: `JD "${jd.title}" rejected (not eligible). Reason: ${req.body.rejection_reason}`,
+      actor: user?.name || 'Admin',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   Object.assign(jd, req.body);
   return res.json(enrichJD(jd));
 }

@@ -14,6 +14,8 @@ export interface CRA {
   email: string;
   role: UserRole;
   emp_id?: string;
+  domain?: string;
+  designation?: string;
   monthly_jd_target?: number;
   is_active?: boolean;
   deleted_at?: string;
@@ -66,6 +68,8 @@ export interface JD {
   company_id: string;
   raw_text: string;
   is_verified: boolean;
+  status?: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
   verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract' | 'pdf_upload';
   opportunity_type: OpportunityType;
   date_found: string;

@@ -88,12 +88,14 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
     loadData();
   }, []);
 
-  // Filtered dataset for breakdown tables
+  // Filtered dataset for breakdown tables (Count APPROVED JDs only)
+  const isApproved = (j: JD) => j.status === 'approved' || (j.is_verified && j.status !== 'rejected' && j.status !== 'pending');
+
   const eligibleJDsThisMonth = jds.filter(
-    (j) => (j.is_verified || j.opportunity_type) && isThisMonth(j.date_found || j.created_at)
+    (j) => isApproved(j) && isThisMonth(j.date_found || j.created_at)
   );
 
-  const jdsToday = jds.filter((j) => isToday(j.date_found || j.created_at));
+  const jdsToday = jds.filter((j) => isApproved(j) && isToday(j.date_found || j.created_at));
 
   const activeCras = users.filter((u) => u.is_active !== false && !u.deleted_at && u.role === 'cra');
 

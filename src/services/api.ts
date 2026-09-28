@@ -1120,12 +1120,15 @@ export const api = {
     return clientFallbackStore.updateJD(jdId, updates);
   },
 
-  async reviewJDEligibility(jdId: string, status: 'eligible' | 'not_eligible', notes?: string): Promise<JD> {
+  async reviewJDEligibility(jdId: string, status: 'eligible' | 'not_eligible' | 'approved' | 'rejected', reason?: string): Promise<JD> {
+    const isApproved = status === 'eligible' || status === 'approved';
     const updates: Partial<JD> = {
-      eligibility_status: status,
-      admin_review_notes: notes || '',
+      eligibility_status: isApproved ? 'eligible' : 'not_eligible',
+      status: isApproved ? 'approved' : 'rejected',
+      admin_review_notes: reason || '',
+      rejection_reason: isApproved ? undefined : reason,
       reviewed_at: new Date().toISOString(),
-      is_verified: status === 'eligible',
+      is_verified: isApproved,
     };
     return this.updateJD(jdId, updates);
   },
@@ -1966,11 +1969,20 @@ export const api = {
     return clientFallbackStore.getJDs();
   },
 
-  async verifyJD(jdId: string, isVerified: boolean): Promise<JD> {
+  async verifyJD(jdId: string, isVerified: boolean, rejectionReason?: string): Promise<JD> {
     try {
-      const res = await fetch(`${API_BASE}/admin/jds/${jdId}/verify?is_verified=${isVerified}`, {
+      const params = new URLSearchParams();
+      params.append('is_verified', String(isVerified));
+      if (rejectionReason) params.append('rejection_reason', rejectionReason);
+
+      const res = await fetch(`${API_BASE}/admin/jds/${jdId}/verify?${params.toString()}`, {
         method: 'PATCH',
         headers: authHeaders(),
+        body: JSON.stringify({
+          is_verified: isVerified,
+          status: isVerified ? 'approved' : 'rejected',
+          rejection_reason: rejectionReason,
+        }),
       });
       checkAuthResponse(res);
       if (res.ok) return await res.json();
@@ -1979,9 +1991,18 @@ export const api = {
     const target = jds.find((j) => j.id === jdId);
     if (target) {
       target.is_verified = isVerified;
+      target.status = isVerified ? 'approved' : 'rejected';
+      target.rejection_reason = isVerified ? undefined : rejectionReason;
+      target.eligibility_status = isVerified ? 'eligible' : 'not_eligible';
+      clientFallbackStore.updateJD(jdId, target);
       return target;
     }
-    return { id: jdId, is_verified: isVerified } as any;
+    return {
+      id: jdId,
+      is_verified: isVerified,
+      status: isVerified ? 'approved' : 'rejected',
+      rejection_reason: rejectionReason,
+    } as any;
   },
 
   async getAdminSystemSettings(): Promise<{

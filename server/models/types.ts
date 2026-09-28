@@ -58,6 +58,8 @@ export interface JD {
   company_id: string;
   raw_text: string;
   is_verified: boolean;
+  status?: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
   verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract' | 'csv_upload';
   opportunity_type: 'existing_post' | 'cold_outreach';
   date_found: string;
@@ -65,6 +67,16 @@ export interface JD {
   created_at: string;
   company?: Company;
   creator?: CRA;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  entity: string;
+  entity_id: string;
+  details: string;
+  actor: string;
+  timestamp: string;
 }
 
 export interface Campaign {
