@@ -37,3 +37,4 @@ Thumbs.db
 
 # --- Uploaded/test files ---
 uploads/
+.claude/settings.local.json

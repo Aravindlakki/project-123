@@ -3,7 +3,12 @@ import crypto from 'crypto';
 import { users } from '../models/db';
 import { CRA } from '../models/types';
 
-export const SECRET_KEY = process.env.SECRET_KEY || 'supersecretkeyforcraoutreachpipelinechangeinprod';
+const rawSecret = process.env.JWT_SECRET || process.env.SECRET_KEY;
+if (process.env.NODE_ENV === 'production' && !rawSecret) {
+  throw new Error('JWT_SECRET environment variable is required in production');
+}
+
+export const SECRET_KEY = rawSecret || 'supersecretkeyforcraoutreachpipelinechangeinprod';
 
 export function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password + SECRET_KEY).digest('hex');
@@ -21,42 +26,30 @@ export function verifyToken(token: string): string | null {
     if (!token || !token.trim()) return null;
     const cleanToken = token.trim();
 
-    if (cleanToken.startsWith('client_token_')) {
-      const rest = cleanToken.replace('client_token_', '');
-      const matched = users.find((u) => u.id === rest || rest.includes(u.id));
-      if (matched) return matched.id;
-      const admin = users.find((u) => u.role === 'admin');
-      if (admin) return admin.id;
-      return users[0]?.id || 'usr_admin';
-    }
-
     const parts = cleanToken.split('.');
-    if (parts.length >= 2) {
-      const payloadB64 = parts[1] || parts[0];
-      try {
-        const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
-        if (payload) {
-          if (payload.sub) {
-            const user = users.find((u) => u.id === payload.sub);
-            if (user) return user.id;
-          }
-          if (payload.email) {
-            const user = users.find((u) => u.email.toLowerCase() === String(payload.email).toLowerCase());
-            if (user) return user.id;
-          }
-          // If valid JSON payload from Supabase or Auth session, assign to admin/first user
-          const admin = users.find((u) => u.role === 'admin') || users[0];
-          if (admin) return admin.id;
-        }
-      } catch (_) {}
+    if (parts.length !== 2) return null;
+
+    const [str, sig] = parts;
+    const expectedSig = crypto.createHmac('sha256', SECRET_KEY).update(str).digest('base64url');
+
+    const sigBuf = Buffer.from(sig);
+    const expectedBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+      return null;
     }
 
-    // Fallback: match any active admin user
-    const defaultUser = users.find((u) => u.role === 'admin') || users[0];
-    return defaultUser?.id || 'usr_admin';
+    const payload = JSON.parse(Buffer.from(str, 'base64url').toString('utf-8'));
+    if (!payload || !payload.sub) {
+      return null;
+    }
+
+    if (payload.exp && typeof payload.exp === 'number' && Date.now() > payload.exp) {
+      return null;
+    }
+
+    return payload.sub;
   } catch {
-    const defaultUser = users.find((u) => u.role === 'admin') || users[0];
-    return defaultUser?.id || 'usr_admin';
+    return null;
   }
 }
 
