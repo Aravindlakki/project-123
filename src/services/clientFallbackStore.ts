@@ -558,13 +558,26 @@ export const clientFallbackStore = {
       const companies = this.getCompanies();
       jds = jds.map((j, idx) => {
         const fallbackJdId = `JD-2026-${String(jds.length - idx).padStart(4, '0')}`;
+        const comp = j.company || companies.find((c) => c.id === j.company_id);
+        const contacts = this.getContacts();
+        const contact = j.hr_contact_id
+          ? contacts.find((c) => c.id === j.hr_contact_id)
+          : (j.hr_email ? contacts.find((c) => c.email?.toLowerCase() === j.hr_email?.toLowerCase()) : contacts.find((c) => c.company_id === j.company_id));
+
         return {
           ...j,
           jd_id: j.jd_id || fallbackJdId,
+          status: j.status || (j.is_verified ? 'open' : 'in-progress'),
+          date_received: j.date_received || j.date_found || j.created_at?.slice(0, 10) || '2026-08-20',
+          company: comp,
+          company_name: comp?.name || j.company_name || 'Hiring Enterprise',
+          hr_contact: contact,
+          hr_contact_id: contact?.id || j.hr_contact_id,
+          hr_name: j.hr_name || contact?.name || 'Talent Acquisition',
+          hr_email: j.hr_email || contact?.email || '',
           eligibility_status: j.eligibility_status || (j.is_verified ? 'eligible' : 'pending_admin_review'),
           interview_scheduled: j.interview_scheduled || 'pending',
           hr_feedback_status: j.hr_feedback_status || 'awaiting',
-          company: j.company || companies.find((c) => c.id === j.company_id),
         };
       });
       if (isVerified !== undefined) {

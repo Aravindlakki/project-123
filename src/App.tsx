@@ -5,7 +5,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { JDIntakePage } from './pages/JDIntakePage';
 import { HRSourcingPage } from './pages/HRSourcingPage';
 import { CRMListPage } from './pages/CRMListPage';
-import { OutreachTrackerPage } from './pages/OutreachTrackerPage';
+import { JDListPage } from './pages/JDListPage';
 import { PerformancePage } from './pages/PerformancePage';
 import { TaskManagementPage } from './pages/TaskManagementPage';
 import { AdminPortalPage } from './pages/AdminPortalPage';
@@ -40,14 +40,15 @@ const routeToTab = (rawPath: string) => {
     '/team-sheets': 'team-sheets',
     '/hr-sourcing': 'hr-sourcing',
     '/jd-intake': 'jd-intake',
+    '/jd-list': 'jd-list',
     '/crm': 'crm',
-    '/outreach': 'outreach',
     '/tasks': 'tasks',
     '/performance': 'performance',
     '/admin/users': 'admin-users',
     '/admin/worksheets': 'admin-sheets',
     '/admin/team-sheets': 'admin-sheets',
     '/admin/sheets': 'admin-sheets',
+    '/admin/jd-list': 'admin-jd-list',
     '/admin/team-lead-dashboard': 'admin-team-lead-dashboard',
     '/admin/tasks': 'admin-tasks',
     '/admin/companies': 'admin-companies',
@@ -73,12 +74,13 @@ const tabToRoute: Record<string, string> = {
   'team-sheets': '/team-sheets',
   'hr-sourcing': '/hr-sourcing',
   'jd-intake': '/jd-intake',
+  'jd-list': '/jd-list',
   crm: '/crm',
-  outreach: '/outreach',
   tasks: '/tasks',
   performance: '/performance',
   'admin-users': '/admin/users',
   'admin-sheets': '/admin/worksheets',
+  'admin-jd-list': '/admin/jd-list',
   'admin-team-lead-dashboard': '/admin/team-lead-dashboard',
   'admin-tasks': '/admin/tasks',
   'admin-companies': '/admin/companies',
@@ -282,10 +284,12 @@ export const App: React.FC = () => {
         return 'HR Sourcing';
       case 'jd-intake':
         return 'JD Intake';
+      case 'jd-list':
+        return 'JD List';
+      case 'admin-jd-list':
+        return 'JD List & Oversight';
       case 'crm':
         return 'CRM Directory';
-      case 'outreach':
-        return 'Outreach Tracker';
       case 'tasks':
         return 'My Tasks';
       case 'performance':
@@ -419,6 +423,7 @@ export const App: React.FC = () => {
           {activeTab === 'tasks' && <TaskManagementPage employeeMode />}
           {activeTab === 'performance' && <PerformancePage employeeMode />}
           {activeTab === 'jd-intake' && <JDIntakePage />}
+          {activeTab === 'jd-list' && <JDListPage currentUser={currentUser} />}
           {activeTab === 'hr-sourcing' && <HRSourcingPage onNavigateToJDIntake={() => navigate('jd-intake')} />}
           {activeTab === 'crm' && (
             <CRMListPage
@@ -428,7 +433,9 @@ export const App: React.FC = () => {
               }}
             />
           )}
-          {activeTab === 'outreach' && <OutreachTrackerPage />}
+          {activeTab === 'admin-jd-list' && (
+            <JDListPage currentUser={currentUser} adminMode={true} />
+          )}
           {/* Admin Oversight Views - Kept strictly inside Admin Portal */}
           {activeTab === 'admin-team-lead-dashboard' && (
             <TeamLeadDashboardPage setActiveTab={navigate} adminMode={true} />

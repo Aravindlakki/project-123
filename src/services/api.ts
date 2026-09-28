@@ -742,6 +742,47 @@ export const api = {
     return supabaseDataService.updateContact(id, updates);
   },
 
+  async uploadWorksheetProofScreenshot(contactId: string, file: File): Promise<{ url: string; uploaded_at: string }> {
+    const timestamp = new Date().toISOString();
+    let url = '';
+
+    if (isSupabaseConfigured) {
+      try {
+        const fileExt = file.name.split('.').pop() || 'png';
+        const filePath = `worksheet-proofs/${contactId}_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('proofs')
+          .upload(filePath, file, { upsert: true });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('proofs').getPublicUrl(filePath);
+          if (urlData?.publicUrl) {
+            url = urlData.publicUrl;
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase storage upload error, falling back to data URL:', err);
+      }
+    }
+
+    if (!url) {
+      // Fallback: convert file to base64 data URL
+      url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    await this.updateContact(contactId, {
+      proof_screenshot_url: url,
+      proof_screenshot_uploaded_at: timestamp,
+    });
+
+    return { url, uploaded_at: timestamp };
+  },
+
   async deleteContact(id: string): Promise<boolean> {
     if (isSupabaseConfigured) {
       return supabaseDataService.deleteContact(id);

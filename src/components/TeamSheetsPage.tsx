@@ -31,6 +31,9 @@ import {
   X,
   Lock,
   Code2,
+  Image as ImageIcon,
+  Camera,
+  Eye,
 } from 'lucide-react';
 import { HRContact, Company } from '../types';
 import { api } from '../services/api';
@@ -102,6 +105,15 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const excelFileInputRef = useRef<HTMLInputElement | null>(null);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+
+  // Proof Screenshot State (Requirement 3: Proof Screenshot required for Done/Completed status)
+  const [proofModalLead, setProofModalLead] = useState<HRContact | null>(null);
+  const [proofModalTargetStatus, setProofModalTargetStatus] = useState<string>('Responded');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+  const [isUploadingProof, setIsUploadingProof] = useState<boolean>(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const [viewingProofLead, setViewingProofLead] = useState<HRContact | null>(null);
 
   // Direct Inline Spreadsheet Import State & Drag-and-Drop
   const [isDragOverPage, setIsDragOverPage] = useState(false);
@@ -565,21 +577,97 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleUpdateRemarks = async (contactId: string, newRemark: string) => {
-    if (!adminMode && currentUser?.role !== 'admin') {
-      setImportNotification({
-        type: 'error',
-        message: 'Permission Restricted: Employees cannot edit lead status. Only Administrator can edit remarks.',
-      });
+  const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith('image/')) {
+      setProofError('Please select a valid image file (PNG, JPG, JPEG, WEBP).');
       return;
     }
+    setProofFile(f);
+    setProofError(null);
+    const preview = URL.createObjectURL(f);
+    setProofPreviewUrl(preview);
+  };
+
+  const handleUpdateRemarks = async (contactId: string, newRemark: string) => {
+    const isDoneOrCompleted = ['completed', 'done', 'responded'].includes(newRemark.trim().toLowerCase());
+    const lead = leads.find((c) => c.id === contactId);
+
+    // Requirement 3: Block saving a "done/completed" status if no proof screenshot is attached
+    if (isDoneOrCompleted && (!lead?.proof_screenshot_url || lead.proof_screenshot_url.trim().length === 0)) {
+      setProofModalLead(lead || null);
+      setProofModalTargetStatus(newRemark);
+      setProofFile(null);
+      setProofPreviewUrl(null);
+      setProofError(null);
+      return; // Block saving until screenshot is provided
+    }
+
     try {
       await api.updateContact(contactId, { remarks: newRemark });
       setLeads((prev) =>
         prev.map((c) => (c.id === contactId ? { ...c, remarks: newRemark } : c))
       );
+      setImportNotification({
+        type: 'success',
+        message: `Status updated to "${newRemark}".`,
+      });
     } catch (err) {
       console.error('Failed to update remarks', err);
+    }
+  };
+
+  const handleSaveProofAndStatus = async () => {
+    if (!proofModalLead) return;
+    if (!proofFile) {
+      setProofError('Proof screenshot is strictly required before marking status as done/completed.');
+      return;
+    }
+
+    setIsUploadingProof(true);
+    setProofError(null);
+
+    try {
+      // Stores the screenshot via Supabase storage (with persistent data URL fallback)
+      const { url, uploaded_at } = await api.uploadWorksheetProofScreenshot(
+        proofModalLead.id,
+        proofFile
+      );
+
+      // Links the screenshot and updates status
+      await api.updateContact(proofModalLead.id, {
+        remarks: proofModalTargetStatus,
+        proof_screenshot_url: url,
+        proof_screenshot_uploaded_at: uploaded_at,
+      });
+
+      setLeads((prev) =>
+        prev.map((c) =>
+          c.id === proofModalLead.id
+            ? {
+                ...c,
+                remarks: proofModalTargetStatus,
+                proof_screenshot_url: url,
+                proof_screenshot_uploaded_at: uploaded_at,
+              }
+            : c
+        )
+      );
+
+      setImportNotification({
+        type: 'success',
+        message: `Verified proof attached! Status marked as "${proofModalTargetStatus}".`,
+      });
+
+      setProofModalLead(null);
+      setProofFile(null);
+      setProofPreviewUrl(null);
+    } catch (err: any) {
+      console.error('Failed to upload proof screenshot', err);
+      setProofError(err.message || 'Failed to upload screenshot. Please try again.');
+    } finally {
+      setIsUploadingProof(false);
     }
   };
 
@@ -1332,9 +1420,9 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                       </span>
                     </td>
 
-                    {/* Remarks / Status - Editable only by Admin */}
+                    {/* Remarks / Status - Editable by CRA & Admin with Proof Screenshot requirement */}
                     <td className="py-3 px-4">
-                      {adminMode || currentUser?.role === 'admin' ? (
+                      <div className="flex flex-col gap-1.5 items-start">
                         <select
                           value={lead.remarks || 'Pending'}
                           onChange={(e) => handleUpdateRemarks(lead.id, e.target.value)}
@@ -1342,6 +1430,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                             lead.remarks
                           )}`}
                         >
+                          <option value="Completed" className="bg-gray-900 text-emerald-300">Completed (Done)</option>
                           <option value="Responded" className="bg-gray-900 text-emerald-300">Responded</option>
                           <option value="Hold" className="bg-gray-900 text-amber-300">Hold</option>
                           <option value="Mail Sent" className="bg-gray-900 text-blue-300">Mail Sent</option>
@@ -1349,17 +1438,35 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                           <option value="Not Responded" className="bg-gray-900 text-gray-300">Not Responded</option>
                           <option value="No Hirings" className="bg-gray-900 text-rose-300">No Openings</option>
                         </select>
-                      ) : (
-                        <div
-                          className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border inline-flex items-center gap-1.5 cursor-not-allowed ${getRemarksBadgeClass(
-                            lead.remarks
-                          )}`}
-                          title="View-Only: Only Administrator can modify lead remarks and status."
-                        >
-                          <Lock className="h-3 w-3 opacity-70" />
-                          <span>{lead.remarks || 'Pending'}</span>
-                        </div>
-                      )}
+
+                        {lead.proof_screenshot_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setViewingProofLead(lead)}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-md transition shadow-sm cursor-pointer"
+                            title="View attached proof screenshot"
+                          >
+                            <Camera className="h-3 w-3 text-emerald-400" />
+                            <span>Proof Attached</span>
+                          </button>
+                        ) : ['completed', 'done', 'responded'].includes((lead.remarks || '').toLowerCase()) ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProofModalLead(lead);
+                              setProofModalTargetStatus(lead.remarks || 'Completed');
+                              setProofFile(null);
+                              setProofPreviewUrl(null);
+                              setProofError(null);
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-300 hover:text-amber-200 bg-amber-950/60 border border-amber-600/40 px-2 py-0.5 rounded-md transition cursor-pointer"
+                            title="Upload proof screenshot for this completed lead"
+                          >
+                            <UploadCloud className="h-3 w-3 text-amber-400" />
+                            <span>Upload Proof</span>
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
 
                     {/* Sheet SPOC / Entered By */}
@@ -1389,6 +1496,15 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                         >
                           <Building2 className="h-3.5 w-3.5" />
                         </button>
+                        {lead.proof_screenshot_url && (
+                          <button
+                            onClick={() => setViewingProofLead(lead)}
+                            className="p-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40 rounded transition-colors"
+                            title="View attached proof screenshot"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         {adminMode || currentUser?.role === 'admin' ? (
                           <button
                             onClick={() => setLeadToDelete(lead.id)}
@@ -1718,6 +1834,274 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           });
         }}
       />
+
+      {/* Requirement 3: Mandatory Proof Screenshot Upload Modal for Done/Completed status */}
+      {proofModalLead && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
+          onClick={() => {
+            if (!isUploadingProof) {
+              setProofModalLead(null);
+              setProofFile(null);
+              setProofPreviewUrl(null);
+              setProofError(null);
+            }
+          }}
+        >
+          <div
+            className="bg-gray-900 border border-purple-500/40 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-gray-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-purple-600/20 text-purple-400 rounded-xl border border-purple-500/30">
+                  <Camera className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>Attach Proof Screenshot</span>
+                    <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                      Required
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    To mark this task as <strong>{proofModalTargetStatus}</strong>, CRAs must upload a verification screenshot.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isUploadingProof) {
+                    setProofModalLead(null);
+                    setProofFile(null);
+                    setProofPreviewUrl(null);
+                    setProofError(null);
+                  }
+                }}
+                disabled={isUploadingProof}
+                className="text-gray-500 hover:text-white transition p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Lead Context Card */}
+            <div className="p-3 bg-gray-950/60 rounded-xl border border-gray-800 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Target Company:</span>
+                <span className="font-semibold text-white">{proofModalLead.company?.name || 'Company Lead'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">HR Contact / Lead:</span>
+                <span className="font-semibold text-purple-300">{proofModalLead.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Updating Status To:</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  {proofModalTargetStatus}
+                </span>
+              </div>
+            </div>
+
+            {/* Proof Screenshot Image Upload Zone */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-gray-300 block">
+                Proof of Work / Verification Image *
+              </label>
+
+              {proofPreviewUrl ? (
+                <div className="relative border border-purple-500/50 rounded-xl overflow-hidden bg-black p-2 flex flex-col items-center">
+                  <img
+                    src={proofPreviewUrl}
+                    alt="Proof Preview"
+                    className="max-h-52 w-auto object-contain rounded-lg"
+                  />
+                  <div className="w-full flex items-center justify-between mt-2 pt-2 border-t border-gray-800 text-[11px] text-gray-400 px-1">
+                    <span className="truncate max-w-[200px]">{proofFile?.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProofFile(null);
+                        setProofPreviewUrl(null);
+                      }}
+                      className="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Remove Image
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <label className="border-2 border-dashed border-gray-700 hover:border-purple-500 rounded-xl p-6 text-center transition cursor-pointer flex flex-col items-center justify-center space-y-2 bg-gray-950/40">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProofFileChange}
+                    className="hidden"
+                  />
+                  <div className="p-3 bg-purple-600/20 text-purple-400 rounded-xl">
+                    <UploadCloud className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white">Click or drag & drop proof screenshot</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Accepts PNG, JPG, JPEG, WEBP</p>
+                  </div>
+                  <span className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-purple-300 text-[11px] font-semibold rounded-lg border border-gray-700">
+                    Browse Screenshot
+                  </span>
+                </label>
+              )}
+            </div>
+
+            {/* Error Message */}
+            {proofError && (
+              <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl flex items-center gap-2 text-xs text-rose-200">
+                <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />
+                <span>{proofError}</span>
+              </div>
+            )}
+
+            {/* Policy Notice */}
+            <p className="text-[11px] text-gray-400">
+              Proof screenshots are stored in Supabase storage and accessible by administrators during performance audits.
+            </p>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setProofModalLead(null);
+                  setProofFile(null);
+                  setProofPreviewUrl(null);
+                  setProofError(null);
+                }}
+                disabled={isUploadingProof}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveProofAndStatus}
+                disabled={isUploadingProof || !proofFile}
+                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer"
+              >
+                {isUploadingProof ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Uploading Proof...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>Confirm & Mark as {proofModalTargetStatus}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Requirement 3: Admin & CRA View Proof Screenshot Modal */}
+      {viewingProofLead && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
+          onClick={() => setViewingProofLead(null)}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>Verified Task Proof</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      {viewingProofLead.remarks || 'Completed'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Attached proof for <strong>{viewingProofLead.name}</strong> ({viewingProofLead.company?.name || 'Company'})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingProofLead(null)}
+                className="text-gray-500 hover:text-white transition p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Metadata Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-gray-950 p-3 rounded-xl border border-gray-800 text-[11px]">
+              <div>
+                <span className="text-gray-500 block">SPOC / CRA:</span>
+                <span className="font-semibold text-purple-300">{viewingProofLead.spoc || viewingProofLead.entered_by_name || 'Assigned'}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Uploaded At:</span>
+                <span className="font-semibold text-gray-200">
+                  {viewingProofLead.proof_screenshot_uploaded_at
+                    ? new Date(viewingProofLead.proof_screenshot_uploaded_at).toLocaleString()
+                    : 'Recorded with status'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Verified Status:</span>
+                <span className="font-bold text-emerald-400">{viewingProofLead.remarks || 'Completed'}</span>
+              </div>
+            </div>
+
+            {/* Proof Screenshot Image View */}
+            <div className="border border-gray-800 rounded-xl overflow-hidden bg-black p-2 flex items-center justify-center max-h-[55vh]">
+              {viewingProofLead.proof_screenshot_url ? (
+                <img
+                  src={viewingProofLead.proof_screenshot_url}
+                  alt="Verified Proof Screenshot"
+                  className="max-h-[50vh] w-auto max-w-full object-contain rounded-lg"
+                />
+              ) : (
+                <div className="py-12 text-center text-gray-500 text-xs">
+                  No image attached for this entry.
+                </div>
+              )}
+            </div>
+
+            {/* Footer with actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-800">
+              {viewingProofLead.proof_screenshot_url && (
+                <a
+                  href={viewingProofLead.proof_screenshot_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-purple-400 hover:text-purple-300 flex items-center gap-1.5"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Open Full Screenshot</span>
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setViewingProofLead(null)}
+                className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-semibold rounded-xl transition ml-auto"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

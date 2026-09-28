@@ -439,6 +439,8 @@ export const supabaseDataService = {
         ...(updates.location !== undefined && { location: updates.location }),
         ...(updates.remarks !== undefined && { remarks: updates.remarks }),
         ...(updates.spoc !== undefined && { spoc: updates.spoc }),
+        ...(updates.proof_screenshot_url !== undefined && { proof_screenshot_url: updates.proof_screenshot_url }),
+        ...(updates.proof_screenshot_uploaded_at !== undefined && { proof_screenshot_uploaded_at: updates.proof_screenshot_uploaded_at }),
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

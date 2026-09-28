@@ -204,8 +204,8 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
               <div className="p-3.5 rounded-xl bg-gray-900/40 border border-gray-800/80 print:bg-gray-50 print:border-gray-300">
                 <h4 className="font-bold text-white print:text-black mb-1">Step 4: Multi-Channel Outreach & Proof Logging</h4>
                 <p className="text-gray-400 print:text-gray-700 text-xs">
-                  Using the <b>Outreach Tracker</b>, CRAs execute and log touchpoints across Phone Calls (with durations), Emails, LinkedIn messages, and WhatsApp chats.
-                  Touches are tagged with outcomes (Interested, Call Scheduled, Applied, No Response) and verified with proof-of-work screenshot attachments.
+                  Within <b>Team Worksheets</b>, CRAs execute and log touchpoints across Phone Calls, Emails, and LinkedIn messages.
+                  Touches are tagged with outcomes and verified with mandatory proof-of-work screenshot attachments before marking tasks complete.
                 </p>
               </div>
 

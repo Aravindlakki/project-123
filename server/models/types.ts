@@ -48,19 +48,33 @@ export interface HRContact {
   location?: string;
   remarks?: string;
   spoc?: string;
+  proof_screenshot_url?: string;
+  proof_screenshot_uploaded_at?: string;
   company?: Company;
   creator?: CRA;
 }
 
 export interface JD {
   id: string;
+  jd_id?: string;
   title: string;
   company_id: string;
+  company_name?: string;
   raw_text: string;
   is_verified: boolean;
-  verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract' | 'csv_upload';
+  verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract' | 'csv_upload' | 'pdf_upload';
   opportunity_type: 'existing_post' | 'cold_outreach';
   date_found: string;
+  date_received?: string;
+  status?: 'open' | 'in-progress' | 'closed' | 'filled';
+  triggers_hr_sourcing?: boolean;
+  hr_contact_id?: string;
+  hr_name?: string;
+  hr_email?: string;
+  hr_phone?: string;
+  hr_designation?: string;
+  hr_linkedin?: string;
+  hr_contact?: HRContact;
   created_by?: string;
   created_at: string;
   company?: Company;

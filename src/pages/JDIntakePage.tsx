@@ -3,6 +3,8 @@ import { api } from '../services/api';
 import { Company, JD, CRA } from '../types';
 import { formatIndianDate } from '../utils/formatters';
 import { JDReviewModal } from '../components/JDReviewModal';
+import { sanitizeCompanyAndRole } from '../utils/sanitizeCompanyRole';
+import { detectFileCategory, UploadCategory } from '../utils/fileTypeDetector';
 import {
   FileText,
   CheckCircle,
@@ -32,6 +34,7 @@ import {
   MessageSquare,
   Filter,
   Lock,
+  Users,
 } from 'lucide-react';
 
 interface StagedFileItem {
@@ -96,7 +99,9 @@ const extractHtmlJobMetadata = (parsedDocument: Document, fileName?: string) => 
     title = parsedDocument.querySelector('h1, h2')?.textContent?.replace(/\s+/g, ' ').trim() || '';
   }
 
-  return { title, company };
+  // Guarantees Company name -> company field and Job role/title -> role field
+  const { company: finalComp, role: finalRole } = sanitizeCompanyAndRole(company, title);
+  return { title: finalRole, company: finalComp };
 };
 
 const extractCleanJobText = (parsedDocument: Document, maxChars: number = 4000): string => {
@@ -155,6 +160,7 @@ export const JDIntakePage: React.FC = () => {
   const [rawText, setRawText] = useState('');
   const [opportunityType, setOpportunityType] = useState<'existing_post' | 'cold_outreach'>('existing_post');
   const [intakeMethod, setIntakeMethod] = useState<'file_ai_extract' | 'manual_entry'>('file_ai_extract');
+  const [uploadRouteTag, setUploadRouteTag] = useState<'auto' | 'JD' | 'LEAD_LIST'>('auto');
   const [isVerified, setIsVerified] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [lastLoggedCompany, setLastLoggedCompany] = useState<string | null>(null);
@@ -422,9 +428,33 @@ Requirements:
       return;
     }
 
-    // 3. Extract metadata for each newly accepted file
+    // 3. Extract metadata for each newly accepted file with File Type Routing
     const newItems: StagedFileItem[] = [];
+    let routedToHrSourcingCount = 0;
+
     for (const file of filesToStage) {
+      // Requirement 4: Branch uploads based on file type / content signature
+      const forcedCategory = uploadRouteTag === 'auto' ? undefined : (uploadRouteTag as UploadCategory);
+      const detection = await detectFileCategory(file, forcedCategory);
+
+      // If LEAD LIST: route it into HR Sourcing flow
+      if (detection.category === 'LEAD_LIST') {
+        try {
+          const hrRes = await api.parseDocumentHR({ file });
+          if (hrRes.success) {
+            routedToHrSourcingCount++;
+            setMessage({
+              type: 'success',
+              text: `Routed '${file.name}' into HR Sourcing flow (${detection.reason}). Successfully extracted ${hrRes.contacts?.length || 0} HR contact(s) for '${hrRes.company?.name || 'Company'}'. JDs follow JD-only flow.`,
+            });
+            continue; // Bypasses JD intake queue!
+          }
+        } catch (err: any) {
+          console.warn('Failed to parse lead list into HR Sourcing:', err);
+        }
+      }
+
+      // If JD (Job Description): follows JD-only flow
       let detectedTitle = '';
       let detectedCompany = '';
       let isVerified = false;
@@ -453,11 +483,13 @@ Requirements:
         if (!detectedCompany && parts.length > 1) detectedCompany = parts[1];
       }
 
+      const { company: cleanComp, role: cleanRole } = sanitizeCompanyAndRole(detectedCompany, detectedTitle);
+
       newItems.push({
         id: `${file.name}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         file,
-        title: detectedTitle || 'Software Engineer',
-        company: detectedCompany || 'Hiring Company',
+        title: cleanRole || 'Software Engineer',
+        company: cleanComp || 'Hiring Company',
         status: 'queued',
         isVerified,
       });
@@ -736,13 +768,7 @@ Requirements:
         hr_linkedin: hrLinkedin.trim() || undefined,
       });
 
-      try {
-        localStorage.setItem('placemein:hr-sourcing-prefill', JSON.stringify({
-          company: companyInput.trim(),
-          title: jdTitle.trim(),
-        }));
-      } catch (_) {}
-
+      // JD-only flow: Do NOT trigger HR sourcing per Requirement 4
       const savedCompName = companyInput.trim();
       setLastLoggedCompany(savedCompName);
 
@@ -848,14 +874,54 @@ Requirements:
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-6 shadow-sm">
           {/* File Upload Zone */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <label className="block text-sm font-medium text-gray-300">
-                Upload Job Description Files (HTML, PDF, DOCX, JPG, PNG)
+                Upload Files (HTML, PDF, DOCX, JPG, PNG)
               </label>
-              <span className="text-xs text-indigo-400 font-medium bg-indigo-950/60 border border-indigo-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <Info className="h-3 w-3" />
-                Multi-file & batch upload enabled
-              </span>
+              <div className="flex items-center gap-1.5 bg-gray-900 p-1 rounded-xl border border-gray-700/80 text-xs">
+                <span className="text-[11px] font-bold text-gray-400 px-2 flex items-center gap-1">
+                  <Filter className="h-3 w-3 text-purple-400" />
+                  Routing:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setUploadRouteTag('auto')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                    uploadRouteTag === 'auto'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                  title="Detect whether file is a JD or a Lead List from signature and content"
+                >
+                  Auto-Detect
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadRouteTag('JD')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+                    uploadRouteTag === 'JD'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                  title="Job Description only - does not trigger HR sourcing"
+                >
+                  <FileText className="h-3 w-3" />
+                  JD Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadRouteTag('LEAD_LIST')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
+                    uploadRouteTag === 'LEAD_LIST'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                  title="Lead List - routes directly into HR Sourcing flow"
+                >
+                  <Users className="h-3 w-3" />
+                  Lead List
+                </button>
+              </div>
             </div>
 
             {/* Native Multi-File Selection Input */}

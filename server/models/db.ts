@@ -350,7 +350,31 @@ export function enrichContact(c: HRContact) {
 export function enrichJD(jd: JD) {
   const comp = companies.find((co) => co.id === jd.company_id);
   const creator = users.find((u) => u.id === jd.created_by);
-  return { ...jd, company: comp, creator };
+  const contact = jd.hr_contact_id
+    ? hrContacts.find((c) => c.id === jd.hr_contact_id)
+    : (jd.hr_email
+      ? hrContacts.find((c) => c.email?.toLowerCase() === jd.hr_email?.toLowerCase())
+      : hrContacts.find((c) => c.company_id === jd.company_id));
+
+  const numPart = jd.id.replace(/[^0-9]/g, '') || '1';
+  const autoJdId = jd.jd_id || `JD-2026-${numPart.padStart(4, '0')}`;
+  const compName = comp?.name || jd.company_name || 'Hiring Enterprise';
+  const hrContactName = jd.hr_name || contact?.name || 'Talent Acquisition Partner';
+  const hrContactEmail = jd.hr_email || contact?.email || '';
+
+  return {
+    ...jd,
+    jd_id: autoJdId,
+    company_name: compName,
+    date_received: jd.date_received || jd.date_found || new Date().toISOString().slice(0, 10),
+    status: jd.status || (jd.is_verified ? 'open' : 'in-progress'),
+    company: comp,
+    creator,
+    hr_contact: contact ? enrichContact(contact) : undefined,
+    hr_contact_id: contact?.id || jd.hr_contact_id,
+    hr_name: hrContactName,
+    hr_email: hrContactEmail,
+  };
 }
 
 export function enrichCompany(comp: Company) {

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Company, HRContact } from '../types';
 import { api } from '../services/api';
+import { detectFileCategory } from '../utils/fileTypeDetector';
 
 interface DocumentIntakeModalProps {
   isOpen: boolean;
@@ -55,19 +56,31 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const f = e.target.files[0];
+      const detection = await detectFileCategory(f);
+      if (detection.category === 'JD') {
+        setError(`Routing Alert: '${f.name}' was detected as a Job Description (${detection.reason}). Job Descriptions follow the JD-only flow and cannot be uploaded into HR Sourcing. Please submit this file under the 'JD Intake' / 'JD List' module.`);
+        setFile(null);
+        return;
+      }
       setFile(f);
       detectNameFromFile(f);
       setError(null);
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const f = e.dataTransfer.files[0];
+      const detection = await detectFileCategory(f);
+      if (detection.category === 'JD') {
+        setError(`Routing Alert: '${f.name}' was detected as a Job Description (${detection.reason}). Job Descriptions follow the JD-only flow and cannot be uploaded into HR Sourcing. Please submit this file under the 'JD Intake' / 'JD List' module.`);
+        setFile(null);
+        return;
+      }
       setFile(f);
       detectNameFromFile(f);
       setError(null);

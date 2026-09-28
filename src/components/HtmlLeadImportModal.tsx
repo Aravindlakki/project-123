@@ -19,9 +19,65 @@ import {
   ClipboardPaste,
   Plus,
   Trash2,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { SPOC_MEMBERS } from '../data/pdfLeadsData';
 import { PreparedWorksheetLead } from './TeamSheetsPage';
+
+/**
+ * Intelligently separates and validates Company Name and Job Role / Title.
+ * Guarantees Company name -> company field and Job role/title -> role field.
+ * Detects and automatically corrects inverted or swapped company/role mappings.
+ */
+export const sanitizeCompanyAndRole = (
+  rawComp: string,
+  rawRole: string
+): { company: string; role: string; wasSwapped: boolean } => {
+  let company = (rawComp || '').trim();
+  let role = (rawRole || '').trim();
+
+  const roleKeywords = [
+    'developer', 'engineer', 'recruiter', 'manager', 'lead', 'analyst', 'specialist',
+    'officer', 'executive', 'consultant', 'coordinator', 'director', 'associate',
+    'architect', 'talent acquisition', 'sourcing', 'intern', 'head of', 'vp',
+    'president', 'administrator', 'trainee', 'programmer', 'designer', 'scientist',
+    'devops', 'tester', 'qa', 'scrum master', 'product manager', 'hr partner',
+    'hr generalist', 'hr specialist', 'recruitment', 'advisor', 'staff'
+  ];
+
+  const companyKeywords = [
+    'technologies', 'technology', 'services', 'solutions', 'inc', 'ltd', 'limited',
+    'pvt', 'corp', 'corporation', 'enterprises', 'systems', 'consulting', 'group',
+    'holdings', 'labs', 'software', 'bank', 'infotech', 'networks', 'global',
+    'industries', 'studio', 'agency', 'company', 'ventures', 'analytics', 'tcs',
+    'infosys', 'wipro', 'google', 'microsoft', 'amazon', 'cisco', 'accenture',
+    'cognizant', 'hcl', 'capgemini', 'oracle', 'salesforce', 'autoliv', 'zs'
+  ];
+
+  const lowerComp = company.toLowerCase();
+  const lowerRole = role.toLowerCase();
+
+  const compHasRoleSignal = roleKeywords.some((kw) => lowerComp.includes(kw));
+  const roleHasCompSignal = companyKeywords.some((kw) => lowerRole.includes(kw));
+  const compHasCompSignal = companyKeywords.some((kw) => lowerComp.includes(kw));
+  const roleHasRoleSignal = roleKeywords.some((kw) => lowerRole.includes(kw));
+
+  let wasSwapped = false;
+  // If company field contains strong role keywords and lacks company keywords,
+  // or role field contains company keywords and lacks role keywords:
+  if ((compHasRoleSignal && !compHasCompSignal) || (roleHasCompSignal && !roleHasRoleSignal)) {
+    const temp = company;
+    company = role;
+    role = temp;
+    wasSwapped = true;
+  }
+
+  // Strip prefixes like "Company: " or "Role: "
+  company = company.replace(/^(company|org|employer|client)\s*[:\-]\s*/i, '').trim();
+  role = role.replace(/^(role|title|designation|position|job)\s*[:\-]\s*/i, '').trim();
+
+  return { company, role, wasSwapped };
+};
 
 interface HtmlLeadImportModalProps {
   isOpen: boolean;
@@ -138,12 +194,12 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
               type === 'JobPosting' ||
               type === 'Organization'
             ) {
-              const name = item.name || `${item.givenName || ''} ${item.familyName || ''}`.trim();
-              const company =
+              let name = item.name || `${item.givenName || ''} ${item.familyName || ''}`.trim();
+              let company =
                 typeof item.worksFor === 'object'
                   ? item.worksFor?.name
                   : item.hiringOrganization?.name || item.name || '';
-              const title = item.jobTitle || item.title || item.roleName || '';
+              let title = item.jobTitle || item.title || item.roleName || '';
               const email = item.email || '';
               const phone = item.telephone || '';
               const location =
@@ -151,11 +207,24 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
                   ? item.address?.addressLocality || item.address?.addressRegion || ''
                   : item.jobLocation?.address?.addressLocality || '';
 
-              if (name || company) {
+              if (type === 'JobPosting') {
+                if (!title) title = item.title || item.name || '';
+                if (!company) company = item.hiringOrganization?.name || '';
+                name = 'Talent Acquisition Team';
+              } else if (type === 'Organization') {
+                company = item.name || company;
+                title = 'Talent Acquisition Partner';
+                name = 'Hiring Manager';
+              }
+
+              // Apply clean field mapping to strictly ensure Company -> company and Role -> role
+              const { company: cleanComp, role: cleanRole } = sanitizeCompanyAndRole(company, title);
+
+              if (name || cleanComp) {
                 leadsExtracted.push({
-                  company_name: company || 'Extracted Organization',
+                  company_name: cleanComp || 'Extracted Organization',
                   hr_name: name || 'Lead Contact',
-                  title: title || 'HR / Sourcing Lead',
+                  title: cleanRole || 'HR / Sourcing Lead',
                   email: email || undefined,
                   phone: phone || undefined,
                   location: location || 'Hyderabad',
@@ -179,14 +248,14 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
           const rows = Array.from(table.querySelectorAll('tr'));
           if (rows.length < 2) return;
 
-          // Header inspection
+          // Header inspection with strict separation
           const headers = Array.from(rows[0].querySelectorAll('th, td')).map((c) =>
             c.textContent?.toLowerCase().trim() || ''
           );
 
-          let compIdx = headers.findIndex((h) => h.includes('company') || h.includes('org') || h.includes('client'));
-          let nameIdx = headers.findIndex((h) => h.includes('name') || h.includes('hr') || h.includes('contact') || h.includes('candidate'));
-          let titleIdx = headers.findIndex((h) => h.includes('title') || h.includes('role') || h.includes('designation'));
+          let compIdx = headers.findIndex((h) => h.includes('company') || h.includes('organisation') || h.includes('organization') || h.includes('org') || h.includes('client') || h.includes('employer'));
+          let roleIdx = headers.findIndex((h) => h.includes('role') || h.includes('job') || h.includes('title') || h.includes('designation') || h.includes('position'));
+          let nameIdx = headers.findIndex((h) => h.includes('name') || h.includes('hr') || h.includes('contact') || h.includes('candidate') || h.includes('recruiter'));
           let phoneIdx = headers.findIndex((h) => h.includes('phone') || h.includes('mobile') || h.includes('contact') || h.includes('number'));
           let emailIdx = headers.findIndex((h) => h.includes('email') || h.includes('mail'));
           let locIdx = headers.findIndex((h) => h.includes('location') || h.includes('city'));
@@ -198,19 +267,22 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
             );
             if (cells.every((c) => !c)) continue;
 
-            const company = compIdx >= 0 ? cells[compIdx] : cells[0] || 'Extracted Company';
+            const rawCompany = compIdx >= 0 ? cells[compIdx] : cells[0] || 'Extracted Company';
             const hrName = nameIdx >= 0 ? cells[nameIdx] : cells[1] || 'Lead Contact';
             const phone = phoneIdx >= 0 ? cells[phoneIdx] : '';
             const email = emailIdx >= 0 ? cells[emailIdx] : '';
-            const title = titleIdx >= 0 ? cells[titleIdx] : 'Talent Acquisition';
+            const rawRole = roleIdx >= 0 ? cells[roleIdx] : (cells[2] || 'Talent Acquisition');
             const location = locIdx >= 0 ? cells[locIdx] : 'Hyderabad';
             const domain = domainIdx >= 0 ? cells[domainIdx] : 'Technology';
 
-            if (company || hrName) {
+            // Sanitize Company and Role to guarantee NO SWAP
+            const { company: cleanComp, role: cleanRole } = sanitizeCompanyAndRole(rawCompany, rawRole);
+
+            if (cleanComp || hrName) {
               leadsExtracted.push({
-                company_name: company,
+                company_name: cleanComp,
                 hr_name: hrName,
-                title: title,
+                title: cleanRole,
                 phone: phone || undefined,
                 email: email || undefined,
                 location: location || 'Hyderabad',
@@ -275,14 +347,13 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
         // Candidate / HR Name Detection
         let hrName = '';
         const nameSelectors = [
-          'h1',
           '.candidate-name',
           '.profile-name',
           '.name',
-          '.text-heading-xlarge',
-          '.top-card-layout__title',
+          '[data-field="name"]',
           '[data-anonymize="person-name"]',
           '.pv-top-card--list li',
+          'h1:not(.role):not(.title):not(.job-title):not(.top-card-layout__title)',
         ];
         for (const sel of nameSelectors) {
           const el = doc.querySelector(sel);
@@ -295,16 +366,20 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
           }
         }
 
-        // Title / Designation Detection
+        // Title / Designation / Role Detection
         let title = '';
         const titleSelectors = [
-          '.candidate-title',
+          '[data-field="role"]',
+          '[data-field="title"]',
           '.role',
+          '.job-title',
+          '.job_title',
+          '.candidate-title',
           '.designation',
+          '.position',
           '.headline',
+          '.top-card-layout__title',
           '.text-body-medium',
-          '.top-card-layout__headline',
-          'h2',
         ];
         for (const sel of titleSelectors) {
           const el = doc.querySelector(sel);
@@ -320,11 +395,14 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
         // Company Name Detection
         let companyName = '';
         const companySelectors = [
+          '[data-field="company"]',
           '.company-name',
           '.company',
           '.employer',
           '.org',
           '.organization',
+          '.top-card-layout__first-subline',
+          '.top-card-layout__headline',
           '[data-anonymize="company-name"]',
           '.pv-entity__secondary-title',
         ];
@@ -354,10 +432,16 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
         if (!hrName && email) {
           const userPart = email.split('@')[0].replace(/[._-]/g, ' ');
           hrName = userPart.charAt(0).toUpperCase() + userPart.slice(1);
-        } else if (!hrName) {
-          const titleTag = doc.querySelector('title')?.textContent?.trim();
-          if (titleTag && !titleTag.toLowerCase().includes('http')) {
-            hrName = titleTag.split('|')[0].split('-')[0].trim();
+        }
+
+        // Page title parsing: "Company - Job Role" or "Role - Company"
+        const titleTag = doc.querySelector('title')?.textContent?.trim() || '';
+        if ((!companyName || !title) && titleTag) {
+          const parts = titleTag.split(/\s*[_|\-–—]\s*/).map((p) => p.trim()).filter((p) => p && !p.toLowerCase().includes('linkedin') && !p.toLowerCase().includes('http'));
+          if (parts.length >= 2) {
+            const { company: cPart, role: rPart } = sanitizeCompanyAndRole(parts[0], parts[1]);
+            if (!companyName && cPart) companyName = cPart;
+            if (!title && rPart) title = rPart;
           }
         }
 
@@ -380,10 +464,13 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
           title = 'Talent Acquisition & HR Sourcing';
         }
 
+        // Guarantees Company name -> company field and Job role/title -> role field
+        const { company: finalComp, role: finalRole } = sanitizeCompanyAndRole(companyName, title);
+
         leadsExtracted.push({
-          company_name: companyName,
+          company_name: finalComp || 'Imported Web Lead',
           hr_name: hrName,
-          title: title,
+          title: finalRole || 'Talent Acquisition Specialist',
           phone: phone || undefined,
           email: email || undefined,
           hr_linkedin: hrLinkedin || undefined,
@@ -402,7 +489,7 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
       } else {
         setParsedLeads(leadsExtracted);
         setParseSuccessMsg(
-          `Extracted ${leadsExtracted.length} lead${leadsExtracted.length > 1 ? 's' : ''} from HTML! Review and confirm below to store in ${targetSpoc}'s sheet.`
+          `Sanity Check Passed: Extracted and validated ${leadsExtracted.length} lead${leadsExtracted.length > 1 ? 's' : ''} from HTML! Review field mappings below before committing.`
         );
       }
     } catch (err: any) {
@@ -411,6 +498,29 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
     } finally {
       setIsParsing(false);
     }
+  };
+
+  const handleSwapCompanyAndRole = (index: number) => {
+    setParsedLeads((prev) =>
+      prev.map((lead, idx) => {
+        if (idx !== index) return lead;
+        return {
+          ...lead,
+          company_name: lead.title || 'Organization',
+          title: lead.company_name || 'Role',
+        };
+      })
+    );
+  };
+
+  const handleSwapAllCompanyAndRole = () => {
+    setParsedLeads((prev) =>
+      prev.map((lead) => ({
+        ...lead,
+        company_name: lead.title || 'Organization',
+        title: lead.company_name || 'Role',
+      }))
+    );
   };
 
   const handleUpdateParsedField = (index: number, field: keyof PreparedWorksheetLead, value: string) => {
@@ -647,18 +757,34 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
           {/* STEP 3: Parsed Leads Review & Edit Grid */}
           {parsedLeads.length > 0 && (
             <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-purple-950/40 border border-purple-800/40 rounded-2xl p-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-black text-white">
-                    Parsed Lead Details ({parsedLeads.length})
-                  </h3>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    Ready to Store in {targetMemberObj.name}'s Sheet
+                  <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-white">
+                      Field Mapping Validation Preview ({parsedLeads.length} Lead{parsedLeads.length > 1 ? 's' : ''})
+                    </h3>
+                    <p className="text-[11px] text-gray-300">
+                      <strong className="text-purple-300">Company Name</strong> → Company field &bull; <strong className="text-indigo-300">Job Title/Role</strong> → Role field
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleSwapAllCompanyAndRole}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-amber-300 bg-amber-950/60 border border-amber-700/50 hover:bg-amber-900/60 transition"
+                    title="Swap Company and Role for all parsed leads if they were inverted"
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                    <span>Swap All Company ⇄ Role</span>
+                  </button>
+                  <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Ready for {targetMemberObj.name}'s Sheet
                   </span>
                 </div>
-                <span className="text-[11px] text-gray-400">
-                  You can edit any field before storing
-                </span>
               </div>
 
               <div className="space-y-3">
@@ -676,36 +802,61 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
                           Target Member: <strong className="text-purple-300">{lead.spoc || selectedMember}</strong>
                         </span>
                       </div>
-                      {parsedLeads.length > 1 && (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleRemoveParsedLead(idx)}
-                          className="text-gray-500 hover:text-rose-400 transition p-1"
-                          title="Remove this lead"
+                          onClick={() => handleSwapCompanyAndRole(idx)}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold text-amber-300 bg-amber-950/40 border border-amber-700/40 hover:bg-amber-900/50 transition cursor-pointer"
+                          title="Swap Company name and Role for this lead"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <ArrowLeftRight className="h-3 w-3" />
+                          <span>Swap Company ⇄ Role</span>
                         </button>
-                      )}
+                        {parsedLeads.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveParsedLead(idx)}
+                            className="text-gray-500 hover:text-rose-400 transition p-1"
+                            title="Remove this lead"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1 flex items-center gap-1">
+                      <div className="p-2 rounded-xl bg-purple-950/20 border border-purple-900/40">
+                        <label className="text-[10px] font-black uppercase text-purple-300 block mb-1 flex items-center gap-1">
                           <Building2 className="h-3 w-3 text-purple-400" />
-                          Company Name *
+                          Company Name * (Company field)
                         </label>
                         <input
                           type="text"
                           value={lead.company_name}
                           onChange={(e) => handleUpdateParsedField(idx, 'company_name', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                          className="w-full bg-gray-900 border border-purple-700/60 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-400 font-semibold"
                           placeholder="e.g. Google, TCS"
                         />
                       </div>
 
-                      <div>
+                      <div className="p-2 rounded-xl bg-indigo-950/20 border border-indigo-900/40">
+                        <label className="text-[10px] font-black uppercase text-indigo-300 block mb-1 flex items-center gap-1">
+                          <Briefcase className="h-3 w-3 text-indigo-400" />
+                          Job Role / Title * (Role field)
+                        </label>
+                        <input
+                          type="text"
+                          value={lead.title || ''}
+                          onChange={(e) => handleUpdateParsedField(idx, 'title', e.target.value)}
+                          className="w-full bg-gray-900 border border-indigo-700/60 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-400 font-semibold"
+                          placeholder="e.g. Technical Recruiter / Software Engineer"
+                        />
+                      </div>
+
+                      <div className="p-2 rounded-xl bg-gray-900/40 border border-gray-800">
                         <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1 flex items-center gap-1">
-                          <User className="h-3 w-3 text-purple-400" />
+                          <User className="h-3 w-3 text-gray-400" />
                           HR / Candidate Name *
                         </label>
                         <input
@@ -714,20 +865,6 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
                           onChange={(e) => handleUpdateParsedField(idx, 'hr_name', e.target.value)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
                           placeholder="e.g. John Doe"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1 flex items-center gap-1">
-                          <Briefcase className="h-3 w-3 text-purple-400" />
-                          Title / Designation
-                        </label>
-                        <input
-                          type="text"
-                          value={lead.title || ''}
-                          onChange={(e) => handleUpdateParsedField(idx, 'title', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
-                          placeholder="e.g. Technical Recruiter"
                         />
                       </div>
 

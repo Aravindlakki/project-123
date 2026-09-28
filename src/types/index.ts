@@ -14,6 +14,8 @@ export interface CRA {
   email: string;
   role: UserRole;
   emp_id?: string;
+  designation?: string;
+  domain?: string;
   monthly_jd_target?: number;
   is_active?: boolean;
   deleted_at?: string;
@@ -57,6 +59,8 @@ export interface HRContact {
   location?: string;
   remarks?: string;
   spoc?: string;
+  proof_screenshot_url?: string;
+  proof_screenshot_uploaded_at?: string;
 }
 
 export interface JD {
@@ -64,11 +68,17 @@ export interface JD {
   jd_id?: string; // Formatted unique record identifier e.g. "JD-2026-0042"
   title: string;
   company_id: string;
+  company_name?: string;
   raw_text: string;
   is_verified: boolean;
   verification_source?: 'html_url_parser' | 'manual_entry' | 'file_ai_extract' | 'pdf_upload';
   opportunity_type: OpportunityType;
   date_found: string;
+  date_received?: string;
+  status?: 'open' | 'in-progress' | 'closed' | 'filled';
+  triggers_hr_sourcing?: boolean;
+  hr_contact_id?: string;
+  hr_contact?: HRContact;
   created_by?: string;
   created_at: string;
   company?: Company;
