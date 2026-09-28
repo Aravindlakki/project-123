@@ -7,3 +7,4 @@ export const leaveRouter = Router();
 leaveRouter.get('/leaves', authenticate, getLeaves);
 leaveRouter.post('/leaves', authenticate, applyLeave);
 leaveRouter.patch('/leaves/:id/review', authenticate, requireAdmin, reviewLeave);
+leaveRouter.patch('/leaves/:id/status', authenticate, requireAdmin, reviewLeave);

@@ -48,8 +48,8 @@ adminRouter.patch('/admin/team-members/:id/toggle-status', authenticate, require
 adminRouter.post('/admin/team-members/:id/reset-password', authenticate, requireAdmin, resetUserPassword);
 adminRouter.patch('/admin/team-members/:id/role', authenticate, requireAdmin, updateUserRole);
 adminRouter.delete('/admin/team-members/:id', authenticate, requireAdmin, deleteUser);
-adminRouter.get('/admin/seed-sheet-lead-export', authenticate, seedSheetLeadExport);
+adminRouter.get('/admin/seed-sheet-lead-export', authenticate, requireAdmin, seedSheetLeadExport);
 adminRouter.post('/admin/reset-data', authenticate, requireAdmin, resetData);
-adminRouter.post('/admin/upload-csv-leads', authenticate, uploadFile, uploadCsvLeads);
-adminRouter.post('/admin/upload-pdf-leads', authenticate, uploadFile, uploadPdfLeads);
+adminRouter.post('/admin/upload-csv-leads', authenticate, requireAdmin, uploadFile, uploadCsvLeads);
+adminRouter.post('/admin/upload-pdf-leads', authenticate, requireAdmin, uploadFile, uploadPdfLeads);
 
