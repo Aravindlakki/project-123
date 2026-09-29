@@ -216,7 +216,7 @@ Requirements:
     setIsVerified(false); // Initial status must go to admin for evaluation!
     setHrName('Kavya Sharma');
     setHrEmail('kavya.sharma@nstarx.com');
-    setHrPhone('+91 98765 43210');
+    setHrPhone(''); // Phone must be empty by default and entered manually
     setHrDesignation('Lead Technical Recruiter');
     setHrLinkedin('https://linkedin.com/in/kavya-sharma-hr');
     setFormErrors({});
@@ -1166,12 +1166,12 @@ Requirements:
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-gray-300 font-semibold mb-1">HR Phone Number *</label>
+                        <label className="block text-[11px] text-gray-300 font-semibold mb-1">HR Phone Number (Manual Entry)</label>
                         <input
                           type="text"
                           value={batchHrPhone}
                           onChange={(e) => setBatchHrPhone(e.target.value)}
-                          placeholder="e.g. +91 98765 43210"
+                          placeholder="Enter phone manually (optional)"
                           className="w-full bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1.5 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
                         />
                       </div>
@@ -1429,10 +1429,10 @@ Requirements:
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1">HR Phone Number *</label>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">HR Phone Number (Manual)</label>
                 <input
                   type="tel"
-                  placeholder="e.g. +91 98765 43210"
+                  placeholder="Enter phone manually (optional)"
                   value={hrPhone}
                   onChange={(e) => {
                     setHrPhone(e.target.value);

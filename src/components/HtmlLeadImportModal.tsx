@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { SPOC_MEMBERS } from '../data/pdfLeadsData';
 import { PreparedWorksheetLead } from './TeamSheetsPage';
+import { api } from '../services/api';
+import { extractCompanyFromHTML, cleanCompanyName, decodeHtmlEntities } from '../utils/companyExtractor';
 
 /**
  * Intelligently separates and validates Company Name and Job Role / Title.
@@ -160,10 +162,10 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
   };
 
   // =========================================================================
-  // INTELLIGENT HTML PARSER ENGINE
-  // Extracts leads from Microdata, JSON-LD, Tables, Profiles, and Regex
+  // INTELLIGENT HTML PARSER ENGINE (Gemini AI + Rule-based Fallback)
+  // Extracts company, role, domain, size, and notes without guessing contact details
   // =========================================================================
-  const executeHtmlParse = (htmlInput: string, targetSpoc: string) => {
+  const executeHtmlParse = async (htmlInput: string, targetSpoc: string) => {
     if (!htmlInput || !htmlInput.trim()) {
       setParseError('Please paste or upload HTML content to parse.');
       return;
@@ -178,77 +180,135 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
       const doc = parser.parseFromString(htmlInput, 'text/html');
       const leadsExtracted: PreparedWorksheetLead[] = [];
 
-      // 1. Check for JSON-LD structured data (Common on LinkedIn, Job Boards, Schema.org)
-      const jsonLdScripts = doc.querySelectorAll('script[type="application/ld+json"]');
-      jsonLdScripts.forEach((script) => {
-        try {
-          const data = JSON.parse(script.textContent || '{}');
-          const items = Array.isArray(data) ? data : data['@graph'] ? data['@graph'] : [data];
+      // 1. Run Robust Company Extraction (Steps a -> f)
+      const companyResult = extractCompanyFromHTML(doc, htmlInput);
+      const ruleCompany = companyResult.company || '';
+      const stepFound = companyResult.stepFound;
 
-          items.forEach((item: any) => {
-            if (!item) return;
-            const type = item['@type'];
-            if (
-              type === 'Person' ||
-              type === 'Profile' ||
-              type === 'JobPosting' ||
-              type === 'Organization'
-            ) {
-              let name = item.name || `${item.givenName || ''} ${item.familyName || ''}`.trim();
-              let company =
-                typeof item.worksFor === 'object'
-                  ? item.worksFor?.name
-                  : item.hiringOrganization?.name || item.name || '';
-              let title = item.jobTitle || item.title || item.roleName || '';
-              const email = item.email || '';
-              const phone = item.telephone || '';
-              const location =
-                typeof item.address === 'object'
-                  ? item.address?.addressLocality || item.address?.addressRegion || ''
-                  : item.jobLocation?.address?.addressLocality || '';
+      // 2. Extract Document-level metadata & text
+      const docText = (doc.body?.innerText || doc.body?.textContent || htmlInput).replace(/\s+/g, ' ').trim();
 
-              if (type === 'JobPosting') {
-                if (!title) title = item.title || item.name || '';
-                if (!company) company = item.hiringOrganization?.name || '';
-                name = 'Talent Acquisition Team';
-              } else if (type === 'Organization') {
-                company = item.name || company;
-                title = 'Talent Acquisition Partner';
-                name = 'Hiring Manager';
-              }
+      // Email via mailto link or regex
+      let ruleEmail = '';
+      const mailtoLink = doc.querySelector('a[href^="mailto:"]');
+      if (mailtoLink) {
+        ruleEmail = mailtoLink.getAttribute('href')?.replace(/^mailto:/i, '').split('?')[0].trim() || '';
+      }
+      if (!ruleEmail) {
+        const emailMatch = htmlInput.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
+        if (emailMatch) ruleEmail = emailMatch[0];
+      }
 
-              // Apply clean field mapping to strictly ensure Company -> company and Role -> role
-              const { company: cleanComp, role: cleanRole } = sanitizeCompanyAndRole(company, title);
-
-              if (name || cleanComp) {
-                leadsExtracted.push({
-                  company_name: cleanComp || 'Extracted Organization',
-                  hr_name: name || 'Lead Contact',
-                  title: cleanRole || 'HR / Sourcing Lead',
-                  email: email || undefined,
-                  phone: phone || undefined,
-                  location: location || 'Hyderabad',
-                  domain: 'Technology',
-                  remarks: 'Responded',
-                  spoc: targetSpoc,
-                  entered_by_name: `${targetSpoc} (HTML Import)`,
-                });
-              }
-            }
-          });
-        } catch {
-          // Skip invalid JSON-LD
+      // LinkedIn URLs (HR profile vs Company page)
+      let ruleHRLinkedin = '';
+      let ruleCompanyLinkedin = '';
+      const linkedinLinks = Array.from(doc.querySelectorAll('a[href*="linkedin.com"]'));
+      linkedinLinks.forEach((a) => {
+        const href = a.getAttribute('href') || '';
+        if (href.includes('/in/') && !ruleHRLinkedin) {
+          ruleHRLinkedin = href;
+        } else if (href.includes('/company/') && !ruleCompanyLinkedin) {
+          ruleCompanyLinkedin = href;
         }
       });
 
-      // 2. Check for HTML Table Rows (<table>...<tr>...<td>)
+      // Website URL / Job link
+      let ruleWebsite = '';
+      const canonicalHref = doc.querySelector('link[rel="canonical"]')?.getAttribute('href');
+      if (canonicalHref && !canonicalHref.includes('linkedin.com')) {
+        ruleWebsite = canonicalHref;
+      } else {
+        const regularLinks = Array.from(doc.querySelectorAll('a[href^="http"]'));
+        for (const a of regularLinks) {
+          const href = a.getAttribute('href') || '';
+          if (!href.includes('linkedin.com') && !href.includes('google.com') && !href.includes('facebook.com')) {
+            ruleWebsite = href;
+            break;
+          }
+        }
+      }
+
+      // Candidate / HR Name (strictly blank unless clearly present in text/selector)
+      let ruleHRName = '';
+      const nameSelectors = [
+        '.candidate-name',
+        '.profile-name',
+        '[data-field="name"]',
+        '[data-anonymize="person-name"]',
+        '.pv-top-card--list li',
+      ];
+      for (const sel of nameSelectors) {
+        const el = doc.querySelector(sel);
+        if (el && el.textContent?.trim()) {
+          const clean = decodeHtmlEntities(el.textContent.trim().split('\n')[0].trim());
+          if (clean.length > 2 && clean.length < 60 && !clean.match(/login|apply|career|job|search|about/i)) {
+            ruleHRName = clean;
+            break;
+          }
+        }
+      }
+
+      // Role / Title Detection
+      let ruleRole = '';
+      const titleSelectors = [
+        '[data-field="role"]',
+        '[data-field="title"]',
+        '.role',
+        '.job-title',
+        '.job_title',
+        '.candidate-title',
+        '.designation',
+        '.position',
+        '.headline',
+        '.top-card-layout__title',
+        '.text-body-medium',
+      ];
+      for (const sel of titleSelectors) {
+        const el = doc.querySelector(sel);
+        if (el && el.textContent?.trim()) {
+          const clean = decodeHtmlEntities(el.textContent.trim().split('\n')[0].trim());
+          if (clean.length > 3 && clean.length < 100 && !clean.match(/login|apply|career/i)) {
+            ruleRole = clean;
+            break;
+          }
+        }
+      }
+      if (!ruleRole) {
+        // Try page title
+        const pageTitle = doc.querySelector('title')?.textContent?.trim() || '';
+        if (pageTitle) {
+          const parts = pageTitle.split(/[-–|•]/).map((p) => p.trim()).filter((p) => p && !p.toLowerCase().includes('linkedin'));
+          if (parts.length > 0) {
+            ruleRole = decodeHtmlEntities(parts[0]);
+          }
+        }
+      }
+
+      // Location
+      let ruleLocation = '';
+      const locSelectors = ['.location', '.city', '.address', '.geo', '.top-card__subline-item'];
+      for (const sel of locSelectors) {
+        const el = doc.querySelector(sel);
+        if (el && el.textContent?.trim()) {
+          ruleLocation = decodeHtmlEntities(el.textContent.trim().split('\n')[0].trim());
+          break;
+        }
+      }
+
+      // Domain
+      let ruleDomain = 'Technology';
+      const domainMatch = htmlInput.match(/(?:Domain|Industry|Specialization)\s*[:\-–]\s*([A-Za-z0-9&.,\s'-]{2,50})/i);
+      if (domainMatch && domainMatch[1]) {
+        ruleDomain = decodeHtmlEntities(domainMatch[1].trim());
+      }
+
+      // Check if this is an HTML Table
       const tables = doc.querySelectorAll('table');
       if (tables.length > 0) {
         tables.forEach((table) => {
           const rows = Array.from(table.querySelectorAll('tr'));
           if (rows.length < 2) return;
 
-          // Header inspection with strict separation
           const headers = Array.from(rows[0].querySelectorAll('th, td')).map((c) =>
             c.textContent?.toLowerCase().trim() || ''
           );
@@ -256,7 +316,6 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
           let compIdx = headers.findIndex((h) => h.includes('company') || h.includes('organisation') || h.includes('organization') || h.includes('org') || h.includes('client') || h.includes('employer'));
           let roleIdx = headers.findIndex((h) => h.includes('role') || h.includes('job') || h.includes('title') || h.includes('designation') || h.includes('position'));
           let nameIdx = headers.findIndex((h) => h.includes('name') || h.includes('hr') || h.includes('contact') || h.includes('candidate') || h.includes('recruiter'));
-          let phoneIdx = headers.findIndex((h) => h.includes('phone') || h.includes('mobile') || h.includes('contact') || h.includes('number'));
           let emailIdx = headers.findIndex((h) => h.includes('email') || h.includes('mail'));
           let locIdx = headers.findIndex((h) => h.includes('location') || h.includes('city'));
           let domainIdx = headers.findIndex((h) => h.includes('domain') || h.includes('industry'));
@@ -267,27 +326,26 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
             );
             if (cells.every((c) => !c)) continue;
 
-            const rawCompany = compIdx >= 0 ? cells[compIdx] : cells[0] || 'Extracted Company';
-            const hrName = nameIdx >= 0 ? cells[nameIdx] : cells[1] || 'Lead Contact';
-            const phone = phoneIdx >= 0 ? cells[phoneIdx] : '';
+            const rawCompany = compIdx >= 0 ? cells[compIdx] : '';
+            const hrName = nameIdx >= 0 ? cells[nameIdx] : '';
             const email = emailIdx >= 0 ? cells[emailIdx] : '';
-            const rawRole = roleIdx >= 0 ? cells[roleIdx] : (cells[2] || 'Talent Acquisition');
+            const rawRole = roleIdx >= 0 ? cells[roleIdx] : 'Sourced Role';
             const location = locIdx >= 0 ? cells[locIdx] : 'Hyderabad';
             const domain = domainIdx >= 0 ? cells[domainIdx] : 'Technology';
 
-            // Sanitize Company and Role to guarantee NO SWAP
-            const { company: cleanComp, role: cleanRole } = sanitizeCompanyAndRole(rawCompany, rawRole);
+            const cleanComp = cleanCompanyName(rawCompany);
+            const { company: sanitizedComp, role: sanitizedRole } = sanitizeCompanyAndRole(cleanComp, rawRole);
 
-            if (cleanComp || hrName) {
+            if (sanitizedComp || hrName) {
               leadsExtracted.push({
-                company_name: cleanComp,
-                hr_name: hrName,
-                title: cleanRole,
-                phone: phone || undefined,
+                company_name: sanitizedComp || '',
+                hr_name: hrName || '',
+                title: sanitizedRole || 'HR / Sourcing Lead',
+                phone: undefined, // strictly manual
                 email: email || undefined,
                 location: location || 'Hyderabad',
                 domain: domain || 'Technology',
-                remarks: 'Responded',
+                remarks: 'HR Sourcing',
                 spoc: targetSpoc,
                 entered_by_name: `${targetSpoc} (HTML Import)`,
               });
@@ -296,201 +354,102 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
         });
       }
 
-      // 3. Document-Level DOM Elements & Text Extraction (Profile card, LinkedIn snippets, general web snippets)
+      // If not a table (or table yielded 0 leads), process single lead with Gemini AI + Rule-based merge
       if (leadsExtracted.length === 0) {
-        // Find Email via mailto link or regex
-        let email = '';
-        const mailtoLink = doc.querySelector('a[href^="mailto:"]');
-        if (mailtoLink) {
-          email = mailtoLink.getAttribute('href')?.replace(/^mailto:/i, '').split('?')[0].trim() || '';
-        }
-        if (!email) {
-          const emailMatch = htmlInput.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
-          if (emailMatch) email = emailMatch[0];
-        }
-
-        // Find Phone via tel link or regex
-        let phone = '';
-        const telLink = doc.querySelector('a[href^="tel:"]');
-        if (telLink) {
-          phone = telLink.getAttribute('href')?.replace(/^tel:/i, '').trim() || '';
-        }
-        if (!phone) {
-          const phoneMatch = htmlInput.match(/(?:(?:\+|0{0,2})91[\s.-]?)?[6-9]\d{9}|(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}/);
-          if (phoneMatch) phone = phoneMatch[0].trim();
-        }
-
-        // Find LinkedIn URLs
-        let hrLinkedin = '';
-        let companyLinkedin = '';
-        const linkedinLinks = Array.from(doc.querySelectorAll('a[href*="linkedin.com"]'));
-        linkedinLinks.forEach((a) => {
-          const href = a.getAttribute('href') || '';
-          if (href.includes('/in/') && !hrLinkedin) {
-            hrLinkedin = href;
-          } else if (href.includes('/company/') && !companyLinkedin) {
-            companyLinkedin = href;
-          }
-        });
-
-        // Find Website URL
-        let website = '';
-        const regularLinks = Array.from(doc.querySelectorAll('a[href^="http"]'));
-        for (const a of regularLinks) {
-          const href = a.getAttribute('href') || '';
-          if (!href.includes('linkedin.com') && !href.includes('google.com') && !href.includes('facebook.com')) {
-            website = href;
-            break;
+        let aiData: any = null;
+        if (docText.length > 50) {
+          try {
+            aiData = await api.extractLeadWithAI(docText.slice(0, 30000));
+          } catch (aiErr) {
+            console.warn('AI extraction encountered error, using rule-based parser:', aiErr);
           }
         }
 
-        // Candidate / HR Name Detection
-        let hrName = '';
-        const nameSelectors = [
-          '.candidate-name',
-          '.profile-name',
-          '.name',
-          '[data-field="name"]',
-          '[data-anonymize="person-name"]',
-          '.pv-top-card--list li',
-          'h1:not(.role):not(.title):not(.job-title):not(.top-card-layout__title)',
-        ];
-        for (const sel of nameSelectors) {
-          const el = doc.querySelector(sel);
-          if (el && el.textContent?.trim()) {
-            const clean = el.textContent.trim().split('\n')[0].trim();
-            if (clean.length > 2 && clean.length < 60) {
-              hrName = clean;
-              break;
-            }
-          }
-        }
+        // MERGE FIELD BY FIELD:
+        // Rule: If the rule-based parser finds a company and Gemini returns empty, keep the rule-based value.
+        // Gemini must never overwrite a non-empty value with an empty one.
+        const mergedCompany = (aiData?.company_name && aiData.company_name.trim().length > 1)
+          ? aiData.company_name.trim()
+          : (ruleCompany || '');
 
-        // Title / Designation / Role Detection
-        let title = '';
-        const titleSelectors = [
-          '[data-field="role"]',
-          '[data-field="title"]',
-          '.role',
-          '.job-title',
-          '.job_title',
-          '.candidate-title',
-          '.designation',
-          '.position',
-          '.headline',
-          '.top-card-layout__title',
-          '.text-body-medium',
-        ];
-        for (const sel of titleSelectors) {
-          const el = doc.querySelector(sel);
-          if (el && el.textContent?.trim()) {
-            const clean = el.textContent.trim().split('\n')[0].trim();
-            if (clean.length > 3 && clean.length < 100) {
-              title = clean;
-              break;
-            }
-          }
-        }
+        const mergedRole = (aiData?.role_title && aiData.role_title.trim().length > 1)
+          ? aiData.role_title.trim()
+          : (ruleRole || 'Open Position');
 
-        // Company Name Detection
-        let companyName = '';
-        const companySelectors = [
-          '[data-field="company"]',
-          '.company-name',
-          '.company',
-          '.employer',
-          '.org',
-          '.organization',
-          '.top-card-layout__first-subline',
-          '.top-card-layout__headline',
-          '[data-anonymize="company-name"]',
-          '.pv-entity__secondary-title',
-        ];
-        for (const sel of companySelectors) {
-          const el = doc.querySelector(sel);
-          if (el && el.textContent?.trim()) {
-            const clean = el.textContent.trim().split('\n')[0].trim();
-            if (clean.length > 2 && clean.length < 80) {
-              companyName = clean;
-              break;
-            }
-          }
-        }
+        const mergedDomain = (aiData?.domain && aiData.domain.trim().length > 1)
+          ? aiData.domain.trim()
+          : (ruleDomain || 'Technology');
 
-        // Location Detection
-        let location = '';
-        const locSelectors = ['.location', '.city', '.address', '.geo', '.top-card__subline-item'];
-        for (const sel of locSelectors) {
-          const el = doc.querySelector(sel);
-          if (el && el.textContent?.trim()) {
-            location = el.textContent.trim().split('\n')[0].trim();
-            break;
-          }
-        }
+        const mergedSize = (aiData?.employee_count && aiData.employee_count.trim().length > 1)
+          ? aiData.employee_count.trim()
+          : '100-250 employees';
 
-        // Fallback name if none found: derive from title tag or email prefix
-        if (!hrName && email) {
-          const userPart = email.split('@')[0].replace(/[._-]/g, ' ');
-          hrName = userPart.charAt(0).toUpperCase() + userPart.slice(1);
-        }
+        const mergedLocation = (aiData?.location && aiData.location.trim().length > 1)
+          ? aiData.location.trim()
+          : (ruleLocation || 'India');
 
-        // Page title parsing: "Company - Job Role" or "Role - Company"
-        const titleTag = doc.querySelector('title')?.textContent?.trim() || '';
-        if ((!companyName || !title) && titleTag) {
-          const parts = titleTag.split(/\s*[_|\-–—]\s*/).map((p) => p.trim()).filter((p) => p && !p.toLowerCase().includes('linkedin') && !p.toLowerCase().includes('http'));
-          if (parts.length >= 2) {
-            const { company: cPart, role: rPart } = sanitizeCompanyAndRole(parts[0], parts[1]);
-            if (!companyName && cPart) companyName = cPart;
-            if (!title && rPart) title = rPart;
-          }
-        }
+        const mergedWebsite = (aiData?.job_link && aiData.job_link.trim().length > 1)
+          ? aiData.job_link.trim()
+          : (ruleWebsite || '');
 
-        if (!companyName && email) {
-          const domainPart = email.split('@')[1]?.split('.')[0] || '';
-          if (domainPart && !['gmail', 'yahoo', 'outlook', 'hotmail'].includes(domainPart.toLowerCase())) {
-            companyName = domainPart.charAt(0).toUpperCase() + domainPart.slice(1);
-          }
-        }
+        const mergedNotes = (aiData?.notes && aiData.notes.trim().length > 1)
+          ? aiData.notes.trim()
+          : '';
 
-        if (!companyName) {
-          companyName = hrName ? `${hrName}'s Organization` : 'Imported Web Lead';
-        }
+        // Contact info: Nothing guessed. Blank unless clearly in the file.
+        const mergedHRName = (aiData?.hr_name && aiData.hr_name.trim().length > 1)
+          ? aiData.hr_name.trim()
+          : (ruleHRName || '');
 
-        if (!hrName) {
-          hrName = 'Talent Lead';
-        }
+        const mergedHRTitle = (aiData?.hr_title && aiData.hr_title.trim().length > 1)
+          ? aiData.hr_title.trim()
+          : (ruleRole ? `${ruleRole} Recruiter` : 'Talent Acquisition');
 
-        if (!title) {
-          title = 'Talent Acquisition & HR Sourcing';
-        }
+        const mergedHREmail = (aiData?.hr_email && aiData.hr_email.trim().length > 1)
+          ? aiData.hr_email.trim()
+          : (ruleEmail || undefined);
 
-        // Guarantees Company name -> company field and Job role/title -> role field
-        const { company: finalComp, role: finalRole } = sanitizeCompanyAndRole(companyName, title);
+        const mergedHRLinkedin = (aiData?.hr_linkedin && aiData.hr_linkedin.trim().length > 1)
+          ? aiData.hr_linkedin.trim()
+          : (ruleHRLinkedin || undefined);
+
+        // Sanitize Company and Role to guarantee NO SWAP
+        const { company: finalComp, role: finalRole } = sanitizeCompanyAndRole(mergedCompany, mergedRole);
 
         leadsExtracted.push({
-          company_name: finalComp || 'Imported Web Lead',
-          hr_name: hrName,
-          title: finalRole || 'Talent Acquisition Specialist',
-          phone: phone || undefined,
-          email: email || undefined,
-          hr_linkedin: hrLinkedin || undefined,
-          linkedin_url: companyLinkedin || undefined,
-          website: website || undefined,
-          location: location || 'Hyderabad',
-          domain: 'Technology',
-          remarks: 'Responded',
+          company_name: finalComp || '', // Empty if not detected, will be highlighted red
+          role_title: finalRole || 'Open Position',
+          title: mergedHRTitle,
+          hr_name: mergedHRName, // blank unless found
+          phone: undefined, // strictly manual only
+          email: mergedHREmail,
+          hr_linkedin: mergedHRLinkedin,
+          linkedin_url: ruleCompanyLinkedin || undefined,
+          website: mergedWebsite,
+          location: mergedLocation,
+          domain: mergedDomain,
+          employee_count: mergedSize,
+          notes: mergedNotes,
+          remarks: 'HR Sourcing',
           spoc: targetSpoc,
           entered_by_name: `${targetSpoc} (HTML Import)`,
         });
+
+        // Set feedback message explaining which method/step found the company
+        if (finalComp) {
+          const methodDesc = aiData?.company_name
+            ? 'Gemini AI structured extraction'
+            : stepFound || 'Rule-based HTML parsing';
+          setParseSuccessMsg(`✨ Successfully extracted company "${finalComp}" using ${methodDesc}. Review fields below.`);
+        } else {
+          setParseSuccessMsg('⚠️ Extracted role and job details, but company name was not detected. Please type Company Name below before saving.');
+        }
       }
 
       if (leadsExtracted.length === 0) {
-        setParseError('Could not automatically identify lead fields in the provided HTML. Try pasting a more complete HTML block with contact info or table.');
+        setParseError('Could not automatically identify lead fields in the provided HTML. Try pasting a more complete HTML block.');
       } else {
         setParsedLeads(leadsExtracted);
-        setParseSuccessMsg(
-          `Sanity Check Passed: Extracted and validated ${leadsExtracted.length} lead${leadsExtracted.length > 1 ? 's' : ''} from HTML! Review field mappings below before committing.`
-        );
       }
     } catch (err: any) {
       console.error('HTML parsing error:', err);
@@ -536,11 +495,19 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
   const handleSaveAndStore = async () => {
     if (parsedLeads.length === 0) return;
 
+    const hasEmptyCompany = parsedLeads.some((l) => !l.company_name || !l.company_name.trim());
+    if (hasEmptyCompany) {
+      setParseError('Cannot save: Company Name is required for all leads. Please enter the missing company name in the highlighted red row.');
+      return;
+    }
+
     setIsSaving(true);
+    setParseError(null);
     try {
       // Ensure all leads carry the selected target SPOC
       const finalized = parsedLeads.map((lead) => ({
         ...lead,
+        company_name: lead.company_name.trim(),
         spoc: selectedMember,
         entered_by_name: `${selectedMember} (HTML Import)`,
       }));
@@ -826,18 +793,40 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      <div className="p-2 rounded-xl bg-purple-950/20 border border-purple-900/40">
-                        <label className="text-[10px] font-black uppercase text-purple-300 block mb-1 flex items-center gap-1">
-                          <Building2 className="h-3 w-3 text-purple-400" />
-                          Company Name * (Company field)
+                      <div className={`p-2 rounded-xl transition ${
+                        !lead.company_name?.trim()
+                          ? 'bg-rose-950/60 border-2 border-rose-500 shadow-lg shadow-rose-950/50'
+                          : 'bg-purple-950/20 border border-purple-900/40'
+                      }`}>
+                        <label className={`text-[10px] font-black uppercase block mb-1 flex items-center justify-between ${
+                          !lead.company_name?.trim() ? 'text-rose-300' : 'text-purple-300'
+                        }`}>
+                          <span className="flex items-center gap-1">
+                            <Building2 className={`h-3 w-3 ${!lead.company_name?.trim() ? 'text-rose-400' : 'text-purple-400'}`} />
+                            Company Name * (Company field)
+                          </span>
+                          {!lead.company_name?.trim() && (
+                            <span className="text-[9px] bg-rose-600 text-white font-extrabold px-1.5 py-0.2 rounded-full">
+                              REQUIRED
+                            </span>
+                          )}
                         </label>
                         <input
                           type="text"
                           value={lead.company_name}
                           onChange={(e) => handleUpdateParsedField(idx, 'company_name', e.target.value)}
-                          className="w-full bg-gray-900 border border-purple-700/60 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-400 font-semibold"
-                          placeholder="e.g. Google, TCS"
+                          className={`w-full rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none font-semibold ${
+                            !lead.company_name?.trim()
+                              ? 'bg-rose-950/80 border border-rose-500 text-rose-100 placeholder-rose-400/80 focus:border-rose-400'
+                              : 'bg-gray-900 border border-purple-700/60 focus:border-purple-400'
+                          }`}
+                          placeholder="Type Company Name (Required to Save)..."
                         />
+                        {!lead.company_name?.trim() && (
+                          <span className="text-[10px] font-bold text-rose-300 mt-1 block">
+                            ⚠️ Company name is missing. Please type company name to enable Save.
+                          </span>
+                        )}
                       </div>
 
                       <div className="p-2 rounded-xl bg-indigo-950/20 border border-indigo-900/40">
@@ -978,14 +967,21 @@ export const HtmlLeadImportModal: React.FC<HtmlLeadImportModalProps> = ({
 
           <div className="flex items-center gap-3">
             {parsedLeads.length > 0 && (
-              <span className="text-xs text-gray-400 hidden sm:inline">
-                Storing in <strong className="text-purple-300">{targetMemberObj.name}'s Sheet</strong>
-              </span>
+              parsedLeads.some((l) => !l.company_name || !l.company_name.trim()) ? (
+                <span className="text-xs text-rose-400 font-bold flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Type company name above to enable Save
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400 hidden sm:inline">
+                  Storing in <strong className="text-purple-300">{targetMemberObj.name}'s Sheet</strong>
+                </span>
+              )
             )}
 
             <button
               type="button"
-              disabled={isSaving || parsedLeads.length === 0}
+              disabled={isSaving || parsedLeads.length === 0 || parsedLeads.some((l) => !l.company_name || !l.company_name.trim())}
               onClick={handleSaveAndStore}
               className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-950/50 transition cursor-pointer"
             >

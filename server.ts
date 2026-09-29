@@ -39,6 +39,15 @@ app.get('/api', (req, res) => {
   });
 });
 
+app.post('/api/extract-lead', async (req, res) => {
+  try {
+    const handler = (await import('./api/extract-lead')).default;
+    return await handler(req as any, res as any);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Extraction failed', fallbackRequired: true });
+  }
+});
+
 // Start Server with Vite or Static
 async function startServer() {
   const { apiRouter } = await import('./server/routes/index');

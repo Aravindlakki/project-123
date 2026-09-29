@@ -5,6 +5,13 @@ export type OutreachChannelType = 'call' | 'mail' | 'text' | 'whatsapp' | 'linke
 export type OutreachChannelStatus = 'not_started' | 'sent' | 'replied' | 'failed';
 export type CampaignStatus = 'draft' | 'active' | 'completed';
 export type OutcomeStatus = 'pending' | 'jd_received' | 'not_eligible' | 'eligible_active' | 'rejected' | 'community_joined';
+export type HRSourcingStatus =
+  | 'HR Sourcing'
+  | 'HR Found'
+  | 'Contacted'
+  | 'Connected'
+  | 'Follow-up'
+  | 'JD Submitted';
 
 export * from './attendance';
 
@@ -59,6 +66,15 @@ export interface HRContact {
   location?: string;
   remarks?: string;
   spoc?: string;
+  status?: HRSourcingStatus | string;
+  lead_source?: string;
+  role_title?: string;
+  notes?: string;
+  hr_name?: string;
+  hr_designation?: string;
+  hr_email?: string;
+  hr_phone?: string;
+  hr_linkedin?: string;
   proof_screenshot_url?: string;
   proof_screenshot_uploaded_at?: string;
 }

@@ -122,43 +122,76 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
           text = await file.text();
         } catch (_) {}
 
-        const cleanBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').trim();
-        const detectedCompany = cleanBaseName || 'Extracted Enterprise';
-
-        // Extract potential phone numbers
-        const phoneRegex = /(?:\+91[\s-]?)?[6789]\d{9}|\b\d{3}[-.]?\d{3}[-.]?\d{4}\b|\b\d{10}\b/g;
-        const phones = text.match(phoneRegex) || [];
-
-        // Extract potential emails
-        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-        const emails = text.match(emailRegex) || [];
-
-        // Extract potential contact names
-        const namesFound: string[] = [];
-        const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-        for (const line of lines) {
-          if (line.toLowerCase().includes('hr') || line.toLowerCase().includes('recruiter') || line.toLowerCase().includes('talent') || line.toLowerCase().includes('manager')) {
-            const words = line.split(/[|,-]/)[0].trim();
-            if (words.length > 2 && words.length < 40 && !namesFound.includes(words)) {
-              namesFound.push(words);
+        // Attempt Gemini AI Structured Extraction first
+        let aiExtracted = false;
+        if (text && text.trim().length > 30) {
+          try {
+            const aiData = await api.extractLeadWithAI(text.slice(0, 30000));
+            if (aiData && aiData.company_name && aiData.company_name.trim().length > 1) {
+              leads.push({
+                company_name: aiData.company_name.trim(),
+                role_title: aiData.role_title || 'Sourced Opportunity',
+                domain: aiData.domain || 'Technology',
+                employee_count: aiData.employee_count || '100-250 employees',
+                location: aiData.location || 'India',
+                notes: aiData.notes || '',
+                // CRITICAL: Contact fields stay blank unless explicitly identified
+                hr_name: aiData.hr_name || '',
+                title: aiData.hr_title || 'Talent Acquisition Partner',
+                phone: aiData.hr_phone || undefined, // strictly manual unless written
+                email: aiData.hr_email || undefined,
+                hr_linkedin: aiData.hr_linkedin || undefined,
+                remarks: 'HR Sourcing',
+                spoc: targetSpoc,
+                entered_by_name: `${targetSpoc} (PDF Upload)`,
+              });
+              aiExtracted = true;
+              setSuccessMessage('✨ Extracted lead details using Gemini AI. Please verify in the preview before saving.');
             }
+          } catch (aiErr) {
+            console.warn('AI extraction for PDF encountered error, falling back to regex parser:', aiErr);
           }
         }
 
-        const count = Math.max(1, phones.length, emails.length);
-        for (let i = 0; i < count; i++) {
-          leads.push({
-            company_name: detectedCompany,
-            hr_name: namesFound[i] || `HR Specialist ${i > 0 ? i + 1 : ''}`.trim(),
-            title: 'Talent Acquisition & Sourcing Lead',
-            phone: phones[i] || undefined,
-            email: emails[i] || undefined,
-            location: 'Hyderabad',
-            domain: 'Technology',
-            remarks: 'Responded',
-            spoc: targetSpoc,
-            entered_by_name: `${targetSpoc} (PDF Upload)`,
-          });
+        if (!aiExtracted) {
+          const cleanBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ').trim();
+          const detectedCompany = cleanBaseName || 'Extracted Enterprise';
+
+          // Extract potential phone numbers
+          const phoneRegex = /(?:\+91[\s-]?)?[6789]\d{9}|\b\d{3}[-.]?\d{3}[-.]?\d{4}\b|\b\d{10}\b/g;
+          const phones = text.match(phoneRegex) || [];
+
+          // Extract potential emails
+          const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+          const emails = text.match(emailRegex) || [];
+
+          // Extract potential contact names
+          const namesFound: string[] = [];
+          const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            if (line.toLowerCase().includes('hr') || line.toLowerCase().includes('recruiter') || line.toLowerCase().includes('talent') || line.toLowerCase().includes('manager')) {
+              const words = line.split(/[|,-]/)[0].trim();
+              if (words.length > 2 && words.length < 40 && !namesFound.includes(words)) {
+                namesFound.push(words);
+              }
+            }
+          }
+
+          const count = Math.max(1, emails.length);
+          for (let i = 0; i < count; i++) {
+            leads.push({
+              company_name: detectedCompany,
+              hr_name: namesFound[i] || '',
+              title: 'Talent Acquisition & Sourcing Lead',
+              phone: undefined, // Strictly empty for manual entry by CRA
+              email: emails[i] || undefined,
+              location: 'Hyderabad',
+              domain: 'Technology',
+              remarks: 'HR Sourcing',
+              spoc: targetSpoc,
+              entered_by_name: `${targetSpoc} (PDF Upload)`,
+            });
+          }
         }
       }
 
@@ -191,10 +224,18 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
   const handleSaveAndStore = async () => {
     if (parsedLeads.length === 0) return;
 
+    const hasEmptyCompany = parsedLeads.some((l) => !l.company_name || !l.company_name.trim());
+    if (hasEmptyCompany) {
+      setErrorMessage('Cannot save: Company Name is required for all leads. Please enter the missing company name in the highlighted red field.');
+      return;
+    }
+
     setIsSaving(true);
+    setErrorMessage(null);
     try {
       const finalized = parsedLeads.map((lead) => ({
         ...lead,
+        company_name: lead.company_name.trim(),
         spoc: selectedMember,
         entered_by_name: `${selectedMember} (PDF Upload)`,
       }));
@@ -384,17 +425,40 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1 flex items-center gap-1">
-                          <Building2 className="h-3 w-3 text-indigo-400" />
-                          Company Name *
+                      <div className={`p-2 rounded-xl transition ${
+                        !lead.company_name?.trim()
+                          ? 'bg-rose-950/60 border-2 border-rose-500 shadow-lg shadow-rose-950/50'
+                          : ''
+                      }`}>
+                        <label className={`text-[10px] font-bold uppercase block mb-1 flex items-center justify-between ${
+                          !lead.company_name?.trim() ? 'text-rose-300' : 'text-gray-400'
+                        }`}>
+                          <span className="flex items-center gap-1">
+                            <Building2 className={`h-3 w-3 ${!lead.company_name?.trim() ? 'text-rose-400' : 'text-indigo-400'}`} />
+                            Company Name *
+                          </span>
+                          {!lead.company_name?.trim() && (
+                            <span className="text-[9px] bg-rose-600 text-white font-extrabold px-1.5 py-0.2 rounded-full">
+                              REQUIRED
+                            </span>
+                          )}
                         </label>
                         <input
                           type="text"
                           value={lead.company_name}
                           onChange={(e) => handleUpdateParsedField(idx, 'company_name', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                          className={`w-full rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none ${
+                            !lead.company_name?.trim()
+                              ? 'bg-rose-950/80 border border-rose-500 text-rose-100 placeholder-rose-400/80 focus:border-rose-400 font-semibold'
+                              : 'bg-gray-900 border border-gray-700 focus:border-indigo-500'
+                          }`}
+                          placeholder="Type Company Name (Required to Save)..."
                         />
+                        {!lead.company_name?.trim() && (
+                          <span className="text-[10px] font-bold text-rose-300 mt-1 block">
+                            ⚠️ Company name is missing. Please type company name to enable Save.
+                          </span>
+                        )}
                       </div>
 
                       <div>
@@ -528,14 +592,21 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
 
           <div className="flex items-center gap-3">
             {parsedLeads.length > 0 && (
-              <span className="text-xs text-gray-400 hidden sm:inline">
-                Storing in <strong className="text-indigo-300">{targetMemberObj.name}'s Sheet</strong>
-              </span>
+              parsedLeads.some((l) => !l.company_name || !l.company_name.trim()) ? (
+                <span className="text-xs text-rose-400 font-bold flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Type company name above to enable Store
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400 hidden sm:inline">
+                  Storing in <strong className="text-indigo-300">{targetMemberObj.name}'s Sheet</strong>
+                </span>
+              )
             )}
 
             <button
               type="button"
-              disabled={isSaving || parsedLeads.length === 0}
+              disabled={isSaving || parsedLeads.length === 0 || parsedLeads.some((l) => !l.company_name || !l.company_name.trim())}
               onClick={handleSaveAndStore}
               className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-950/50 transition cursor-pointer"
             >

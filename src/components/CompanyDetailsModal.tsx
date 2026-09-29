@@ -512,10 +512,10 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-400 mb-1">HR Phone / Mobile Number *</label>
+                    <label className="block text-[11px] font-medium text-gray-400 mb-1">HR Phone / Mobile Number (Manual)</label>
                     <input
                       type="text"
-                      placeholder="e.g. 9876543210 or +91 98765..."
+                      placeholder="Enter 10-digit mobile (manual)"
                       value={newHRPhone}
                       onChange={(e) => setNewHRPhone(e.target.value)}
                       className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"

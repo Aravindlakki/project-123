@@ -390,10 +390,10 @@ export function parseHRContactsCSV(
 export function generateSampleCSV(): string {
   const headers = ['Company', 'Name', 'Title', 'Email', 'Phone', 'LinkedIn URL'];
   const rows = [
-    ['Palo Alto Networks', 'Radhika Sharma', 'Senior Tech Recruiter', 'radhika.s@paloaltonetworks.com', '+91 98765 43210', 'https://www.linkedin.com/in/radhika-sharma'],
-    ['OATI', 'Vikram Patel', 'Talent Acquisition Lead', 'vikram.patel@oati.com', '+91 98765 43211', 'https://www.linkedin.com/in/vikram-patel'],
-    ['CrowdStrike', 'Varun Joshi', 'Campus Relations Lead', 'varun.joshi@crowdstrike.com', '+91 98765 43212', 'https://www.linkedin.com/in/varunjoshi'],
-    ['Techolution', 'Steven Lobu', 'Talent Acquisition', 'steven@techolution.com', '+91 88068 03989', 'https://www.linkedin.com/in/stevenlobu'],
+    ['Palo Alto Networks', 'Radhika Sharma', 'Senior Tech Recruiter', 'radhika.s@paloaltonetworks.com', '', 'https://www.linkedin.com/in/radhika-sharma'],
+    ['OATI', 'Vikram Patel', 'Talent Acquisition Lead', 'vikram.patel@oati.com', '', 'https://www.linkedin.com/in/vikram-patel'],
+    ['CrowdStrike', 'Varun Joshi', 'Campus Relations Lead', 'varun.joshi@crowdstrike.com', '', 'https://www.linkedin.com/in/varunjoshi'],
+    ['Techolution', 'Steven Lobu', 'Talent Acquisition', 'steven@techolution.com', '', 'https://www.linkedin.com/in/stevenlobu'],
   ];
 
   return [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');

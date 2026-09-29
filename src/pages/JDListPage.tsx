@@ -866,7 +866,7 @@ export const JDListPage: React.FC<JDListPageProps> = ({ currentUser, adminMode =
                       type="text"
                       value={newHrPhone}
                       onChange={(e) => setNewHrPhone(e.target.value)}
-                      placeholder="+91 98765 43210"
+                      placeholder="Enter phone manually"
                       className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>

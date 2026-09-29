@@ -79,3 +79,66 @@ export function formatIndianCurrency(numInput?: number | string | null): string 
   if (isNaN(num)) return '₹0';
   return `₹${num.toLocaleString('en-IN')}`;
 }
+
+/**
+ * Returns the YYYY-MM-DD date key in Indian Standard Time (IST / Asia/Kolkata).
+ */
+export function getISTDateKey(dateInput?: string | number | Date | null): string {
+  if (!dateInput) return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  } catch {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  }
+}
+
+/**
+ * Formats an IST YYYY-MM-DD date key into a user-friendly label with day of the week.
+ */
+export function formatISTDateHeading(istDateKey: string): {
+  label: string;
+  subLabel: string;
+  isToday: boolean;
+  isYesterday: boolean;
+} {
+  const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const yesterday = new Date(Date.now() - 86400000);
+  const yesterdayKey = yesterday.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+  const isToday = istDateKey === todayKey;
+  const isYesterday = istDateKey === yesterdayKey;
+
+  try {
+    const [year, month, day] = istDateKey.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const fullDate = dateObj.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    let subLabel = '';
+    if (isToday) subLabel = "Today's Sheet";
+    else if (isYesterday) subLabel = "Yesterday";
+    else subLabel = fullDate.split(',')[0]; // Weekday name
+
+    return {
+      label: fullDate,
+      subLabel,
+      isToday,
+      isYesterday,
+    };
+  } catch {
+    return {
+      label: istDateKey,
+      subLabel: isToday ? "Today's Sheet" : istDateKey,
+      isToday,
+      isYesterday,
+    };
+  }
+}
+

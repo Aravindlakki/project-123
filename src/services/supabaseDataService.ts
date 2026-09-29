@@ -422,33 +422,84 @@ export const supabaseDataService = {
       if (idx >= 0) {
         contacts[idx] = { ...contacts[idx], ...updates };
         clientFallbackStore.saveContacts(contacts);
+        // Synchronize updated phone to any matching JD in HR Sourcing
+        if (updates.phone !== undefined) {
+          try {
+            const jds = clientFallbackStore.getJDs();
+            let jdUpdated = false;
+            jds.forEach((j) => {
+              if (
+                j.company_id === contacts[idx].company_id ||
+                (contacts[idx].company && j.company?.name === contacts[idx].company?.name) ||
+                j.hr_name === contacts[idx].name
+              ) {
+                j.hr_phone = updates.phone;
+                jdUpdated = true;
+              }
+            });
+            if (jdUpdated) {
+              clientFallbackStore.saveJDs(jds);
+            }
+          } catch (_) {}
+        }
         return contacts[idx];
       }
       throw new Error('Contact not found');
     }
 
+    const effectiveRemarks = updates.remarks !== undefined
+      ? updates.remarks
+      : (updates.status !== undefined ? updates.status : undefined);
+
+    const effectiveTitle = updates.title !== undefined
+      ? updates.title
+      : (updates.role_title !== undefined ? updates.role_title : undefined);
+
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.name !== undefined) updatePayload.name = updates.name;
+    if (effectiveTitle !== undefined) updatePayload.title = effectiveTitle;
+    if (updates.email !== undefined) updatePayload.email = updates.email;
+    if (updates.phone !== undefined) updatePayload.phone = updates.phone;
+    if (updates.linkedin_url !== undefined) updatePayload.linkedin_url = updates.linkedin_url;
+    if (updates.domain !== undefined) updatePayload.domain = updates.domain;
+    if (updates.location !== undefined) updatePayload.location = updates.location;
+    if (effectiveRemarks !== undefined) updatePayload.remarks = effectiveRemarks;
+    if (updates.spoc !== undefined) updatePayload.spoc = updates.spoc;
+    if (updates.entered_by_name !== undefined) updatePayload.entered_by_name = updates.entered_by_name;
+
     const { data, error } = await supabase
       .from('contacts')
-      .update({
-        ...(updates.name && { name: updates.name }),
-        ...(updates.title !== undefined && { title: updates.title }),
-        ...(updates.email !== undefined && { email: updates.email }),
-        ...(updates.phone !== undefined && { phone: updates.phone }),
-        ...(updates.linkedin_url !== undefined && { linkedin_url: updates.linkedin_url }),
-        ...(updates.domain !== undefined && { domain: updates.domain }),
-        ...(updates.location !== undefined && { location: updates.location }),
-        ...(updates.remarks !== undefined && { remarks: updates.remarks }),
-        ...(updates.spoc !== undefined && { spoc: updates.spoc }),
-        ...(updates.proof_screenshot_url !== undefined && { proof_screenshot_url: updates.proof_screenshot_url }),
-        ...(updates.proof_screenshot_uploaded_at !== undefined && { proof_screenshot_uploaded_at: updates.proof_screenshot_uploaded_at }),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select('*, company:companies(*)')
       .single();
 
-    if (error) throw new Error(error.message);
-    return data;
+    if (error) {
+      console.error('[Supabase updateContact error]', error);
+      throw new Error(error.message);
+    }
+
+    // Keep client fallback store in sync with these updates
+    try {
+      const contacts = clientFallbackStore.getContacts();
+      const idx = contacts.findIndex((c) => c.id === id);
+      if (idx >= 0) {
+        contacts[idx] = { ...contacts[idx], ...updates, ...data };
+        clientFallbackStore.saveContacts(contacts);
+      }
+    } catch (_) {}
+
+    return {
+      ...data,
+      company: data?.company || undefined,
+      remarks: data?.remarks || effectiveRemarks,
+      status: effectiveRemarks || data?.remarks || 'HR Sourcing',
+      notes: updates.notes,
+      role_title: effectiveTitle || data?.title,
+    };
   },
 
   async deleteContact(id: string): Promise<boolean> {
@@ -497,7 +548,13 @@ export const supabaseDataService = {
         linkedin_url: c.linkedin_url,
         domain: c.domain,
         location: c.location,
-        remarks: c.remarks,
+        remarks: c.remarks || c.status,
+        status: c.status || c.remarks || 'HR Sourcing',
+        role_title: c.role_title,
+        notes: c.notes,
+        lead_source: c.lead_source || 'Manual',
+        entered_by_name: c.entered_by_name,
+        created_by: c.created_by,
         proof_screenshot_url: c.proof_screenshot_url,
         proof_screenshot_uploaded_at: c.proof_screenshot_uploaded_at,
         spoc: c.spoc,
@@ -537,6 +594,10 @@ export const supabaseDataService = {
     location?: string;
     remarks?: string;
     spoc?: string;
+    status?: string;
+    lead_source?: string;
+    role_title?: string;
+    notes?: string;
     entered_by_name?: string;
   }): Promise<HRContact> {
     if (!isSupabaseConfigured) {
@@ -568,7 +629,16 @@ export const supabaseDataService = {
         linkedin_url: lead.hr_linkedin,
         domain: lead.domain,
         location: lead.location,
-        remarks: lead.remarks,
+        remarks: lead.remarks || lead.status || 'HR Sourcing',
+        status: lead.status || lead.remarks || 'HR Sourcing',
+        lead_source: lead.lead_source || 'Manual',
+        role_title: lead.role_title || lead.title || 'HR / Sourcing Lead',
+        notes: lead.notes,
+        hr_name: lead.hr_name,
+        hr_designation: lead.title,
+        hr_email: lead.email,
+        hr_phone: lead.phone,
+        hr_linkedin: lead.hr_linkedin,
         spoc: lead.spoc,
         source: 'manual',
         entered_by_name: lead.entered_by_name,
@@ -577,6 +647,33 @@ export const supabaseDataService = {
       };
       contacts.unshift(newContact);
       clientFallbackStore.saveContacts(contacts);
+
+      // Automatically route this lead to HR Sourcing as an active sourcing opportunity!
+      const sourcingJd: JD = {
+        id: 'jd_lead_' + Date.now(),
+        jd_id: clientFallbackStore.generateNextJdId(),
+        title: lead.title ? `${lead.title} (${lead.domain || 'Tech Roles'})` : (lead.domain ? `${lead.domain} Sourcing` : 'HR & Talent Sourcing'),
+        company_id: company.id,
+        company: company,
+        raw_text: `Worksheet Sourced Lead. Company: ${lead.company_name}. HR Contact: ${lead.hr_name} (${lead.title || 'HR Specialist'}). SPOC: ${lead.spoc || 'Assigned'}. Domain: ${lead.domain || 'Tech'}. Location: ${lead.location || 'India'}. Remarks: ${lead.remarks || 'Pending'}.`,
+        is_verified: false,
+        eligibility_status: 'eligible',
+        interview_scheduled: 'no',
+        hr_name: lead.hr_name,
+        hr_email: lead.email || '',
+        hr_phone: lead.phone || '', // Strictly manual
+        hr_designation: lead.title || 'HR Lead',
+        verification_source: 'manual_entry',
+        opportunity_type: 'existing_post',
+        date_found: new Date().toISOString().slice(0, 10),
+        created_at: new Date().toISOString(),
+      };
+      try {
+        clientFallbackStore.saveJD(sourcingJd);
+      } catch (e) {
+        console.warn('Could not auto-save sourcing JD in fallback:', e);
+      }
+
       return newContact;
     }
 
@@ -618,20 +715,43 @@ export const supabaseDataService = {
       .insert({
         company_id: companyId,
         name: lead.hr_name,
-        title: lead.title || null,
+        title: lead.title || lead.role_title || null,
         email: lead.email || null,
         phone: lead.phone || null,
         linkedin_url: lead.hr_linkedin || null,
         domain: lead.domain || null,
         location: lead.location || null,
-        remarks: lead.remarks || null,
+        remarks: lead.remarks || lead.status || 'HR Sourcing',
         spoc: lead.spoc || null,
+        entered_by_name: lead.entered_by_name || null,
         source: 'manual',
       })
       .select()
       .single();
 
     if (contactErr) throw new Error(contactErr.message);
+
+    try {
+      const nextJdId = `JD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      await supabase.from('job_descriptions').insert({
+        company_id: companyId,
+        jd_id: nextJdId,
+        title: lead.title ? `${lead.title} (${lead.domain || 'Tech Roles'})` : (lead.domain ? `${lead.domain} Sourcing` : 'HR & Talent Sourcing'),
+        raw_text: `Worksheet Sourced Lead. Company: ${lead.company_name}. HR Contact: ${lead.hr_name}. SPOC: ${lead.spoc || 'Assigned'}. Domain: ${lead.domain || 'Tech'}. Location: ${lead.location || 'India'}.`,
+        is_verified: false,
+        eligibility_status: 'eligible',
+        interview_scheduled: 'no',
+        hr_name: lead.hr_name,
+        hr_email: lead.email || null,
+        hr_phone: lead.phone || null,
+        hr_designation: lead.title || 'HR Lead',
+        verification_source: 'worksheet_lead',
+        opportunity_type: 'existing_post',
+        date_found: new Date().toISOString().slice(0, 10),
+      });
+    } catch (e) {
+      console.warn('Could not auto-save sourcing JD in Supabase:', e);
+    }
 
     return {
       id: contactData.id,
@@ -644,6 +764,10 @@ export const supabaseDataService = {
       domain: contactData.domain,
       location: contactData.location,
       remarks: contactData.remarks,
+      status: contactData.remarks || lead.status || 'HR Sourcing',
+      notes: lead.notes,
+      role_title: lead.role_title || contactData.title,
+      lead_source: lead.lead_source || 'Manual',
       spoc: contactData.spoc,
       source: contactData.source || 'manual',
       created_at: contactData.created_at,

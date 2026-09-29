@@ -19,12 +19,12 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'placemein_current_user',
   JDS: 'placemein_mock_jds',
   ROSTER_VERSION: 'placemein_roster_version_v6',
-  WORKSHEET_VERSION: 'placemein_worksheet_version_v8',
+  WORKSHEET_VERSION: 'placemein_worksheet_version_v9',
 };
 
 // Target Roster Version: triggers automatic cleanup of any old cached duplicates in browser localStorage
 const CURRENT_ROSTER_VERSION = 'v7_canonical_8_team_roster_reverted_4';
-const CURRENT_WORKSHEET_VERSION = 'v8_team_worksheets_single_roster';
+const CURRENT_WORKSHEET_VERSION = 'v9_manual_phones_and_hr_sourcing_sync';
 
 // Obsolete or legacy duplicate emails that must be pruned from cache
 const OBSOLETE_EMAILS = [
@@ -120,8 +120,15 @@ function initializeMockData(forceResetRoster: boolean = false) {
   if (!localStorage.getItem(STORAGE_KEYS.COMPANIES) || !localStorage.getItem(STORAGE_KEYS.CONTACTS) || shouldResetContacts) {
     const existingCompanies: Company[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]');
     const existingContacts: HRContact[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONTACTS) || '[]');
-    // Preserve custom user-added contacts
-    const customContacts = existingContacts.filter((c) => !c.id.startsWith('lead_'));
+    // Preserve custom user-added contacts and sanitize any previously generated dummy phone numbers
+    const customContacts = existingContacts
+      .filter((c) => !c.id.startsWith('lead_'))
+      .map((c) => {
+        if (c.phone === '+91 9876543210' || c.phone === '+91 98765 43210') {
+          return { ...c, phone: undefined };
+        }
+        return c;
+      });
     const customCompanies = existingCompanies.filter((comp) => !comp.id.startsWith('comp_lead_'));
 
     const companies: Company[] = [...customCompanies];
@@ -237,7 +244,7 @@ function initializeMockData(forceResetRoster: boolean = false) {
           interview_notes: 'Google Meet link shared with candidate',
           hr_name: 'Rohit Verma',
           hr_email: 'rohit.verma@techcorp.com',
-          hr_phone: '+91 98765 43210',
+          hr_phone: '',
           hr_designation: 'Senior Talent Acquisition Lead',
           hr_feedback_status: 'received',
           hr_feedback: 'Candidate profile matched expectations. Proceed with Round 2.',
@@ -258,7 +265,7 @@ function initializeMockData(forceResetRoster: boolean = false) {
           interview_scheduled: 'no',
           hr_name: 'Priyanka Sharma',
           hr_email: 'priyanka.s@innovatex.io',
-          hr_phone: '+91 98112 34567',
+          hr_phone: '',
           hr_designation: 'HR Lead',
           hr_feedback_status: 'awaiting',
           verification_source: 'file_ai_extract',

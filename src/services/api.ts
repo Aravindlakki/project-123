@@ -453,7 +453,7 @@ export const api = {
         name: i === 0 ? 'HR Lead / Hiring Manager' : `HR Recruiter ${i + 1}`,
         title: 'Talent Acquisition Specialist',
         company_id: fallbackComp.id,
-        phone: phones[i] || (i === 0 ? '+91 9876543210' : ''),
+        phone: phones[i] || '',
         email: emails[i] || '',
         domain: 'Information Technology',
         location: 'Hyderabad',
@@ -831,6 +831,10 @@ export const api = {
     location?: string;
     remarks?: string;
     spoc?: string;
+    status?: string;
+    lead_source?: string;
+    role_title?: string;
+    notes?: string;
     entered_by_name?: string;
   }): Promise<HRContact> {
     if (isSupabaseConfigured) {
@@ -846,6 +850,44 @@ export const api = {
       if (res.ok) return await res.json();
     } catch (_) {}
     return supabaseDataService.createWorksheetLead(lead);
+  },
+
+  async extractLeadWithAI(text: string): Promise<{
+    company_name?: string;
+    role_title?: string;
+    domain?: string;
+    employee_count?: string;
+    location?: string;
+    experience?: string;
+    job_link?: string;
+    notes?: string;
+    hr_name?: string;
+    hr_title?: string;
+    hr_email?: string;
+    hr_phone?: string;
+    hr_linkedin?: string;
+  } | null> {
+    try {
+      const token = getAuthToken() || '';
+      const res = await fetch('/api/extract-lead', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return json.data;
+        }
+      }
+      return null;
+    } catch (e) {
+      console.warn('AI extraction endpoint unreachable, falling back to rule parser:', e);
+      return null;
+    }
   },
 
   async bulkImportWorksheetLeads(leads: Array<{

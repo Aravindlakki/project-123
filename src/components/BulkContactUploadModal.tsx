@@ -384,7 +384,7 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
                   setRawText(e.target.value);
                   handleProcessContent(e.target.value);
                 }}
-                placeholder={`Palo Alto Networks, Radhika Sharma, Senior Recruiter, radhika@paloaltonetworks.com, 9876543210, https://linkedin.com/in/radhika\nOATI, Vikram Patel, Talent Lead, vikram@oati.com, 9876543211, https://linkedin.com/in/vikram`}
+                placeholder={`Palo Alto Networks, Radhika Sharma, Senior Recruiter, radhika@paloaltonetworks.com, , https://linkedin.com/in/radhika\nOATI, Vikram Patel, Talent Lead, vikram@oati.com, , https://linkedin.com/in/vikram`}
                 className="w-full bg-gray-950 border border-gray-700 rounded-xl p-3 text-xs text-white placeholder-gray-500 font-mono focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
@@ -526,7 +526,7 @@ export const BulkContactUploadModal: React.FC<BulkContactUploadModalProps> = ({
                               type="text"
                               value={row.phone || ''}
                               onChange={(e) => handleUpdateRow(row.id, 'phone', e.target.value)}
-                              placeholder="+91 98765 43210"
+                              placeholder="Enter phone manually"
                               className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-400"
                             />
                           </td>

@@ -567,11 +567,11 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
         'Company Name': 'TechNova Solutions',
         'HR Contact Name': 'Kavita Iyer',
         'Designation': 'Head of Talent Acquisition',
-        'Phone Number': '+91 98765 43210',
+        'Phone Number': '', // Manual entry only
         'Email Address': 'kavita.i@technova.example.com',
         'SPOC': 'Namitha',
         'Domain / Industry': 'IT Services & Cloud',
-        'Employee Headcount': '500-1000 employees',
+        'Employee Headcount': '501-1,000 employees',
         'Website': 'https://technova.example.com',
         'LinkedIn URL': 'https://linkedin.com/company/technova-solutions',
         'Location': 'Bengaluru',
@@ -581,7 +581,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
         'Company Name': 'AeroSphere Robotics',
         'HR Contact Name': 'Rajesh Sharma',
         'Designation': 'Senior Technical Recruiter',
-        'Phone Number': '+91 91234 56789',
+        'Phone Number': '', // Manual entry only
         'Email Address': 'rajesh@aerosphere.example.com',
         'SPOC': 'Harish',
         'Domain / Industry': 'Robotics & Hardware',
