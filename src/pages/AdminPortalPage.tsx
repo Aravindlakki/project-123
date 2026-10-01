@@ -41,6 +41,21 @@ import {
   Briefcase,
   ExternalLink,
 } from 'lucide-react';
+import {
+  AdminPageHeader,
+  AdminCard,
+  AdminButton,
+  AdminIconButton,
+  AdminLabel,
+  AdminInput,
+  AdminSelect,
+  AdminTextarea,
+  AdminModal,
+  AdminBadge,
+  AdminStatCard,
+  AdminTable,
+  AdminEmptyState,
+} from '../components/admin';
 
 interface AdminPortalPageProps {
   initialTab?: 'users' | 'companies' | 'settings';
@@ -475,79 +490,62 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       )}
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-900/80 via-amber-950/90 to-gray-950 border border-amber-800/60 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold rounded-full flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
-              Administrative Governance
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Placemein System Administration
-          </h1>
-          <p className="text-amber-200/70 text-sm max-w-2xl">
-            Configure recruitment employee accounts, oversee verified job openings, merge duplicate company records, and manage target benchmarks.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {activeTab === 'users' && (
-            <button
-              onClick={() => setShowAddUserModal(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Team Member</span>
-            </button>
-          )}
-
-          <button
-            onClick={loadData}
-            title="Refresh"
-            className="p-2.5 rounded-xl bg-amber-900/40 hover:bg-amber-800/50 border border-amber-700/60 text-amber-200 hover:text-white transition"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="CRM System Administration"
+        badge="Administrative Governance"
+        badgeIcon={ShieldCheck}
+        subtitle="Configure recruitment employee accounts, oversee verified job openings, merge duplicate company records, and manage target benchmarks."
+        actions={
+          <>
+            {activeTab === 'users' && (
+              <AdminButton
+                variant="primary"
+                size="md"
+                icon={Plus}
+                onClick={() => setShowAddUserModal(true)}
+              >
+                Add Team Member
+              </AdminButton>
+            )}
+            <AdminIconButton
+              icon={RefreshCw}
+              tooltip="Refresh Data"
+              onClick={loadData}
+            />
+          </>
+        }
+      />
 
       {/* Tabs */}
-      <div className="flex items-center gap-3 border-b border-amber-800/40 pb-3">
+      <div className="admin-tabs">
         <button
           onClick={() => setActiveTab('users')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === 'users'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-amber-200/80 hover:bg-amber-900/30'
-          }`}
+          className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`}
         >
-          <Users className="h-4 w-4" />
-          <span>User Management</span>
+          <span className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span>User Management</span>
+          </span>
         </button>
 
         <button
           onClick={() => setActiveTab('companies')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === 'companies'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-amber-200/80 hover:bg-amber-900/30'
-          }`}
+          className={`admin-tab ${activeTab === 'companies' ? 'active' : ''}`}
         >
-          <Building2 className="h-4 w-4" />
-          <span>Company & JD Oversight</span>
+          <span className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            <span>Company & JD Oversight</span>
+          </span>
         </button>
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === 'settings'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-amber-200/80 hover:bg-amber-900/30'
-          }`}
+          className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`}
         >
-          <Settings className="h-4 w-4" />
-          <span>System Settings</span>
+          <span className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <span>System Settings</span>
+          </span>
         </button>
       </div>
 
@@ -555,59 +553,44 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       {activeTab === 'users' && (
         <div className="space-y-6">
           {/* Canonical Roster Integrity Header Banner */}
-          <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-950/70 via-gray-950 to-purple-950/50 border border-amber-600/40 shadow-xl space-y-4">
+          <AdminCard className="space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <span className="p-1.5 rounded-lg bg-[#e8b339]/15 text-[#e8b339] border border-[#e8b339]/30">
                     <ShieldCheck className="h-5 w-5" />
                   </span>
                   <h3 className="text-base font-black text-white tracking-tight">
-                    Official Placemein Team Roster (8 Canonical Members)
+                    Official Team Roster (8 Canonical Members)
                   </h3>
                 </div>
-                <p className="text-xs text-amber-200/80 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   1 CEO Admin • 2 Administrators • 5 CRA Specialists • 0 Duplicates • Complete Employee IDs & Specialization Domains
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
+                <AdminButton
+                  variant="outline"
+                  size="sm"
+                  icon={RefreshCw}
                   onClick={handleResetToCanonicalRoster}
-                  className="px-3.5 py-2 bg-amber-900/60 hover:bg-amber-800/80 border border-amber-600/60 text-amber-200 hover:text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm"
-                  title="Resets any corrupt cached local state back to the exact 8 canonical Placemein members"
+                  title="Resets any corrupt cached local state back to the exact 8 canonical members"
                 >
-                  <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Sync / Reset 8 Roster</span>
-                </button>
+                  Sync / Reset 8 Roster
+                </AdminButton>
               </div>
             </div>
 
-            {/* Quick Metrics Badges */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">Total Members</div>
-                <div className="text-lg font-black text-white">{users.length} Unique</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">CEO Admin</div>
-                <div className="text-lg font-black text-amber-400">1 (Aravind Reddy)</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider">Admins</div>
-                <div className="text-lg font-black text-indigo-300">2 (Mansi, Vineela)</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-purple-300 tracking-wider">CRA Specialists</div>
-                <div className="text-lg font-black text-purple-300">5 Employees</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50 col-span-2 sm:col-span-1">
-                <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Duplicates</div>
-                <div className="text-lg font-black text-emerald-400">0 (Strictly Deduped)</div>
-              </div>
+            {/* Quick Metrics Badges using AdminStatCard */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <AdminStatCard label="Total Members" value={`${users.length} Unique`} />
+              <AdminStatCard label="CEO Admin" value="1" subtext="Aravind Reddy" gold />
+              <AdminStatCard label="Admins" value="2" subtext="Mansi, Vineela" />
+              <AdminStatCard label="CRA Specialists" value="5" subtext="Employees" />
+              <AdminStatCard label="Duplicates" value="0" subtext="Deduped" />
             </div>
-          </div>
+          </AdminCard>
 
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs">
             <div className="flex items-center gap-2 flex-1 max-w-md">
@@ -658,38 +641,35 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
           {loading ? (
             <div className="p-12 text-center text-amber-300/60 flex flex-col items-center gap-3">
-              <RefreshCw className="h-6 w-6 animate-spin text-amber-400" />
-              <p>Loading users...</p>
+              <RefreshCw className="h-6 w-6 animate-spin text-[#e8b339]" />
+              <p className="text-slate-400 text-xs">Loading users...</p>
             </div>
           ) : (
-            <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl overflow-x-auto">
-              <table className="w-full text-left text-xs text-amber-100">
-                <thead className="bg-amber-900/30 text-amber-300 font-semibold border-b border-amber-800/50">
-                  <tr>
-                    <th className="py-3 px-4">Employee Name</th>
-                    <th className="py-3 px-3">Emp ID</th>
-                    <th className="py-3 px-4">Mail ID</th>
-                    <th className="py-3 px-4">Specialization Domain</th>
-                    <th className="py-3 px-3">Role</th>
-                    <th className="py-3 px-3">Monthly Target</th>
-                    <th className="py-3 px-3">Status & Access</th>
-                    <th className="py-3 px-3">Created Date</th>
-                    <th className="py-3 px-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-amber-800/30">
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-8 text-center text-amber-300/60">
-                        No team members match the search and filter criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((user) => {
-                      const isEditing = editingUserId === user.id;
-                      const isDeleted = !!user.deleted_at;
-                      const isActive = user.is_active !== false && !isDeleted;
-                      const isCeo = user.emp_id === 'PM-CEO' || user.email.toLowerCase().includes('aravind');
+            <AdminTable
+              headers={[
+                'Employee Name',
+                'Emp ID',
+                'Mail ID',
+                'Specialization Domain',
+                'Role',
+                'Monthly Target',
+                'Status & Access',
+                'Created Date',
+                'Actions',
+              ]}
+            >
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                    No team members match the search and filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => {
+                  const isEditing = editingUserId === user.id;
+                  const isDeleted = !!user.deleted_at;
+                  const isActive = user.is_active !== false && !isDeleted;
+                  const isCeo = user.emp_id === 'PM-CEO' || user.email.toLowerCase().includes('aravind');
 
                       return (
                         <tr key={user.id} className={`hover:bg-amber-900/20 transition ${!isActive ? 'opacity-70 bg-amber-950/10' : ''}`}>
@@ -958,9 +938,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                       );
                     })
                   )}
-                </tbody>
-              </table>
-            </div>
+            </AdminTable>
           )}
         </div>
       )}
@@ -969,7 +947,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       {activeTab === 'companies' && (
         <div className="space-y-8">
           {/* Section A: Job Descriptions & Admin Eligibility Oversight (JD-ID) */}
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-6">
+          <AdminCard className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-black text-white flex items-center gap-2.5">
@@ -1092,11 +1070,11 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
             {/* List of JDs */}
             {allJDs.length === 0 ? (
-              <div className="p-8 text-center text-xs text-amber-300/70 space-y-2 bg-amber-950/20 rounded-2xl border border-amber-800/30">
-                <FileCheck className="h-8 w-8 mx-auto text-amber-400 opacity-60" />
-                <p className="font-bold text-white">No job descriptions found</p>
-                <p>JDs uploaded through the JD Intake page will be recorded here with official JD-IDs.</p>
-              </div>
+              <AdminEmptyState
+                icon={FileCheck}
+                title="No job descriptions found"
+                description="JDs uploaded through the JD Intake page will be recorded here with official JD-IDs."
+              />
             ) : (
               <div className="space-y-3.5">
                 {allJDs
@@ -1310,29 +1288,26 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   })}
               </div>
             )}
-          </div>
+          </AdminCard>
 
           {/* Section B: Company Merge Tool */}
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-4">
+          <AdminCard className="space-y-4">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Database className="h-5 w-5 text-amber-400" />
+                <Database className="h-5 w-5 text-[#e8b339]" />
                 Company Duplicate Deduplication & Merge Tool
               </h3>
-              <p className="text-xs text-amber-200/70">
+              <p className="text-xs text-slate-400">
                 Consolidate duplicate records (e.g. &ldquo;TCS&rdquo; and &ldquo;Tata Consultancy Services&rdquo;). All contacts, outreaches, and JDs from the source company will be transferred to the target company.
               </p>
             </div>
 
             <form onSubmit={handleMergeCompanies} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs items-end">
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
-                  Source Company (Will be merged & removed) *
-                </label>
-                <select
+                <AdminLabel required>Source Company (Will be merged & removed)</AdminLabel>
+                <AdminSelect
                   value={sourceCompanyId}
                   onChange={(e) => setSourceCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none"
                 >
                   <option value="">Select duplicate company...</option>
                   {companies.map((c) => (
@@ -1340,17 +1315,14 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                       {c.name} ({c.industry || 'Industry unspecified'})
                     </option>
                   ))}
-                </select>
+                </AdminSelect>
               </div>
 
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
-                  Target Company (Primary record to keep) *
-                </label>
-                <select
+                <AdminLabel required>Target Company (Primary record to keep)</AdminLabel>
+                <AdminSelect
                   value={targetCompanyId}
                   onChange={(e) => setTargetCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none"
                 >
                   <option value="">Select primary company...</option>
                   {companies.map((c) => (
@@ -1358,90 +1330,87 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                       {c.name}
                     </option>
                   ))}
-                </select>
+                </AdminSelect>
               </div>
 
               <div>
-                <button
+                <AdminButton
                   type="submit"
+                  variant="primary"
+                  className="w-full"
                   disabled={isMerging || !sourceCompanyId || !targetCompanyId}
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
+                  loading={isMerging}
+                  icon={ArrowRight}
                 >
-                  <ArrowRight className="h-4 w-4" />
-                  {isMerging ? 'Merging...' : 'Merge Companies'}
-                </button>
+                  Merge Companies
+                </AdminButton>
               </div>
             </form>
-          </div>
+          </AdminCard>
         </div>
       )}
 
       {/* TAB 3: SYSTEM SETTINGS */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-6">
+          <AdminCard className="space-y-6">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Sliders className="h-5 w-5 text-amber-400" />
+                <Sliders className="h-5 w-5 text-[#e8b339]" />
                 Operational Quotas & Targets
               </h3>
-              <p className="text-xs text-amber-200/70">
+              <p className="text-xs text-slate-400">
                 Configure default performance parameters applied to newly registered CRAs.
               </p>
             </div>
 
             <form onSubmit={handleSaveSettings} className="space-y-4 max-w-md text-xs">
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
-                  Default Monthly Verified JD Target (per CRA)
-                </label>
-                <input
+                <AdminLabel>Default Monthly Verified JD Target (per CRA)</AdminLabel>
+                <AdminInput
                   type="number"
                   min="1"
                   max="200"
                   value={defaultTarget}
                   onChange={(e) => setDefaultTarget(parseInt(e.target.value) || 1)}
-                  className="w-full px-3.5 py-2.5 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
-              <button
+              <AdminButton
                 type="submit"
+                variant="primary"
                 disabled={isSavingSettings}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg transition"
+                loading={isSavingSettings}
               >
-                {isSavingSettings ? 'Saving...' : 'Update Benchmark'}
-              </button>
+                Update Benchmark
+              </AdminButton>
             </form>
-          </div>
+          </AdminCard>
 
           {/* TASK SNOOZE DURATION CONFIGURATION */}
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-6">
+          <AdminCard className="space-y-6">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Clock className="h-5 w-5 text-amber-400" />
+                <Clock className="h-5 w-5 text-[#e8b339]" />
                 Task Notification Snooze Settings
               </h3>
-              <p className="text-xs text-amber-200/70">
+              <p className="text-xs text-slate-400">
                 Configure how long popup notifications are suppressed when an employee clicks "Remind Later" on their dashboard.
               </p>
             </div>
 
             <form onSubmit={handleSaveSnoozeDuration} className="space-y-4 max-w-md text-xs">
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
-                  Default Snooze Interval (Minutes)
-                </label>
+                <AdminLabel>Default Snooze Interval (Minutes)</AdminLabel>
                 <div className="flex items-center gap-2">
-                  <input
+                  <AdminInput
                     type="number"
                     min="5"
                     max="1440"
                     value={snoozeDuration}
                     onChange={(e) => setSnoozeDuration(parseInt(e.target.value) || 60)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
-                  <span className="text-amber-200/70 whitespace-nowrap font-medium">
+                  <span className="text-slate-400 whitespace-nowrap font-medium text-xs">
                     ({Math.round(snoozeDuration / 60 * 10) / 10} hours)
                   </span>
                 </div>
@@ -1449,7 +1418,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
               {/* Quick Presets */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-amber-300/70 text-[11px]">Presets:</span>
+                <span className="text-slate-400 text-[11px]">Presets:</span>
                 {[15, 30, 60, 120, 240].map((mins) => (
                   <button
                     key={mins}
@@ -1457,8 +1426,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     onClick={() => setSnoozeDuration(mins)}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
                       snoozeDuration === mins
-                        ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
-                        : 'bg-amber-950/60 text-amber-300 border-amber-800/60 hover:bg-amber-900/40'
+                        ? 'bg-[#e8b339] text-[#070c16] border-[#e8b339] shadow-sm font-black'
+                        : 'bg-[#141d31] text-slate-300 border-slate-700/60 hover:bg-slate-800'
                     }`}
                   >
                     {mins < 60 ? `${mins}m` : `${mins / 60}h`}
@@ -1466,349 +1435,336 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 ))}
               </div>
 
-              <button
+              <AdminButton
                 type="submit"
+                variant="primary"
                 disabled={isSavingSnooze}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg transition flex items-center gap-2"
+                loading={isSavingSnooze}
+                icon={Clock}
               >
-                <Clock className="h-4 w-4" />
-                <span>{isSavingSnooze ? 'Saving...' : 'Update Snooze Duration'}</span>
-              </button>
+                Update Snooze Duration
+              </AdminButton>
             </form>
-          </div>
+          </AdminCard>
 
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-4">
+          <AdminCard className="space-y-4">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-400" />
+                <Sparkles className="h-5 w-5 text-[#e8b339]" />
                 AI & Intelligence Engine Status
               </h3>
-              <p className="text-xs text-amber-200/70">
+              <p className="text-xs text-slate-400">
                 Status of connected models and Google Search Grounding for HR discovery.
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-              <div className="p-4 rounded-2xl bg-amber-900/20 border border-amber-700/30 space-y-1">
-                <p className="text-amber-300 font-semibold">Tier & Licensing</p>
+              <div className="p-4 rounded-2xl bg-[#141d31] border border-slate-700/40 space-y-1">
+                <p className="text-[#e8b339] font-semibold">Tier & Licensing</p>
                 <p className="text-white font-bold flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   100% Free & Open
                 </p>
-                <p className="text-[11px] text-amber-200/60">No paid API key or subscription needed</p>
+                <p className="text-[11px] text-slate-400">No paid API key or subscription needed</p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-amber-900/20 border border-amber-700/30 space-y-1">
-                <p className="text-amber-300 font-semibold">Google Search Grounding</p>
+              <div className="p-4 rounded-2xl bg-[#141d31] border border-slate-700/40 space-y-1">
+                <p className="text-[#e8b339] font-semibold">Google Search Grounding</p>
                 <p className="text-white font-bold flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                   Active (Gemini 2.5 Flash)
                 </p>
-                <p className="text-[11px] text-amber-200/60">Real-time live recruiter discovery</p>
+                <p className="text-[11px] text-slate-400">Real-time live recruiter discovery</p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-amber-900/20 border border-amber-700/30 space-y-1">
-                <p className="text-amber-300 font-semibold">JD Extraction Engine</p>
+              <div className="p-4 rounded-2xl bg-[#141d31] border border-slate-700/40 space-y-1">
+                <p className="text-[#e8b339] font-semibold">JD Extraction Engine</p>
                 <p className="text-white font-bold flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   Active (Gemini Multimodal)
                 </p>
-                <p className="text-[11px] text-amber-200/60">PDF / Docx / HTML parsing</p>
+                <p className="text-[11px] text-slate-400">PDF / Docx / HTML parsing</p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-amber-900/20 border border-amber-700/30 space-y-1">
-                <p className="text-amber-300 font-semibold">Phone Privacy Enforcer</p>
+              <div className="p-4 rounded-2xl bg-[#141d31] border border-slate-700/40 space-y-1">
+                <p className="text-[#e8b339] font-semibold">Phone Privacy Enforcer</p>
                 <p className="text-white font-bold flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   Enabled
                 </p>
-                <p className="text-[11px] text-amber-200/60">Phone strictly empty for manual verification</p>
+                <p className="text-[11px] text-slate-400">Phone strictly empty for manual verification</p>
               </div>
             </div>
-          </div>
+          </AdminCard>
         </div>
       )}
 
       {/* MERGE CONFIRMATION MODAL */}
       {showMergeConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-gray-950 border border-amber-800/70 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-amber-300">
-              <AlertTriangle className="h-6 w-6 text-amber-400 shrink-0" />
-              <h3 className="text-base font-bold text-white">Confirm Company Merge</h3>
-            </div>
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Are you sure you want to merge these companies? All contacts, JDs, and outreach history from the duplicate company will be safely reassigned to the primary company.
-            </p>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-amber-800/40">
-              <button
+        <AdminModal
+          isOpen={showMergeConfirmModal}
+          onClose={() => setShowMergeConfirmModal(false)}
+          title="Confirm Company Merge"
+          icon={AlertTriangle}
+          footer={
+            <>
+              <AdminButton
                 type="button"
+                variant="ghost"
                 onClick={() => setShowMergeConfirmModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white"
               >
                 Cancel
-              </button>
-              <button
+              </AdminButton>
+              <AdminButton
                 type="button"
+                variant="primary"
                 onClick={executeMerge}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-lg transition"
               >
                 Confirm Merge
-              </button>
-            </div>
-          </div>
-        </div>
+              </AdminButton>
+            </>
+          }
+        >
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Are you sure you want to merge these companies? All contacts, JDs, and outreach history from the duplicate company will be safely reassigned to the primary company.
+          </p>
+        </AdminModal>
       )}
 
       {/* CREATE USER MODAL */}
       {showAddUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl bg-gray-950 border border-amber-800/70 p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-amber-800/40 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Users className="h-5 w-5 text-amber-400" />
-                Add New Placemein Team Member
-              </h3>
-              <button
+        <AdminModal
+          isOpen={showAddUserModal}
+          onClose={() => setShowAddUserModal(false)}
+          title="Add New CRM Team Member"
+          icon={Users}
+          footer={
+            <>
+              <AdminButton
+                type="button"
+                variant="ghost"
                 onClick={() => setShowAddUserModal(false)}
-                className="p-1 text-gray-400 hover:text-white rounded-lg"
               >
-                <X className="h-5 w-5" />
-              </button>
+                Cancel
+              </AdminButton>
+              <AdminButton
+                type="submit"
+                form="create-user-form"
+                variant="primary"
+                disabled={isSubmittingUser}
+                loading={isSubmittingUser}
+              >
+                Create Account
+              </AdminButton>
+            </>
+          }
+        >
+          <form id="create-user-form" onSubmit={handleCreateUser} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <AdminLabel required>Full Name</AdminLabel>
+                <AdminInput
+                  type="text"
+                  required
+                  placeholder="e.g., Aravind Reddy"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <AdminLabel>Employee ID</AdminLabel>
+                <AdminInput
+                  type="text"
+                  placeholder="e.g., PMI-004"
+                  value={newUserEmpId}
+                  onChange={(e) => setNewUserEmpId(e.target.value)}
+                />
+              </div>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g., Aravind Reddy"
-                    value={newUserName}
-                    onChange={(e) => setNewUserName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
+            <div>
+              <AdminLabel required>Email Address</AdminLabel>
+              <AdminInput
+                type="email"
+                required
+                placeholder="name@placemein.com"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+              />
+            </div>
 
-                <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
-                    Employee ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., PMI-004"
-                    value={newUserEmpId}
-                    onChange={(e) => setNewUserEmpId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
+                <AdminLabel required>Specialization Domain</AdminLabel>
+                <AdminInput
+                  type="text"
                   required
-                  placeholder="name@placemein.com"
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="e.g. Cyber Security & IT Services"
+                  value={newUserDomain}
+                  onChange={(e) => setNewUserDomain(e.target.value)}
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
-                    Specialization Domain *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Cyber Security & IT Services"
-                    value={newUserDomain}
-                    onChange={(e) => setNewUserDomain(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
+              <div>
+                <AdminLabel>Designation</AdminLabel>
+                <AdminInput
+                  type="text"
+                  placeholder="e.g. CRA Specialist"
+                  value={newUserDesignation}
+                  onChange={(e) => setNewUserDesignation(e.target.value)}
+                />
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
-                    Designation
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CRA Specialist"
-                    value={newUserDesignation}
-                    onChange={(e) => setNewUserDesignation(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
+            <div>
+              <AdminLabel required>Temporary Password</AdminLabel>
+              <AdminInput
+                type="password"
+                required
+                placeholder="Minimum 6 characters"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <AdminLabel required>System Role</AdminLabel>
+                <AdminSelect
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value as any)}
+                >
+                  <option value="cra">CRA (Recruitment Specialist)</option>
+                  <option value="admin">System Administrator</option>
+                </AdminSelect>
               </div>
 
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
-                  Temporary Password *
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Minimum 6 characters"
-                  value={newUserPassword}
-                  onChange={(e) => setNewUserPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                <AdminLabel>Monthly JD Target</AdminLabel>
+                <AdminInput
+                  type="number"
+                  min="1"
+                  value={newUserTarget}
+                  onChange={(e) => setNewUserTarget(parseInt(e.target.value) || 1)}
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
-                    System Role *
-                  </label>
-                  <select
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="cra">CRA (Recruitment Specialist)</option>
-                    <option value="admin">System Administrator</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
-                    Monthly JD Target
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={newUserTarget}
-                    onChange={(e) => setNewUserTarget(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
-                    Initial Status *
-                  </label>
-                  <select
-                    value={newUserStatus}
-                    onChange={(e) => setNewUserStatus(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="active">Active (Assignable)</option>
-                    <option value="inactive">Inactive (Excluded)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-amber-800/40">
-                <button
-                  type="button"
-                  onClick={() => setShowAddUserModal(false)}
-                  className="px-4 py-2 rounded-xl text-gray-300 hover:text-white"
+              <div>
+                <AdminLabel required>Initial Status</AdminLabel>
+                <AdminSelect
+                  value={newUserStatus}
+                  onChange={(e) => setNewUserStatus(e.target.value as any)}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingUser}
-                  className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-lg transition"
-                >
-                  {isSubmittingUser ? 'Creating...' : 'Create Account'}
-                </button>
+                  <option value="active">Active (Assignable)</option>
+                  <option value="inactive">Inactive (Excluded)</option>
+                </AdminSelect>
               </div>
-            </form>
-          </div>
-        </div>
+            </div>
+          </form>
+        </AdminModal>
       )}
 
       {/* SOFT-DELETE USER CONFIRMATION MODAL */}
       {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-3xl bg-gray-950 border border-rose-800/80 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-400">
-              <AlertTriangle className="h-6 w-6 text-rose-400 shrink-0" />
-              <h3 className="text-base font-bold text-white">Soft-Delete Team Member</h3>
-            </div>
-
+        <AdminModal
+          isOpen={!!userToDelete}
+          onClose={() => setUserToDelete(null)}
+          title="Soft-Delete Team Member"
+          icon={AlertTriangle}
+          footer={
+            <>
+              <AdminButton
+                type="button"
+                variant="ghost"
+                onClick={() => setUserToDelete(null)}
+              >
+                Cancel
+              </AdminButton>
+              <AdminButton
+                type="button"
+                variant="danger"
+                disabled={isDeletingUser}
+                loading={isDeletingUser}
+                icon={Trash2}
+                onClick={handleSoftDeleteUser}
+              >
+                Confirm Soft-Delete
+              </AdminButton>
+            </>
+          }
+        >
+          <div className="space-y-4">
             <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-800/50 space-y-1 text-xs">
               <div className="font-bold text-white text-sm">{userToDelete.name}</div>
               <div className="text-rose-300/80">{userToDelete.email}</div>
               <div className="text-rose-300/60 font-mono">Employee ID: {userToDelete.emp_id || 'Not Assigned'}</div>
             </div>
 
-            <p className="text-xs text-gray-300 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               Soft-deleting this team member deactivates their ID and excludes them from new task assignment dropdowns across the CRM. All historical contributions, created companies, verified JDs, and notes remain preserved for auditing.
             </p>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-rose-800/40">
-              <button
-                type="button"
-                onClick={() => setUserToDelete(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isDeletingUser}
-                onClick={handleSoftDeleteUser}
-                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>{isDeletingUser ? 'Deleting...' : 'Confirm Soft-Delete'}</span>
-              </button>
-            </div>
           </div>
-        </div>
+        </AdminModal>
       )}
 
       {/* ADMIN JD REVIEW, ELIGIBILITY & INTERVIEW OVERSIGHT MODAL */}
       {isReviewModalOpen && selectedJdForReview && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
-          onClick={() => setIsReviewModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-3xl bg-gray-900 border border-amber-500/50 shadow-2xl p-6 sm:p-7 space-y-6 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-amber-800/40 pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-mono font-black">
-                    {selectedJdForReview.jd_id || 'JD-RECORD'}
-                  </span>
-                  <span className="text-xs text-amber-200/60 font-semibold">
-                    Admin Eligibility Oversight
-                  </span>
-                </div>
-                <h3 className="text-lg font-black text-white">{selectedJdForReview.title}</h3>
-                <p className="text-xs text-purple-300 font-semibold flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5 text-purple-400" />
-                  <span>{selectedJdForReview.company?.name || 'Company Profile'}</span>
-                  <span className="text-gray-500">·</span>
-                  <span className="text-gray-400 font-normal capitalize">
-                    {selectedJdForReview.opportunity_type?.replace('_', ' ') || 'Existing Post'}
-                  </span>
-                </p>
+        <AdminModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          title={
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-[#e8b339]/20 text-[#e8b339] border border-[#e8b339]/30">
+                  {selectedJdForReview.jd_id || 'JD-RECORD'}
+                </span>
+                <span className="text-xs text-slate-400 font-semibold">Admin Eligibility Oversight</span>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setIsReviewModalOpen(false)}
-                className="p-1.5 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="text-base font-black text-white">{selectedJdForReview.title}</div>
             </div>
+          }
+          icon={FileText}
+          maxWidth="lg"
+          footer={
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+              <AdminButton
+                type="button"
+                variant="danger"
+                size="sm"
+                icon={Trash2}
+                onClick={() => handleDeleteJD(selectedJdForReview)}
+                title="Permanently remove JD as Administrator"
+              >
+                Delete JD Record
+              </AdminButton>
+
+              <div className="flex items-center gap-2">
+                <AdminButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsReviewModalOpen(false)}
+                >
+                  Cancel
+                </AdminButton>
+
+                <AdminButton
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={isSavingReview}
+                  loading={isSavingReview}
+                  icon={Check}
+                  onClick={handleSaveJdReview}
+                >
+                  Save Decision & Schedule
+                </AdminButton>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-6">
 
             {/* Section 1: Mandatory HR Details (Required when JD is received) */}
             <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-700/50 space-y-2.5">
@@ -2059,41 +2015,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 />
               </div>
             </div>
-
-            {/* Modal Footer */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-amber-800/40">
-              <button
-                type="button"
-                onClick={() => handleDeleteJD(selectedJdForReview)}
-                className="w-full sm:w-auto px-4 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                title="Permanently remove JD as Administrator"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete JD Record</span>
-              </button>
-
-              <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setIsReviewModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isSavingReview}
-                  onClick={handleSaveJdReview}
-                  className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
-                >
-                  <Check className="h-4 w-4" />
-                  <span>{isSavingReview ? 'Saving...' : 'Save Decision & Schedule'}</span>
-                </button>
-              </div>
-            </div>
           </div>
-        </div>
+        </AdminModal>
       )}
     </div>
   );

@@ -5,6 +5,13 @@ export type OutreachChannelType = 'call' | 'mail' | 'text' | 'whatsapp' | 'linke
 export type OutreachChannelStatus = 'not_started' | 'sent' | 'replied' | 'failed';
 export type CampaignStatus = 'draft' | 'active' | 'completed';
 export type OutcomeStatus = 'pending' | 'jd_received' | 'not_eligible' | 'eligible_active' | 'rejected' | 'community_joined';
+export type LeadResponseStatus =
+  | 'no_response_yet'
+  | 'replied_interested'
+  | 'replied_asked_jd'
+  | 'replied_not_interested'
+  | 'call_scheduled'
+  | 'wrong_contact';
 export type HRSourcingStatus =
   | 'HR Sourcing'
   | 'HR Found'
@@ -77,6 +84,16 @@ export interface HRContact {
   hr_linkedin?: string;
   proof_screenshot_url?: string;
   proof_screenshot_uploaded_at?: string;
+  // My Worksheet response tracking
+  response_status?: LeadResponseStatus;
+  response_note?: string;
+  responded_at?: string;
+  // Proof of contact — mandatory when a response is logged. Goes to Admin for verification.
+  proof_channel?: 'called' | 'messaged' | 'mailed';
+  proof_verified_status?: 'pending' | 'verified' | 'rejected';
+  proof_verified_by?: string;
+  proof_verified_at?: string;
+  proof_admin_notes?: string;
 }
 
 export interface JD {

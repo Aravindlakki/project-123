@@ -362,6 +362,11 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
   });
 
   const filteredContacts = contacts.filter((c) => {
+    // ELIGIBILITY RULE: leads whose proof was rejected by Admin are NOT eligible
+    const claimedResponse = c.response_status && c.response_status !== 'no_response_yet';
+    if (c.proof_verified_status === 'rejected') return false;
+    if (claimedResponse && c.proof_verified_status !== 'verified') return false;
+
     const comp = companies.find((co) => co.id === c.company_id) || c.company;
     // Team member filter
     if (selectedMemberFilter !== 'all') {

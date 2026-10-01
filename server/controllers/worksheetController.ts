@@ -110,6 +110,7 @@ export function createWorksheetLead(req: Request, res: Response) {
     spoc: spoc?.trim() || user.name.split(' ')[0],
     entered_by_name: entered_by_name?.trim() || user.name,
     source: 'manual',
+    response_status: 'no_response_yet',
     created_by: user.id,
     created_at: new Date().toISOString(),
   };
@@ -175,6 +176,7 @@ export function bulkCreateWorksheetLeads(req: Request, res: Response) {
       spoc: item.spoc?.trim() || user.name.split(' ')[0],
       entered_by_name: item.entered_by_name?.trim() || user.name,
       source: 'excel_import',
+      response_status: 'no_response_yet',
       created_by: user.id,
       created_at: new Date().toISOString(),
     };
