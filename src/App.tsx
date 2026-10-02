@@ -294,7 +294,7 @@ export const App: React.FC = () => {
         {activeTab === 'admin-team-lead-dashboard' && (
           <TeamLeadDashboardPage setActiveTab={navigate} adminMode={true} />
         )}
-        {activeTab === 'admin-sheets' && (
+        {(activeTab === 'admin-sheets' || activeTab === 'admin-worksheets' || activeTab === 'sheets') && (
           <TeamSheetsPage currentUser={currentUser} adminMode={true} />
         )}
         {activeTab === 'admin-tasks' && <TaskManagementPage />}
@@ -302,6 +302,11 @@ export const App: React.FC = () => {
         {activeTab === 'jd-bank-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
         {activeTab === 'jd-bank-non-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
         {activeTab === 'proof-review' && <TeamSheetsPage currentUser={currentUser} adminMode={true} />}
+
+        {/* Fallback if an unmatched admin tab is encountered */}
+        {!['admin-users', 'admin-companies', 'admin-settings', 'admin-jd-list', 'admin-team-lead-dashboard', 'admin-sheets', 'admin-worksheets', 'sheets', 'admin-tasks', 'admin-performance', 'jd-bank-tech', 'jd-bank-non-tech', 'proof-review'].includes(activeTab) && (
+          <TeamSheetsPage currentUser={currentUser} adminMode={true} />
+        )}
 
         {/* Modals rendered inside the admin tree */}
         <AdminLoginModal

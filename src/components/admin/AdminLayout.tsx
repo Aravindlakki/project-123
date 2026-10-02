@@ -103,11 +103,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     currentUser?.name?.toLowerCase().includes('aravind');
 
   return (
-    <div data-portal="admin" className="admin-shell">
+    <div data-portal="admin" className="admin-shell flex flex-row min-h-screen w-full bg-[#070c16] text-slate-100">
       {/* Mobile Drawer Backdrop */}
       {mobileOpen && (
         <div
-          className="admin-backdrop lg:hidden"
+          className="admin-backdrop md:hidden"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -115,8 +115,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
       {/* Admin Sidebar */}
       <aside
-        className={`admin-sidebar ${collapsed ? 'collapsed' : ''} ${
-          mobileOpen ? 'translate-x-0 fixed inset-y-0 left-0' : '-translate-x-full lg:translate-x-0'
+        className={`admin-sidebar shrink-0 ${collapsed ? 'collapsed' : ''} ${
+          mobileOpen
+            ? 'translate-x-0 fixed inset-y-0 left-0 z-50 flex'
+            : 'hidden md:flex md:sticky'
         }`}
       >
         {/* Brand Header */}
@@ -265,15 +267,22 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-x-hidden">
         {/* Sticky Topbar */}
         <header className="admin-topbar">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            {/* Hamburger button for mobile */}
+            {/* Sidebar toggle button (Mobile: opens drawer; Desktop: toggles collapse for full screen) */}
             <button
-              onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
-              aria-label="Open Navigation Menu"
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setMobileOpen(!mobileOpen);
+                } else {
+                  setCollapsed(!collapsed);
+                }
+              }}
+              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition shrink-0 min-h-[38px] min-w-[38px] flex items-center justify-center cursor-pointer border border-slate-700/50 hover:border-[#e8b339]/40"
+              title={collapsed ? "Show sidebar navigation" : "Collapse sidebar for full-screen view"}
+              aria-label="Toggle navigation menu"
             >
               <Menu className="h-5 w-5" />
             </button>
