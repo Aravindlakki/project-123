@@ -418,8 +418,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       await api.updateContact(proofModalLead.id, updates);
       setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
       allContactsRef.current = allContactsRef.current.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l));
-      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: proofModalLead.id } }));
-      showToast('Proof uploaded & sent to Admin for verification');
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: proofModalLead.id, status: 'pending' } }));
+      showToast('Proof screenshot uploaded! Sent to Admin — Verification is Pending.', 'success');
       setProofModalLead(null);
       setProofModalResponse(null);
       setProofFile(null);
@@ -439,7 +439,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         }
         setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
         allContactsRef.current = allContactsRef.current.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l));
-        showToast('Proof uploaded & sent to Admin for verification');
+        window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: proofModalLead.id, status: 'pending' } }));
+        showToast('Proof screenshot uploaded! Sent to Admin — Verification is Pending.', 'success');
         setProofModalLead(null);
         setProofModalResponse(null);
         setProofFile(null);
@@ -455,7 +456,10 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   // Proof review state helper
   const getProofReviewState = (lead: HRContact): 'none' | 'pending' | 'verified' | 'rejected' => {
     if (!lead.proof_screenshot_url) return 'none';
-    return (lead.proof_verified_status as any) || 'pending';
+    const s = lead.proof_verified_status;
+    if (s === 'approved' || s === 'verified') return 'verified';
+    if (s === 'rejected') return 'rejected';
+    return 'pending';
   };
 
   // Admin verification decision
@@ -477,8 +481,9 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updates } : l)));
       allContactsRef.current = allContactsRef.current.map((l) => (l.id === leadId ? { ...l, ...updates } : l));
       window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId, status: decision } }));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId, status: decision } }));
       if (decision === 'verified') {
-        showToast('Proof verified — lead now counts', 'success');
+        showToast('Proof approved — lead is now marked as Approved Lead!', 'success');
       } else {
         showToast('Proof rejected — response reset to No response yet', 'error');
       }
@@ -1041,7 +1046,27 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         </div>
       </div>
 
-      {/* Admin Action Alert: Pending Proofs */}
+      {/* Employee Notification: Pending Proofs */}
+      {!(adminMode || currentUser?.role === 'admin') && pendingVerificationCount > 0 && (
+        <div className="bg-gradient-to-r from-amber-950/60 via-gray-900 to-amber-950/60 border border-amber-500/40 rounded-2xl p-3.5 shadow-lg flex items-center justify-between gap-3 text-white animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/20 border border-amber-500/30 rounded-xl">
+              <Clock className="h-4 w-4 text-amber-400 animate-pulse" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-amber-200 flex items-center gap-2">
+                <span>{pendingVerificationCount} Proof{pendingVerificationCount === 1 ? '' : 's'} Pending Admin Approval</span>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Verification Pending
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                Screenshot proofs submitted to Admin. Verification will show &ldquo;Approved Lead&rdquo; once leadership approves.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {(adminMode || currentUser?.role === 'admin') && pendingVerificationCount > 0 && (
         <div className="bg-gradient-to-r from-amber-950/90 via-gray-900 to-amber-950/90 border border-amber-500/60 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3 text-white animate-fadeIn">
           <div className="flex items-center gap-3">
@@ -1721,42 +1746,42 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                       <td className="py-2 px-2.5 whitespace-nowrap">
                         {proofReviewState === 'verified' && (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-600/40"
-                            title="Admin verified this proof — lead is eligible and flows to CRM Directory"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-500/50 shadow-sm shadow-emerald-950"
+                            title="Admin approved this screenshot — verified Approved Lead"
                           >
-                            <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                            <span>Eligible</span>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>Approved Lead</span>
                           </span>
                         )}
 
                         {proofReviewState === 'rejected' && (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-600/40"
-                            title={lead.proof_admin_notes || 'Proof rejected by Admin — response reset'}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/50 shadow-sm shadow-rose-950"
+                            title={lead.proof_admin_notes || 'Proof rejected by Admin — response reset to No response yet'}
                           >
-                            <XCircle className="h-3 w-3 text-rose-400" />
-                            <span>Not Eligible</span>
+                            <XCircle className="h-3.5 w-3.5 text-rose-400" />
+                            <span>Rejected</span>
                           </span>
                         )}
 
                         {proofReviewState === 'pending' && (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/40 cursor-pointer hover:bg-amber-900/80"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/90 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-950 cursor-pointer hover:bg-amber-900/90 transition"
                             onClick={() => {
                               if (adminMode || currentUser?.role === 'admin') {
                                 setReviewModalLead(lead);
                               }
                             }}
-                            title="Proof submitted — awaiting Admin review"
+                            title={adminMode || currentUser?.role === 'admin' ? 'Click to audit & approve this screenshot' : 'Screenshot uploaded & sent to Admin — Verification is Pending'}
                           >
-                            <Clock className="h-3 w-3 text-amber-400" />
-                            <span>Under Review</span>
+                            <Clock className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                            <span>Pending</span>
                           </span>
                         )}
 
                         {proofReviewState === 'none' && (
                           lead.response_status && lead.response_status !== 'no_response_yet' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/40">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/40">
                               Proof Needed
                             </span>
                           ) : (
@@ -1768,6 +1793,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                       {/* 13. Actions */}
                       <td className="py-2 px-2.5 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          {/* Quick Admin Approve button when proof is Pending */}
+                          {(adminMode || currentUser?.role === 'admin') && proofReviewState === 'pending' && (
+                            <button
+                              onClick={() => reviewLeadProof(lead.id, 'verified', 'Approved by Admin')}
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg shadow transition flex items-center gap-1 cursor-pointer border border-emerald-400/40"
+                              title="Approve proof and mark as Approved Lead"
+                            >
+                              <Check className="h-3 w-3 stroke-[3]" />
+                              <span>Approve</span>
+                            </button>
+                          )}
+
                           {/* "HR Sourcing" / "Find HR" button on incomplete leads */}
                           {isIncomplete && (
                             <button

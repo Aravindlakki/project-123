@@ -91,7 +91,7 @@ export interface HRContact {
   responded_at?: string;
   // Proof of contact — mandatory when a response is logged. Goes to Admin for verification.
   proof_channel?: 'called' | 'messaged' | 'mailed';
-  proof_verified_status?: 'pending' | 'verified' | 'rejected';
+  proof_verified_status?: 'pending' | 'verified' | 'rejected' | 'approved';
   proof_verified_by?: string;
   proof_verified_at?: string;
   proof_admin_notes?: string;

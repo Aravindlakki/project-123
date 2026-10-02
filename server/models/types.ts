@@ -62,7 +62,7 @@ export interface HRContact {
   response_note?: string;
   responded_at?: string;
   proof_channel?: 'called' | 'messaged' | 'mailed';
-  proof_verified_status?: 'pending' | 'verified' | 'rejected';
+  proof_verified_status?: 'pending' | 'verified' | 'rejected' | 'approved';
   proof_verified_by?: string;
   proof_verified_at?: string;
   proof_admin_notes?: string;

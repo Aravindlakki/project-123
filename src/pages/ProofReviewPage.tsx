@@ -121,7 +121,7 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
   const stats = useMemo(() => {
     const total = proofLeads.length;
     const pending = proofLeads.filter((l) => (l.proof_verified_status || 'pending') === 'pending').length;
-    const verified = proofLeads.filter((l) => l.proof_verified_status === 'verified').length;
+    const verified = proofLeads.filter((l) => l.proof_verified_status === 'verified' || l.proof_verified_status === 'approved').length;
     const rejected = proofLeads.filter((l) => l.proof_verified_status === 'rejected').length;
     return { total, pending, verified, rejected };
   }, [proofLeads]);
@@ -144,7 +144,9 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
   const filteredProofs = useMemo(() => {
     return proofLeads.filter((lead) => {
       // Status filter
-      const curStatus = lead.proof_verified_status || 'pending';
+      const curStatus = (lead.proof_verified_status === 'approved' || lead.proof_verified_status === 'verified')
+        ? 'verified'
+        : (lead.proof_verified_status || 'pending');
       if (statusFilter !== 'all' && curStatus !== statusFilter) {
         return false;
       }
@@ -211,18 +213,23 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
     });
   }, [proofLeads, statusFilter, memberFilter, channelFilter, searchTerm, sortBy, usersMap]);
 
-  // Quick 1-Click Approve Handler
-  const handleQuickApprove = async (lead: HRContact) => {
+  // Dedicated Approval / Rejection Toggle Handler
+  const handleToggleStatus = async (lead: HRContact, targetStatus: 'approved' | 'rejected') => {
     const adminName = currentUser?.name || 'Admin Leadership';
     setIsProcessingAction(lead.id);
 
     const updates: Partial<HRContact> = {
       name: lead.name,
       company_id: lead.company_id,
-      proof_verified_status: 'verified',
+      proof_verified_status: targetStatus,
       proof_verified_by: adminName,
       proof_verified_at: new Date().toISOString(),
-      proof_admin_notes: 'Verified & approved via Admin Proof Review Hub',
+      proof_admin_notes: targetStatus === 'approved'
+        ? 'Approved via Proof Review toggle'
+        : (lead.proof_admin_notes || 'Rejected via Proof Review toggle'),
+      ...(targetStatus === 'rejected'
+        ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any }
+        : {}),
     };
 
     try {
@@ -241,18 +248,31 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
         }
       } catch (_) {}
 
-      // Notify other views
-      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId: lead.id, status: 'verified' } }));
+      // Notify employee Proof of Response view immediately via broadcast events
+      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId: lead.id, status: targetStatus } }));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: lead.id, status: targetStatus } }));
 
-      showToast(`Approved proof for ${lead.company?.name || lead.name}. Lead is now verified!`, 'success');
+      showToast(
+        targetStatus === 'approved'
+          ? `Status updated: Approved lead for ${lead.company?.name || lead.name}!`
+          : `Status updated: Rejected proof for ${lead.company?.name || lead.name}. Response reset.`,
+        targetStatus === 'approved' ? 'success' : 'error'
+      );
     } catch (err: any) {
-      console.error('Failed to approve proof', err);
-      // Fallback
+      console.error('Failed to toggle proof status', err);
+      // Optimistic fallback
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...updates } : l)));
-      showToast('Approved proof (synced locally)', 'success');
+      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId: lead.id, status: targetStatus } }));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: lead.id, status: targetStatus } }));
+      showToast(`Status toggled to ${targetStatus} (synced locally)`, 'success');
     } finally {
       setIsProcessingAction(null);
     }
+  };
+
+  // Quick 1-Click Approve Handler
+  const handleQuickApprove = async (lead: HRContact) => {
+    return handleToggleStatus(lead, 'approved');
   };
 
   // Quick Reject Handler
@@ -294,6 +314,7 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
       } catch (_) {}
 
       window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId: lead.id, status: 'rejected' } }));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: lead.id, status: 'rejected' } }));
 
       showToast(`Rejected proof for ${lead.company?.name || lead.name}. Response reset to "No response yet".`, 'error');
       setQuickRejectLead(null);
@@ -325,7 +346,7 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
       const updates: Partial<HRContact> = {
         name: lead.name,
         company_id: lead.company_id,
-        proof_verified_status: 'verified',
+        proof_verified_status: 'approved',
         proof_verified_by: adminName,
         proof_verified_at: new Date().toISOString(),
         proof_admin_notes: 'Batch approved via Admin Proof Review Hub',
@@ -339,7 +360,8 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
 
     // Refresh data
     await fetchData();
-    window.dispatchEvent(new CustomEvent('proof_verification_updated'));
+    window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { status: 'approved' } }));
+    window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { status: 'approved' } }));
     setIsProcessingAction(null);
     showToast(`Successfully verified & approved ${successCount} outreach proofs!`, 'success');
   };
@@ -347,27 +369,29 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
   // Modal decision handler (from detailed ProofReviewModal)
   const handleModalDecision = async (decision: 'verified' | 'rejected', notes?: string) => {
     if (!reviewModalLead) return;
+    const targetStatus = decision === 'verified' ? 'approved' : 'rejected';
     const adminName = currentUser?.name || 'Admin Leadership';
 
     const updates: Partial<HRContact> = {
       name: reviewModalLead.name,
       company_id: reviewModalLead.company_id,
-      proof_verified_status: decision,
+      proof_verified_status: targetStatus,
       proof_verified_by: adminName,
       proof_verified_at: new Date().toISOString(),
       proof_admin_notes: notes,
-      ...(decision === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any } : {}),
+      ...(targetStatus === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any } : {}),
     };
 
     try {
       await api.updateContact(reviewModalLead.id, updates);
       setLeads((prev) => prev.map((l) => (l.id === reviewModalLead.id ? { ...l, ...updates } : l)));
-      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId: reviewModalLead.id, status: decision } }));
+      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId: reviewModalLead.id, status: targetStatus } }));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: reviewModalLead.id, status: targetStatus } }));
 
-      if (decision === 'verified') {
-        showToast(`Proof verified for ${reviewModalLead.company?.name || reviewModalLead.name}`, 'success');
+      if (targetStatus === 'approved') {
+        showToast(`Proof approved for ${reviewModalLead.company?.name || reviewModalLead.name}! Marked as Approved Lead.`, 'success');
       } else {
-        showToast(`Proof rejected for ${reviewModalLead.company?.name || reviewModalLead.name}`, 'error');
+        showToast(`Proof rejected for ${reviewModalLead.company?.name || reviewModalLead.name}. Response reset.`, 'error');
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to update review status', 'error');
@@ -400,10 +424,11 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
+      case 'approved':
       case 'verified':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-950">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Verified & Approved
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approved Lead
           </span>
         );
       case 'rejected':
@@ -416,10 +441,74 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-amber-500/25 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-950 animate-pulse">
-            <Clock className="h-3.5 w-3.5 text-amber-400" /> Pending Admin Review
+            <Clock className="h-3.5 w-3.5 text-amber-400" /> Pending
           </span>
         );
     }
+  };
+
+  // Interactive Approval / Rejection Toggle
+  const renderStatusToggle = (lead: HRContact, compact = false) => {
+    const rawStatus = lead.proof_verified_status || 'pending';
+    const isApproved = rawStatus === 'approved' || rawStatus === 'verified';
+    const isRejected = rawStatus === 'rejected';
+    const isPending = !isApproved && !isRejected;
+    const isProcessing = isProcessingAction === lead.id;
+
+    return (
+      <div className={`inline-flex items-center rounded-xl bg-slate-950/95 border border-slate-700/80 shadow-inner ${compact ? 'p-0.5 gap-0.5' : 'p-1 gap-1'}`}>
+        {/* Approve Toggle Option */}
+        <button
+          type="button"
+          disabled={isProcessing}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isApproved) handleToggleStatus(lead, 'approved');
+          }}
+          className={`flex items-center gap-1 rounded-lg font-bold transition-all cursor-pointer ${
+            compact ? 'px-2 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'
+          } ${
+            isApproved
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950 font-black ring-1 ring-emerald-400'
+              : 'text-slate-400 hover:text-emerald-300 hover:bg-emerald-950/50'
+          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title={isApproved ? 'Currently Approved Lead' : 'Click to approve this proof screenshot'}
+        >
+          <Check className={`stroke-[3] ${compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} ${isApproved ? 'text-white' : 'text-slate-500'}`} />
+          <span>Approved</span>
+        </button>
+
+        {/* Pending Badge Indicator */}
+        {isPending && (
+          <span className={`font-extrabold uppercase tracking-wider text-amber-400 bg-amber-500/20 rounded border border-amber-500/30 animate-pulse ${
+            compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[9px]'
+          }`}>
+            Pending
+          </span>
+        )}
+
+        {/* Reject Toggle Option */}
+        <button
+          type="button"
+          disabled={isProcessing}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isRejected) handleToggleStatus(lead, 'rejected');
+          }}
+          className={`flex items-center gap-1 rounded-lg font-bold transition-all cursor-pointer ${
+            compact ? 'px-2 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'
+          } ${
+            isRejected
+              ? 'bg-rose-600 text-white shadow-md shadow-rose-950 font-black ring-1 ring-rose-400'
+              : 'text-slate-400 hover:text-rose-300 hover:bg-rose-950/50'
+          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title={isRejected ? 'Currently Rejected' : 'Click to reject this proof screenshot'}
+        >
+          <X className={`stroke-[3] ${compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} ${isRejected ? 'text-white' : 'text-slate-500'}`} />
+          <span>Rejected</span>
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -500,7 +589,7 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" /> Pending Review
+              <Clock className="h-3.5 w-3.5" /> Pending Approval
             </span>
             {stats.pending > 0 && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-gray-950 animate-pulse">
@@ -523,11 +612,11 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Approved & Verified
+              <CheckCircle2 className="h-3.5 w-3.5" /> Approved Leads
             </span>
           </div>
           <div className="text-3xl font-black text-emerald-300 mt-2">{stats.verified}</div>
-          <p className="text-[11px] text-slate-400 mt-1">Confirmed authentic & unlocked in CRM</p>
+          <p className="text-[11px] text-slate-400 mt-1">Confirmed authentic & unlocked as Approved Leads</p>
         </div>
 
         {/* Rejected Card */}
@@ -890,74 +979,19 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
                     )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="pt-3 border-t border-slate-800 flex items-center gap-2">
-                    {isPending ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleQuickApprove(lead)}
-                          disabled={isProcessing}
-                          className="flex-1 py-2 px-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black text-xs rounded-xl shadow-md shadow-emerald-950 flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-                        >
-                          <Check className="h-4 w-4 stroke-[3]" />
-                          <span>Approve</span>
-                        </button>
+                  {/* Action Buttons: Instant Approval/Rejection Toggle + Audit Modal */}
+                  <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                    {renderStatusToggle(lead, false)}
 
-                        <button
-                          type="button"
-                          onClick={() => setReviewModalLead(lead)}
-                          className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition cursor-pointer flex items-center gap-1"
-                          title="Open 4-point review modal"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>Audit</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setQuickRejectLead(lead)}
-                          disabled={isProcessing}
-                          className="py-2 px-3 bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 font-bold text-xs rounded-xl border border-rose-800/50 transition cursor-pointer flex items-center gap-1"
-                          title="Reject proof"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                          <span>Reject</span>
-                        </button>
-                      </>
-                    ) : (
-                      <div className="w-full flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => setReviewModalLead(lead)}
-                          className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition cursor-pointer flex items-center gap-1.5"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>Re-audit Details</span>
-                        </button>
-
-                        {status === 'rejected' && (
-                          <button
-                            type="button"
-                            onClick={() => handleQuickApprove(lead)}
-                            className="py-1.5 px-3 bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/50 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                            <span>Override: Approve</span>
-                          </button>
-                        )}
-                        {status === 'verified' && (
-                          <button
-                            type="button"
-                            onClick={() => setQuickRejectLead(lead)}
-                            className="py-1.5 px-3 bg-rose-950/40 hover:bg-rose-900 text-rose-300 border border-rose-800/40 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                            <span>Revoke: Reject</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setReviewModalLead(lead)}
+                      className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition cursor-pointer flex items-center gap-1.5 shrink-0"
+                      title="Open full 4-point review modal"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Audit</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1058,51 +1092,23 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
                           : '—'}
                       </td>
 
-                      {/* Status */}
+                      {/* Status Toggle Column */}
                       <td className="py-3 px-4 whitespace-nowrap">
-                        {getStatusBadge(status)}
+                        {renderStatusToggle(lead, true)}
                       </td>
 
                       {/* Actions */}
                       <td className="py-3 px-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {isPending ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickApprove(lead)}
-                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-lg transition shadow-sm cursor-pointer flex items-center gap-1"
-                              >
-                                <Check className="h-3.5 w-3.5 stroke-[3]" />
-                                <span>Approve</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setReviewModalLead(lead)}
-                                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg transition cursor-pointer"
-                                title="Audit"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setQuickRejectLead(lead)}
-                                className="px-2 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 font-bold text-xs rounded-lg border border-rose-800/40 transition cursor-pointer"
-                                title="Reject"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setReviewModalLead(lead)}
-                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition cursor-pointer flex items-center gap-1"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              <span>Details</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => setReviewModalLead(lead)}
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg transition cursor-pointer flex items-center gap-1 border border-slate-700 shadow-sm"
+                            title="Audit detailed 4-point verification checklist"
+                          >
+                            <Eye className="h-3.5 w-3.5 text-amber-400" />
+                            <span>Audit</span>
+                          </button>
                         </div>
                       </td>
                     </tr>

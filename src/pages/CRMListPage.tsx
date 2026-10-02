@@ -369,7 +369,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
     // verified proof is also excluded (proof is mandatory to count).
     const claimedResponse = c.response_status && c.response_status !== 'no_response_yet';
     if (c.proof_verified_status === 'rejected') return false;
-    if (claimedResponse && c.proof_verified_status !== 'verified') return false;
+    if (claimedResponse && c.proof_verified_status !== 'verified' && c.proof_verified_status !== 'approved') return false;
 
     // Team member filter
     if (selectedMemberFilter !== 'all') {

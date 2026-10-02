@@ -405,7 +405,7 @@ export const ProofReviewModal: React.FC<ProofReviewModalProps> = ({
                 }`}
               >
                 <Check className="h-4 w-4 stroke-[3]" />
-                <span>{isSubmitting ? 'Verifying...' : '✓ Verify & Approve Lead — It Counts'}</span>
+                <span>{isSubmitting ? 'Approving...' : '✓ Approve Screenshot — Mark as Approved Lead'}</span>
               </button>
             </div>
 
