@@ -406,36 +406,60 @@ export const supabaseDataService = {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert({
-          company_id: contact.company_id,
-          name: contact.name,
-          title: contact.title || null,
-          email: contact.email || null,
-          phone: contact.phone || null,
-          linkedin_url: contact.linkedin_url || null,
-          domain: contact.domain || null,
-          location: contact.location || null,
-          remarks: contact.remarks || null,
-          spoc: contact.spoc || null,
-          source: contact.source || 'manual',
-          response_status: contact.response_status || 'no_response_yet',
-          response_note: contact.response_note || null,
-          responded_at: contact.responded_at || null,
-          proof_channel: contact.proof_channel || null,
-          proof_screenshot_url: contact.proof_screenshot_url || null,
-          proof_screenshot_uploaded_at: contact.proof_screenshot_uploaded_at || null,
-          proof_verified_status: contact.proof_verified_status || 'pending',
-          proof_verified_by: contact.proof_verified_by || null,
-          proof_verified_at: contact.proof_verified_at || null,
-          proof_admin_notes: contact.proof_admin_notes || null,
-        })
-        .select('*, company:companies(*)')
-        .single();
+      const insertPayload: Record<string, any> = {
+        company_id: contact.company_id,
+        name: contact.name,
+        title: contact.title || null,
+        email: contact.email || null,
+        phone: contact.phone || null,
+        linkedin_url: contact.linkedin_url || null,
+        domain: contact.domain || null,
+        location: contact.location || null,
+        remarks: contact.remarks || null,
+        spoc: contact.spoc || null,
+        source: contact.source || 'manual',
+        response_status: contact.response_status || 'no_response_yet',
+        response_note: contact.response_note || null,
+        responded_at: contact.responded_at || null,
+        proof_channel: contact.proof_channel || null,
+        proof_screenshot_url: contact.proof_screenshot_url || null,
+        proof_screenshot_uploaded_at: contact.proof_screenshot_uploaded_at || null,
+        proof_verified_status: contact.proof_verified_status || 'pending',
+        proof_verified_by: contact.proof_verified_by || null,
+        proof_verified_at: contact.proof_verified_at || null,
+        proof_admin_notes: contact.proof_admin_notes || null,
+      };
 
-      if (error) throw error;
-      return data;
+      let insertData: any = null;
+      let currentInsertPayload = { ...insertPayload };
+
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const { data, error } = await supabase
+          .from('contacts')
+          .insert(currentInsertPayload)
+          .select('*, company:companies(*)')
+          .maybeSingle();
+
+        if (!error && data) {
+          insertData = data;
+          break;
+        }
+
+        const errMsg = error?.message || '';
+        const colMatch = errMsg.match(/Could not find the '([^']+)' column of 'contacts'/i)
+          || errMsg.match(/column "?([^"'\s]+)"? of relation "contacts" does not exist/i);
+
+        if (colMatch && colMatch[1] && currentInsertPayload[colMatch[1]] !== undefined) {
+          console.warn(`[Supabase createContact] Stripping unmigrated column '${colMatch[1]}' and retrying insert.`);
+          delete currentInsertPayload[colMatch[1]];
+          continue;
+        }
+
+        if (error) throw error;
+        break;
+      }
+
+      if (insertData) return insertData;
     } catch (err: any) {
       console.warn('Supabase createContact fallback:', err?.message || err);
       const newContact: HRContact = {
@@ -545,30 +569,78 @@ export const supabaseDataService = {
     if (updates.proof_verified_at !== undefined) updatePayload.proof_verified_at = updates.proof_verified_at;
     if (updates.proof_admin_notes !== undefined) updatePayload.proof_admin_notes = updates.proof_admin_notes;
 
-    const { data, error } = await supabase
-      .from('contacts')
-      .update(updatePayload)
-      .eq('id', id)
-      .select('*, company:companies(*)')
-      .single();
+    let data: any = null;
+    let currentPayload = { ...updatePayload };
 
-    if (error) {
-      console.error('[Supabase updateContact error]', error);
-      throw new Error(error.message);
+    // Self-healing retry: if Supabase lacks a newly introduced column (like proof_admin_notes),
+    // strip the missing column and retry so the update never crashes the user interface.
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const res = await supabase
+        .from('contacts')
+        .update(currentPayload)
+        .eq('id', id)
+        .select('*, company:companies(*)')
+        .maybeSingle();
+
+      if (!res.error) {
+        data = res.data;
+        break;
+      }
+
+      const errMsg = res.error.message || '';
+      console.warn(`[Supabase updateContact attempt ${attempt + 1}]`, errMsg);
+
+      const colMatch = errMsg.match(/Could not find the '([^']+)' column of 'contacts'/i)
+        || errMsg.match(/column "?([^"'\s]+)"? of relation "contacts" does not exist/i);
+
+      if (colMatch && colMatch[1] && currentPayload[colMatch[1]] !== undefined) {
+        console.warn(`[Supabase updateContact] Stripping unmigrated column '${colMatch[1]}' and retrying update.`);
+        delete currentPayload[colMatch[1]];
+        continue;
+      }
+
+      break;
     }
 
-    // Keep client fallback store in sync with these updates
+    // Keep client fallback store in sync with all updates (preserving local proof fields even if DB schema hasn't added them yet)
     try {
       const contacts = clientFallbackStore.getContacts();
       const idx = contacts.findIndex((c) => c.id === id);
+      const existing = idx >= 0 ? contacts[idx] : null;
+      const merged: HRContact = {
+        ...(existing || ({} as any)),
+        ...updates,
+        ...(data || {}),
+        id,
+        company: data?.company || existing?.company,
+        remarks: data?.remarks || effectiveRemarks || existing?.remarks,
+        status: effectiveRemarks || data?.remarks || existing?.status || 'HR Sourcing',
+        notes: updates.notes !== undefined ? updates.notes : existing?.notes,
+        role_title: effectiveTitle || data?.title || existing?.role_title,
+        response_status: updates.response_status || data?.response_status || existing?.response_status || 'no_response_yet',
+        response_note: updates.response_note !== undefined ? updates.response_note : (data?.response_note !== undefined ? data?.response_note : existing?.response_note),
+        responded_at: updates.responded_at !== undefined ? updates.responded_at : (data?.responded_at !== undefined ? data?.responded_at : existing?.responded_at),
+        proof_channel: updates.proof_channel !== undefined ? updates.proof_channel : (data?.proof_channel !== undefined ? data?.proof_channel : existing?.proof_channel),
+        proof_screenshot_url: updates.proof_screenshot_url !== undefined ? updates.proof_screenshot_url : (data?.proof_screenshot_url !== undefined ? data?.proof_screenshot_url : existing?.proof_screenshot_url),
+        proof_screenshot_uploaded_at: updates.proof_screenshot_uploaded_at !== undefined ? updates.proof_screenshot_uploaded_at : (data?.proof_screenshot_uploaded_at !== undefined ? data?.proof_screenshot_uploaded_at : existing?.proof_screenshot_uploaded_at),
+        proof_verified_status: updates.proof_verified_status !== undefined ? updates.proof_verified_status : (data?.proof_verified_status !== undefined ? data?.proof_verified_status : existing?.proof_verified_status),
+        proof_verified_by: updates.proof_verified_by !== undefined ? updates.proof_verified_by : (data?.proof_verified_by !== undefined ? data?.proof_verified_by : existing?.proof_verified_by),
+        proof_verified_at: updates.proof_verified_at !== undefined ? updates.proof_verified_at : (data?.proof_verified_at !== undefined ? data?.proof_verified_at : existing?.proof_verified_at),
+        proof_admin_notes: updates.proof_admin_notes !== undefined ? updates.proof_admin_notes : (data?.proof_admin_notes !== undefined ? data?.proof_admin_notes : existing?.proof_admin_notes),
+      };
+
       if (idx >= 0) {
-        contacts[idx] = { ...contacts[idx], ...updates, ...data };
-        clientFallbackStore.saveContacts(contacts);
+        contacts[idx] = merged;
+      } else {
+        contacts.unshift(merged);
       }
+      clientFallbackStore.saveContacts(contacts);
+      return merged;
     } catch (_) {}
 
     return {
-      ...data,
+      ...(data || {}),
+      id,
       company: data?.company || undefined,
       remarks: data?.remarks || effectiveRemarks,
       status: effectiveRemarks || data?.remarks || 'HR Sourcing',
@@ -584,7 +656,7 @@ export const supabaseDataService = {
       proof_verified_by: data?.proof_verified_by !== undefined ? data?.proof_verified_by : updates.proof_verified_by,
       proof_verified_at: data?.proof_verified_at !== undefined ? data?.proof_verified_at : updates.proof_verified_at,
       proof_admin_notes: data?.proof_admin_notes !== undefined ? data?.proof_admin_notes : updates.proof_admin_notes,
-    };
+    } as HRContact;
   },
 
   async deleteContact(id: string): Promise<boolean> {

@@ -20,9 +20,11 @@ CREATE INDEX IF NOT EXISTS idx_contacts_response_status ON public.contacts (resp
 
 -- 2. Proof verification fields
 ALTER TABLE public.contacts
-  ADD COLUMN IF NOT EXISTS proof_channel TEXT CHECK (proof_channel IN ('called','messaged','mailed')),
-  ADD COLUMN IF NOT EXISTS proof_verified_status TEXT DEFAULT 'pending' CHECK (proof_verified_status IN ('pending','verified','rejected')),
-  ADD COLUMN IF NOT EXISTS proof_verified_by UUID REFERENCES public.cras(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS proof_channel TEXT,
+  ADD COLUMN IF NOT EXISTS proof_screenshot_url TEXT,
+  ADD COLUMN IF NOT EXISTS proof_screenshot_uploaded_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS proof_verified_status TEXT DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS proof_verified_by TEXT,
   ADD COLUMN IF NOT EXISTS proof_verified_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS proof_admin_notes TEXT;
 
