@@ -620,7 +620,10 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
               </div>
 
               {/* Add Team Member CTA */}
-              <button
+              <AdminButton
+                variant="primary"
+                size="sm"
+                icon={Plus}
                 onClick={() => {
                   setNewUserName('');
                   setNewUserEmail('');
@@ -631,11 +634,9 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   setNewUserStatus('active');
                   setShowAddUserModal(true);
                 }}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-lg transition flex items-center gap-1.5 shrink-0"
               >
-                <Plus className="h-4 w-4" />
-                <span>Add Team Member</span>
-              </button>
+                Add Team Member
+              </AdminButton>
             </div>
           </div>
 
@@ -801,23 +802,15 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                               <select
                                 value={editRole}
                                 onChange={(e) => setEditRole(e.target.value as any)}
-                                className="bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
+                                className="admin-select admin-select-sm"
                               >
                                 <option value="cra">CRA Employee</option>
                                 <option value="admin">Admin</option>
                               </select>
                             ) : (
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${
-                                  isCeo
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-sm'
-                                    : user.role === 'admin'
-                                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/50 shadow-sm'
-                                    : 'bg-purple-500/20 text-purple-300 border border-purple-400/50 shadow-sm'
-                                }`}
-                              >
+                              <AdminBadge variant={isCeo ? 'gold' : user.role === 'admin' ? 'info' : 'neutral'}>
                                 {isCeo ? 'CEO Admin' : user.role === 'admin' ? 'Admin' : 'CRA Employee'}
-                              </span>
+                              </AdminBadge>
                             )}
                           </td>
 
@@ -829,7 +822,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                                 min="1"
                                 value={editTarget}
                                 onChange={(e) => setEditTarget(parseInt(e.target.value) || 1)}
-                                className="w-16 bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
+                                className="admin-input admin-input-sm w-20"
                               />
                             ) : (
                               <span className="font-bold text-white whitespace-nowrap">
@@ -844,7 +837,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                               <select
                                 value={editActive ? 'active' : 'inactive'}
                                 onChange={(e) => setEditActive(e.target.value === 'active')}
-                                className="bg-amber-950 border border-amber-600 rounded px-2 py-1 text-xs text-white"
+                                className="admin-select admin-select-sm"
                               >
                                 <option value="active">Active (Assignable)</option>
                                 <option value="inactive">Inactive (Excluded)</option>

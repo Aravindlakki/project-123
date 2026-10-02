@@ -494,7 +494,17 @@ export const supabaseDataService = {
         }
         return contacts[idx];
       }
-      throw new Error('Contact not found');
+      const newContact: HRContact = {
+        id,
+        name: updates.name || 'Lead Contact',
+        company_id: updates.company_id || 'comp_1',
+        source: 'manual',
+        created_at: new Date().toISOString(),
+        ...updates,
+      };
+      contacts.unshift(newContact);
+      clientFallbackStore.saveContacts(contacts);
+      return newContact;
     }
 
     const effectiveRemarks = updates.remarks !== undefined

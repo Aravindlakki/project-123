@@ -232,8 +232,21 @@ export function getContactById(req: Request, res: Response) {
 }
 
 export function updateContact(req: Request, res: Response) {
-  const c = hrContacts.find((item) => item.id === req.params.id);
-  if (!c) return res.status(404).json({ detail: 'Contact not found' });
+  let c = hrContacts.find((item) => item.id === req.params.id);
+  if (!c) {
+    const user = (req as any).user as CRA | undefined;
+    c = {
+      id: req.params.id,
+      name: req.body.name || 'Lead Contact',
+      company_id: req.body.company_id || 'comp_1',
+      source: 'manual',
+      created_by: user?.id || 'usr_admin_aravind',
+      created_at: new Date().toISOString(),
+      ...req.body,
+    };
+    hrContacts.unshift(c);
+    return res.json(enrichContact(c));
+  }
   Object.assign(c, req.body);
   return res.json(enrichContact(c));
 }

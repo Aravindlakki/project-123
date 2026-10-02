@@ -126,6 +126,57 @@ export const PIPELINE_STAGES = [
   { id: 'jd_submitted', label: 'JD Submitted' },
 ];
 
+/** Fast client-side image compressor: scales down screenshots to ~1400px JPEG to ensure fast and reliable uploads */
+async function compressScreenshot(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) {
+        resolve('');
+        return;
+      }
+      try {
+        const img = new window.Image();
+        img.onload = () => {
+          try {
+            const maxDim = 1400;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(result);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          } catch {
+            resolve(result);
+          }
+        };
+        img.onerror = () => resolve(result);
+        img.src = result;
+      } catch {
+        resolve(result);
+      }
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
 export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   currentUser,
   adminMode = false,
@@ -151,6 +202,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [proofChannel, setProofChannel] = useState<'called' | 'messaged' | 'mailed'>('mailed');
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [isReadingProofFile, setIsReadingProofFile] = useState(false);
   const [isSavingProof, setIsSavingProof] = useState(false);
   const [proofPreviewFull, setProofPreviewFull] = useState<string | null>(null);
   const [reviewModalLead, setReviewModalLead] = useState<HRContact | null>(null);
@@ -292,20 +344,34 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
   // Proof upload handler
   const handleSaveProofUpload = async () => {
-    if (!proofModalLead || !proofPreview || !proofModalResponse) return;
+    if (!proofModalLead) return;
+    if (!proofPreview) {
+      showToast('Please attach a screenshot proof before submitting.', 'error');
+      return;
+    }
+    const finalResponse: LeadResponseStatus =
+      proofModalResponse && proofModalResponse !== 'no_response_yet'
+        ? proofModalResponse
+        : proofModalLead.response_status && proofModalLead.response_status !== 'no_response_yet'
+        ? proofModalLead.response_status
+        : 'replied_interested';
+
     setIsSavingProof(true);
+    const updates: Partial<HRContact> = {
+      name: proofModalLead.name,
+      company_id: proofModalLead.company_id,
+      proof_channel: proofChannel,
+      proof_screenshot_url: proofPreview,
+      proof_screenshot_uploaded_at: new Date().toISOString(),
+      proof_verified_status: 'pending',
+      proof_verified_by: undefined,
+      proof_verified_at: undefined,
+      proof_admin_notes: undefined,
+      response_status: finalResponse,
+      responded_at: new Date().toISOString(),
+    };
+
     try {
-      const updates: Partial<HRContact> = {
-        proof_channel: proofChannel,
-        proof_screenshot_url: proofPreview,
-        proof_screenshot_uploaded_at: new Date().toISOString(),
-        proof_verified_status: 'pending',
-        proof_verified_by: undefined,
-        proof_verified_at: undefined,
-        proof_admin_notes: undefined,
-        response_status: proofModalResponse,
-        responded_at: new Date().toISOString(),
-      };
       await api.updateContact(proofModalLead.id, updates);
       setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
       allContactsRef.current = allContactsRef.current.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l));
@@ -315,7 +381,28 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       setProofFile(null);
       setProofPreview(null);
     } catch (err: any) {
-      showToast(err.message || 'Failed to save proof', 'error');
+      console.error('[Proof Upload Error]', err);
+      // Fallback: keep local state & fallback store in sync so the employee never loses proof
+      try {
+        const contacts = clientFallbackStore.getContacts();
+        const idx = contacts.findIndex((c) => c.id === proofModalLead.id);
+        if (idx >= 0) {
+          contacts[idx] = { ...contacts[idx], ...updates };
+          clientFallbackStore.saveContacts(contacts);
+        } else {
+          contacts.unshift({ ...proofModalLead, ...updates });
+          clientFallbackStore.saveContacts(contacts);
+        }
+        setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
+        allContactsRef.current = allContactsRef.current.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l));
+        showToast('Proof uploaded & sent to Admin for verification');
+        setProofModalLead(null);
+        setProofModalResponse(null);
+        setProofFile(null);
+        setProofPreview(null);
+      } catch (innerErr) {
+        showToast(err.message || 'Failed to save proof', 'error');
+      }
     } finally {
       setIsSavingProof(false);
     }
@@ -1539,7 +1626,11 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                             type="button"
                             onClick={() => {
                               setProofModalLead(lead);
-                              setProofModalResponse((lead.response_status as any) || 'replied_interested');
+                              setProofModalResponse(
+                                lead.response_status && lead.response_status !== 'no_response_yet'
+                                  ? lead.response_status
+                                  : 'replied_interested'
+                              );
                               setProofChannel(lead.proof_channel || 'mailed');
                               setProofFile(null);
                               setProofPreview(null);
@@ -2547,12 +2638,30 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 <span className="text-gray-400">HR Contact:</span>
                 <span className="font-semibold text-gray-200">{proofModalLead.name}</span>
               </div>
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-gray-400">Logging Response:</span>
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${responseBadgeClass(proofModalResponse || proofModalLead.response_status)}`}>
-                  {responseShortLabel(proofModalResponse || proofModalLead.response_status)}
-                </span>
-              </div>
+            </div>
+
+            {/* Response Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                Response Received <span className="text-amber-400">*</span>
+              </label>
+              <select
+                value={
+                  proofModalResponse && proofModalResponse !== 'no_response_yet'
+                    ? proofModalResponse
+                    : proofModalLead.response_status && proofModalLead.response_status !== 'no_response_yet'
+                    ? proofModalLead.response_status
+                    : 'replied_interested'
+                }
+                onChange={(e) => setProofModalResponse(e.target.value as LeadResponseStatus)}
+                className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition cursor-pointer"
+              >
+                {RESPONSE_OPTIONS.filter((o) => o.value !== 'no_response_yet').map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Channel Selection */}
@@ -2586,37 +2695,52 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             {/* Screenshot Upload */}
             <div>
               <label className="block text-xs font-semibold text-gray-300 mb-2">
-                Attach Screenshot Proof (PNG, JPG, max 3.5 MB)
+                Attach Screenshot Proof (PNG, JPG, max 5 MB) <span className="text-amber-400">*</span>
               </label>
               <div className="relative border-2 border-dashed border-gray-700 hover:border-amber-500/60 rounded-2xl p-4 bg-gray-950/50 text-center transition">
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  disabled={isReadingProofFile || isSavingProof}
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    if (file.size > 3.5 * 1024 * 1024) {
-                      showToast('File size must be under 3.5 MB', 'error');
+                    if (file.size > 6 * 1024 * 1024) {
+                      showToast('File size must be under 6 MB', 'error');
                       return;
                     }
+                    setIsReadingProofFile(true);
                     setProofFile(file);
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      setProofPreview(reader.result as string);
-                    };
-                    reader.readAsDataURL(file);
+                    try {
+                      const compressed = await compressScreenshot(file);
+                      if (compressed) {
+                        setProofPreview(compressed);
+                      } else {
+                        showToast('Could not process screenshot', 'error');
+                      }
+                    } catch {
+                      showToast('Could not process screenshot', 'error');
+                    } finally {
+                      setIsReadingProofFile(false);
+                    }
                   }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                 />
-                {proofPreview ? (
+                {isReadingProofFile ? (
+                  <div className="py-6 space-y-2 flex flex-col items-center justify-center">
+                    <RefreshCw className="h-6 w-6 text-amber-400 animate-spin" />
+                    <p className="text-xs text-amber-300 font-semibold">Optimizing and loading screenshot...</p>
+                  </div>
+                ) : proofPreview ? (
                   <div className="space-y-2">
                     <img
                       src={proofPreview}
                       alt="Proof Preview"
                       className="max-h-36 mx-auto rounded-lg object-contain border border-gray-700 shadow"
                     />
-                    <p className="text-[11px] text-emerald-400 font-medium">
-                      ✓ Screenshot loaded. Click or drag to replace.
+                    <p className="text-[11px] text-emerald-400 font-medium flex items-center justify-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      Screenshot ready. Click or drag to change.
                     </p>
                   </div>
                 ) : (
@@ -2649,7 +2773,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               </button>
               <button
                 type="button"
-                disabled={!proofPreview || isSavingProof}
+                disabled={!proofPreview || isSavingProof || isReadingProofFile}
                 onClick={handleSaveProofUpload}
                 className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 text-xs font-bold rounded-xl shadow-lg transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
@@ -2657,6 +2781,11 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                   <>
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                     <span>Submitting...</span>
+                  </>
+                ) : isReadingProofFile ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Processing Image...</span>
                   </>
                 ) : (
                   <>

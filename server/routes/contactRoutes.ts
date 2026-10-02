@@ -24,4 +24,5 @@ contactRouter.post('/contacts/autofill-from-google', authenticate, autofillFromG
 contactRouter.post('/contacts/bulk', authenticate, bulkContacts);
 contactRouter.get('/contacts/:id', authenticate, getContactById);
 contactRouter.patch('/contacts/:id', authenticate, updateContact);
+contactRouter.put('/contacts/:id', authenticate, updateContact);
 contactRouter.delete('/contacts/:id', authenticate, deleteContact);

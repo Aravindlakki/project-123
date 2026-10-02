@@ -32,6 +32,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'admin-team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
   { id: 'admin-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
+  { id: 'proof-review', label: 'Proof Review & Verification', icon: ShieldCheck, tag: 'Verify' },
   { id: 'admin-jd-list', label: 'JD List & Tracking', icon: Briefcase },
   { id: 'admin-tasks', label: 'Task Management', icon: CheckSquare },
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
@@ -69,6 +70,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         return 'User Management';
       case 'admin-sheets':
         return 'All Worksheets & PDF';
+      case 'proof-review':
+        return 'Proof Review & Verification';
       case 'admin-jd-list':
         return 'JD List & Tracking';
       case 'admin-team-lead-dashboard':
