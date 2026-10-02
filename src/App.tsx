@@ -15,15 +15,16 @@ import { PerformancePage } from './pages/PerformancePage';
 import { TaskManagementPage } from './pages/TaskManagementPage';
 import { AdminPortalPage } from './pages/AdminPortalPage';
 import { TeamSheetsPage } from './pages/TeamSheetsPage';
+import { ProofReviewPage } from './pages/ProofReviewPage';
 import { TeamLeadDashboardPage } from './pages/TeamLeadDashboardPage';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { SystemReportModal } from './components/SystemReportModal';
+import { AdminLayout } from './components/admin/AdminLayout';
+import './styles/adminTheme.css';
 import { api, getAuthToken, clearAuthToken } from './services/api';
 import { isSupabaseConfigured } from './services/supabase';
 import { CRA } from './types';
 import { ShieldCheck, User, Lock, LogIn, Menu, FileText, Database } from 'lucide-react';
-import { AdminLayout } from './components/admin/AdminLayout';
-import './styles/adminTheme.css';
 
 const getRouteFromUrl = (): string => {
   const hash = window.location.hash.replace(/^#\/?/, '/');
@@ -69,14 +70,17 @@ const routeToTab = (rawPath: string) => {
     '/admin/team-sheets': 'admin-sheets',
     '/admin/sheets': 'admin-sheets',
     '/admin/jd-list': 'admin-jd-list',
-    '/admin/jd-bank/tech': 'admin-jd-bank-tech',
-    '/admin/jd-bank/non-tech': 'admin-jd-bank-non-tech',
     '/admin/pipeline/proofs': 'admin-proof-review',
     '/admin/team-lead-dashboard': 'admin-team-lead-dashboard',
     '/admin/tasks': 'admin-tasks',
     '/admin/companies': 'admin-companies',
     '/admin/performance': 'admin-performance',
     '/admin/settings': 'admin-settings',
+    '/admin/jd-bank/tech': 'jd-bank-tech',
+    '/admin/jd-bank-tech': 'jd-bank-tech',
+    '/admin/jd-bank/non-tech': 'jd-bank-non-tech',
+    '/admin/jd-bank-non-tech': 'jd-bank-non-tech',
+    '/admin/proof-review': 'proof-review',
   };
 
   if (routes[clean]) return routes[clean];
@@ -102,8 +106,6 @@ const tabToRoute: Record<string, string> = {
   'follow-ups': '/pipeline/follow-ups',
   'jd-intake': '/jd-intake',
   'jd-list': '/jd-list',
-  'jd-bank-tech': '/jd-bank/tech',
-  'jd-bank-non-tech': '/jd-bank/non-tech',
   crm: '/crm',
   tasks: '/tasks',
   performance: '/performance',
@@ -118,6 +120,9 @@ const tabToRoute: Record<string, string> = {
   'admin-companies': '/admin/companies',
   'admin-performance': '/admin/performance',
   'admin-settings': '/admin/settings',
+  'jd-bank-tech': '/admin/jd-bank/tech',
+  'jd-bank-non-tech': '/admin/jd-bank/non-tech',
+  'proof-review': '/admin/proof-review',
 };
 
 export const App: React.FC = () => {
@@ -129,8 +134,9 @@ export const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(() => routeToTab(getRouteFromUrl()));
 
-  const adminMode = Boolean(activeTab.startsWith('admin-') && isAdminVerified && currentUser?.role === 'admin');
-  const isAttemptingAdminDirectly = Boolean(activeTab.startsWith('admin-') && (!isAdminVerified || currentUser?.role !== 'admin'));
+  const isAdminTab = activeTab.startsWith('admin-') || activeTab.startsWith('jd-bank') || activeTab === 'proof-review';
+  const adminMode = Boolean(isAdminTab && isAdminVerified && currentUser?.role === 'admin');
+  const isAttemptingAdminDirectly = Boolean(isAdminTab && (!isAdminVerified || currentUser?.role !== 'admin'));
 
   useEffect(() => {
     const listener = () => setActiveTab(routeToTab(getRouteFromUrl()));
@@ -182,7 +188,8 @@ export const App: React.FC = () => {
     }
 
     // If user attempts to navigate to admin tab but is not verified as admin, intercept and prompt for login
-    if (effectiveTab.startsWith('admin-') && (!isAdminVerified || currentUser?.role !== 'admin')) {
+    const isTargetAdmin = effectiveTab.startsWith('admin-') || effectiveTab.startsWith('jd-bank') || effectiveTab === 'proof-review';
+    if (isTargetAdmin && (!isAdminVerified || currentUser?.role !== 'admin')) {
       setShowAdminLoginModal(true);
       return;
     }
@@ -290,6 +297,56 @@ export const App: React.FC = () => {
     );
   }
 
+  // Early return: When in adminMode, render ALL admin tabs inside AdminLayout with the admin leadership theme
+  if (adminMode && currentUser) {
+    return (
+      <AdminLayout
+        activeTab={activeTab}
+        setActiveTab={navigate}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onSwitchToEmployee={handleExitAdmin}
+      >
+        {activeTab === 'admin-users' && <AdminPortalPage initialTab="users" />}
+        {activeTab === 'admin-companies' && <AdminPortalPage initialTab="companies" />}
+        {activeTab === 'admin-settings' && <AdminPortalPage initialTab="settings" />}
+        {activeTab === 'admin-jd-list' && <JDListPage currentUser={currentUser} adminMode={true} />}
+        {activeTab === 'admin-team-lead-dashboard' && (
+          <TeamLeadDashboardPage setActiveTab={navigate} adminMode={true} />
+        )}
+        {(activeTab === 'admin-sheets' || activeTab === 'admin-worksheets' || activeTab === 'sheets') && (
+          <TeamSheetsPage currentUser={currentUser} adminMode={true} />
+        )}
+        {activeTab === 'admin-tasks' && <TaskManagementPage />}
+        {activeTab === 'admin-performance' && <PerformancePage />}
+        {activeTab === 'jd-bank-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
+        {activeTab === 'jd-bank-non-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
+        {activeTab === 'proof-review' && <ProofReviewPage currentUser={currentUser} setActiveTab={navigate} />}
+        {activeTab === 'admin-jd-bank-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
+        {activeTab === 'admin-jd-bank-non-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
+        {activeTab === 'admin-proof-review' && <ProofOfResponsePage currentUser={currentUser} adminReviewMode />}
+
+        {/* Fallback if an unmatched admin tab is encountered */}
+        {!['admin-users', 'admin-companies', 'admin-settings', 'admin-jd-list', 'admin-team-lead-dashboard', 'admin-sheets', 'admin-worksheets', 'sheets', 'admin-tasks', 'admin-performance', 'jd-bank-tech', 'jd-bank-non-tech', 'proof-review', 'admin-jd-bank-tech', 'admin-jd-bank-non-tech', 'admin-proof-review'].includes(activeTab) && (
+          <TeamSheetsPage currentUser={currentUser} adminMode={true} />
+        )}
+
+        {/* Modals rendered inside the admin tree */}
+        <AdminLoginModal
+          isOpen={showAdminLoginModal}
+          onClose={() => setShowAdminLoginModal(false)}
+          onSuccess={handleAdminLoginSuccess}
+          initialEmail={currentUser.role === 'admin' ? currentUser.email : ''}
+          onCancelToEmployee={handleExitAdmin}
+        />
+        <SystemReportModal
+          isOpen={showSystemReportModal}
+          onClose={() => setShowSystemReportModal(false)}
+        />
+      </AdminLayout>
+    );
+  }
+
   const getTabHeading = () => {
     switch (activeTab) {
       case 'admin-sheets':
@@ -350,54 +407,6 @@ export const App: React.FC = () => {
   };
 
   const heading = getTabHeading();
-
-  /* ────────────────────────────────────────────────────────────────────────
-   * ADMIN LEADERSHIP PORTAL SHELL
-   * Every admin menu page renders inside the single AdminLayout (sidebar +
-   * header + content area), which also applies the data-portal="admin"
-   * theme scope. The employee branch below is untouched.
-   * ───────────────────────────────────────────────────────────────────── */
-  if (adminMode) {
-    return (
-      <>
-        <AdminLayout
-          activeTab={activeTab}
-          onNavigate={navigate}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          onExitAdmin={handleExitAdmin}
-        >
-          {activeTab === 'admin-jd-list' && <JDListPage currentUser={currentUser} adminMode={true} />}
-          {activeTab === 'admin-jd-bank-tech' && <JDBankPage currentUser={currentUser} defaultCategory="tech" standalone />}
-          {activeTab === 'admin-jd-bank-non-tech' && <JDBankPage currentUser={currentUser} defaultCategory="non_tech" standalone />}
-          {activeTab === 'admin-proof-review' && <ProofOfResponsePage currentUser={currentUser} adminReviewMode />}
-          {/* Admin Oversight Views - Kept strictly inside AdminLayout */}
-          {activeTab === 'admin-team-lead-dashboard' && (
-            <TeamLeadDashboardPage setActiveTab={navigate} adminMode={true} />
-          )}
-          {activeTab === 'admin-sheets' && (
-            <TeamSheetsPage currentUser={currentUser} adminMode={true} />
-          )}
-          {activeTab === 'admin-users' && <AdminPortalPage initialTab="users" />}
-          {activeTab === 'admin-companies' && <AdminPortalPage initialTab="companies" />}
-          {activeTab === 'admin-settings' && <AdminPortalPage initialTab="settings" />}
-          {activeTab === 'admin-tasks' && <TaskManagementPage />}
-          {activeTab === 'admin-performance' && <PerformancePage />}
-        </AdminLayout>
-        <AdminLoginModal
-          isOpen={showAdminLoginModal}
-          onClose={() => setShowAdminLoginModal(false)}
-          onSuccess={handleAdminLoginSuccess}
-          initialEmail={currentUser.role === 'admin' ? currentUser.email : ''}
-          onCancelToEmployee={handleExitAdmin}
-        />
-        <SystemReportModal
-          isOpen={showSystemReportModal}
-          onClose={() => setShowSystemReportModal(false)}
-        />
-      </>
-    );
-  }
 
   return (
     <div className={`min-h-screen ${adminMode ? 'bg-gradient-to-br from-gray-950 via-amber-950/20 to-gray-950' : 'bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950'} text-gray-100 flex font-sans`}>

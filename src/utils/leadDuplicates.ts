@@ -1,24 +1,6 @@
 import { HRContact } from '../types';
 
-/**
- * Duplicate detection for My Worksheet (Part A).
- *
- * A lead is a duplicate when the SAME company (case/spacing-insensitive) AND the
- * SAME role/title (normalized) already exist in the contact list — regardless of
- * who added it. So if a teammate already added the lead, the current user gets a
- * warning ("Already added by <name> on <date>") even though the teammate's lead
- * never appears in their own worksheet.
- */
-
-export interface DuplicateWarning {
-  lead: HRContact;
-  /** Display name of the person who added the original lead. */
-  uploaderName: string;
-  /** IST date key of the original lead, e.g. 2026-09-29. */
-  dateKey: string;
-  /** Human-friendly date, e.g. "29 Sept 2026". */
-  dateLabel: string;
-}
+export interface DuplicateWarning { lead: HRContact; uploaderName: string; dateKey: string; dateLabel: string; }
 
 function normalizeText(value?: string | null): string {
   return (value || '')
@@ -36,8 +18,6 @@ export function findDuplicateLead(
   const company = normalizeText(input.company_name);
   if (!company) return null;
   const role = normalizeText(input.role_title || input.hr_name || input.title || '');
-
-  // Exact-ish company+role match first; fall back to company+HR-name match.
   const match =
     allLeads.find((l) => {
       if (excludeLeadId && l.id === excludeLeadId) return false;
@@ -51,14 +31,9 @@ export function findDuplicateLead(
       if (!role && input.hr_name && leadHr && leadHr === normalizeText(input.hr_name)) return true;
       return false;
     }) || null;
-
   if (!match) return null;
 
-  const uploader =
-    (match.entered_by_name || '').trim() ||
-    (match.spoc || '').trim() ||
-    'a teammate';
-
+  const uploader = (match.entered_by_name || '').trim() || (match.spoc || '').trim() || 'a teammate';
   const created = match.created_at ? new Date(match.created_at) : null;
   const dateLabel = created
     ? created.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })

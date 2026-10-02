@@ -1,307 +1,478 @@
 import React, { useState } from 'react';
 import { HRContact } from '../types';
 import { responseLabel } from '../constants/worksheet';
+import { formatIndianDateTime } from '../utils/formatters';
 import {
+  Search,
+  Phone,
+  MessageSquare,
+  Mail,
+  CheckCircle2,
+  XCircle,
   X,
-  ShieldCheck,
-  ShieldX,
+  AlertTriangle,
   Building2,
   User,
   Calendar,
-  MessageSquare,
   Check,
-  AlertTriangle,
-  Phone,
-  Mail,
-  MessageCircle,
-  Search,
+  ExternalLink,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface ProofReviewModalProps {
   lead: HRContact;
-  reviewerName: string;
+  reviewerName?: string;
   onClose: () => void;
-  onDecision: (decision: 'verified' | 'rejected', notes: string) => Promise<void> | void;
+  onDecision: (decision: 'verified' | 'rejected', notes?: string) => Promise<void> | void;
   onOpenFull: (url: string) => void;
 }
 
-type StepId = 'screenshot_authentic' | 'contact_matches' | 'date_matches' | 'response_genuine';
-
-const STEPS: Array<{ id: StepId; label: string; hint: string }> = [
-  {
-    id: 'screenshot_authentic',
-    label: 'Screenshot looks authentic',
-    hint: 'No signs of editing — full window visible, UI intact',
-  },
-  {
-    id: 'contact_matches',
-    label: 'Contact details match the lead',
-    hint: 'HR name / company / phone / email in the screenshot match this row',
-  },
-  {
-    id: 'date_matches',
-    label: 'Date & time are plausible',
-    hint: 'Screenshot timestamp lines up with when the response was logged',
-  },
-  {
-    id: 'response_genuine',
-    label: 'Response matches the claim',
-    hint: 'The visible reply actually supports the claimed response type',
-  },
+const REJECT_REASONS = [
+  'Screenshot looks edited / photoshopped',
+  'Details do not match the lead',
+  'Timestamp does not add up',
+  'Response looks staged',
 ];
 
-const CHANNEL_ICON: Record<string, React.ReactNode> = {
-  called: <Phone className="h-3.5 w-3.5" />,
-  messaged: <MessageCircle className="h-3.5 w-3.5" />,
-  mailed: <Mail className="h-3.5 w-3.5" />,
-};
-
-/**
- * Admin proof-of-contact verification modal.
- * Structured checklist → explicit decision with reason. Verifying marks the
- * lead as genuine; rejecting resets its response to "No response yet".
- */
 export const ProofReviewModal: React.FC<ProofReviewModalProps> = ({
   lead,
-  reviewerName,
+  reviewerName = 'Admin',
   onClose,
   onDecision,
   onOpenFull,
 }) => {
-  const [checks, setChecks] = useState<Record<StepId, boolean>>({
-    screenshot_authentic: false,
-    contact_matches: false,
-    date_matches: false,
-    response_genuine: false,
+  const [checklist, setChecklist] = useState({
+    authentic: false,
+    detailsMatch: false,
+    timestampPlausible: false,
+    responseMatches: false,
   });
-  const [notes, setNotes] = useState(lead.proof_admin_notes || '');
-  const [rejectionReason, setRejectionReason] = useState<string>('');
-  const [deciding, setDeciding] = useState(false);
 
-  const checkedCount = Object.values(checks).filter(Boolean).length;
-  const allChecked = checkedCount === STEPS.length;
-  const channel = lead.proof_channel || 'mailed';
+  const [verifyNotes, setVerifyNotes] = useState('');
+  const [selectedRejectReason, setSelectedRejectReason] = useState<string | null>(null);
+  const [rejectNotes, setRejectNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const toggle = (id: StepId) => setChecks((c) => ({ ...c, [id]: !c[id] }));
+  const toggleCheck = (key: keyof typeof checklist) => {
+    setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
-  const verify = async () => {
-    if (!allChecked || deciding) return;
-    setDeciding(true);
+  const handleConfirmAllChecklist = () => {
+    setChecklist({
+      authentic: true,
+      detailsMatch: true,
+      timestampPlausible: true,
+      responseMatches: true,
+    });
+  };
+
+  const confirmedCount = Object.values(checklist).filter(Boolean).length;
+  const allConfirmed = confirmedCount === 4;
+
+  const handleVerify = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      await onDecision('verified', notes);
+      // Auto-confirm checklist when approved
+      setChecklist({
+        authentic: true,
+        detailsMatch: true,
+        timestampPlausible: true,
+        responseMatches: true,
+      });
+      await onDecision('verified', verifyNotes.trim() || 'Verified by Admin Leadership');
+      onClose();
     } finally {
-      setDeciding(false);
+      setIsSubmitting(false);
     }
   };
 
-  const reject = async () => {
-    if (!rejectionReason || deciding) return;
-    setDeciding(true);
+  const handleReject = async () => {
+    if (!selectedRejectReason || isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      await onDecision('rejected', `${rejectionReason}${notes ? ` — ${notes}` : ''}`);
+      const combinedNotes = rejectNotes.trim()
+        ? `${selectedRejectReason} — ${rejectNotes.trim()}`
+        : selectedRejectReason;
+      await onDecision('rejected', combinedNotes);
+      onClose();
     } finally {
-      setDeciding(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const channel = lead.proof_channel || 'mailed';
+  const getChannelIcon = () => {
+    switch (channel) {
+      case 'called':
+        return <Phone className="h-4 w-4 text-emerald-400" />;
+      case 'messaged':
+        return <MessageSquare className="h-4 w-4 text-sky-400" />;
+      case 'mailed':
+      default:
+        return <Mail className="h-4 w-4 text-amber-400" />;
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        className="bg-gray-950 border border-amber-800/50 rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="relative w-full max-w-3xl max-h-[92vh] bg-gray-950 border border-amber-800/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-gray-100 my-auto">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-800/80 flex items-start justify-between gap-3 bg-gradient-to-r from-amber-950/40 to-transparent">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-xl bg-amber-900/50 border border-amber-700/50 text-amber-300">
-                <Search className="h-4 w-4" />
-              </span>
-              <h3 className="text-base font-black text-white">Proof Verification</h3>
-              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-950 border border-amber-700/60 text-amber-300">
-                Admin Review
-              </span>
+        <div className="px-6 py-4 border-b border-amber-900/40 bg-gradient-to-r from-amber-950/60 via-gray-900 to-gray-950 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <Search className="h-5 w-5" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">Proof Verification</h3>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Admin Review
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Reviewing as <span className="text-amber-300 font-semibold">{reviewerName}</span>
+              </p>
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">
-              Reviewing as <b className="text-gray-300">{reviewerName}</b> — verify this proof before the lead counts.
-            </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 shrink-0">
-            <X className="h-4 w-4" />
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-gray-800 transition"
+          >
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-5 space-y-4">
-          {/* Lead summary strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { icon: <Building2 className="h-3.5 w-3.5 text-purple-400" />, label: 'Company', value: lead.company?.name || lead.hr_name || '—' },
-              { icon: <User className="h-3.5 w-3.5 text-sky-400" />, label: 'HR Contact', value: lead.name || '—' },
-              {
-                icon: <span className="text-purple-300">{CHANNEL_ICON[channel]}</span>,
-                label: 'Channel',
-                value: channel.charAt(0).toUpperCase() + channel.slice(1),
-              },
-              {
-                icon: <Calendar className="h-3.5 w-3.5 text-emerald-400" />,
-                label: 'Responded',
-                value: lead.responded_at ? new Date(lead.responded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—',
-              },
-            ].map((s) => (
-              <div key={s.label} className="bg-gray-900/80 border border-gray-800 rounded-2xl px-3 py-2.5 min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-wider text-gray-500 flex items-center gap-1">{s.icon} {s.label}</p>
-                <p className="text-[11px] font-bold text-gray-100 truncate mt-0.5" title={s.value}>{s.value}</p>
+        {/* Scrollable Body */}
+        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+          {/* Summary Strip (4 tiles) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-3 rounded-2xl bg-gray-900/80 border border-gray-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                Company
               </div>
-            ))}
-          </div>
-
-          {/* Claimed response */}
-          <div className="bg-purple-950/30 border border-purple-800/40 rounded-2xl px-4 py-3 flex items-center gap-2.5">
-            <MessageSquare className="h-4 w-4 text-purple-300 shrink-0" />
-            <p className="text-[11px] text-purple-100">
-              CRA claims: <b className="text-white">{responseLabel(lead.response_status)}</b>
-              {lead.proof_channel && (
-                <> · via <b className="text-white">{channel}</b></>
-              )}
-            </p>
-          </div>
-
-          {/* Screenshot viewer */}
-          {lead.proof_screenshot_url ? (
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">Evidence — click to enlarge</p>
-              <div className="relative group rounded-2xl overflow-hidden border border-gray-700 bg-gray-900">
-                <img
-                  src={lead.proof_screenshot_url}
-                  alt="Proof screenshot"
-                  className="w-full max-h-72 object-contain cursor-zoom-in"
-                  onClick={() => onOpenFull(lead.proof_screenshot_url!)}
-                />
+              <div className="text-xs font-bold text-white truncate mt-1">
+                {lead.company?.name || 'Unknown Company'}
               </div>
             </div>
-          ) : (
-            <div className="bg-gray-900/70 border border-gray-800 rounded-2xl p-6 text-center">
-              <p className="text-xs text-gray-500">No screenshot attached.</p>
-            </div>
-          )}
 
-          {/* Verification checklist */}
-          <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 space-y-2">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Verification checklist</p>
-              <span
-                className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
-                  allChecked
-                    ? 'bg-emerald-950 border-emerald-700/60 text-emerald-300'
-                    : 'bg-gray-800 border-gray-700 text-gray-400'
-                }`}
-              >
-                {checkedCount}/{STEPS.length} confirmed
+            <div className="p-3 rounded-2xl bg-gray-900/80 border border-gray-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-slate-400" />
+                HR Contact
+              </div>
+              <div className="text-xs font-bold text-white truncate mt-1">
+                {lead.name || 'Unnamed'}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-gray-900/80 border border-gray-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                {getChannelIcon()}
+                Channel
+              </div>
+              <div className="text-xs font-bold text-white capitalize mt-1">
+                {channel}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-gray-900/80 border border-gray-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                Responded Date
+              </div>
+              <div className="text-xs font-bold text-white truncate mt-1">
+                {lead.responded_at ? formatIndianDateTime(lead.responded_at) : 'Not recorded'}
+              </div>
+            </div>
+          </div>
+
+          {/* Claimed Response Strip */}
+          <div className="px-4 py-2.5 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 font-bold">CRA claims:</span>
+              <span className="text-white font-semibold">
+                {responseLabel(lead.response_status)}
               </span>
+              <span className="text-slate-400">· via</span>
+              <span className="text-amber-200 capitalize font-medium">{channel}</span>
             </div>
-            {STEPS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => toggle(s.id)}
-                className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border text-left transition cursor-pointer ${
-                  checks[s.id]
-                    ? 'bg-emerald-950/40 border-emerald-700/50'
-                    : 'bg-gray-950 border-gray-800 hover:border-gray-700'
-                }`}
-              >
+            {lead.response_note && (
+              <span className="text-slate-300 italic text-[11px] truncate max-w-xs">
+                &ldquo;{lead.response_note}&rdquo;
+              </span>
+            )}
+          </div>
+
+          {/* Evidence Screenshot */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-300">Screenshot Evidence</span>
+              {lead.proof_screenshot_url && (
+                <button
+                  type="button"
+                  onClick={() => onOpenFull(lead.proof_screenshot_url!)}
+                  className="text-amber-400 hover:text-amber-300 text-[11px] flex items-center gap-1 font-semibold"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View Full Screen
+                </button>
+              )}
+            </div>
+            <div
+              onClick={() => lead.proof_screenshot_url && onOpenFull(lead.proof_screenshot_url)}
+              className="relative w-full h-56 bg-black/60 rounded-2xl border border-gray-800 overflow-hidden flex items-center justify-center cursor-pointer hover:border-amber-600/50 transition group"
+            >
+              {lead.proof_screenshot_url ? (
+                <>
+                  <img
+                    src={lead.proof_screenshot_url}
+                    alt="Proof screenshot"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                    <span className="px-3 py-1.5 rounded-xl bg-gray-900/90 text-white text-xs font-semibold flex items-center gap-1.5 border border-gray-700">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Click to expand full screen
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center text-slate-500 text-xs">
+                  No screenshot uploaded
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 4-point Checklist */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                4-Point Verification Checklist
+              </span>
+              <div className="flex items-center gap-2">
+                {!allConfirmed && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmAllChecklist}
+                    className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition cursor-pointer"
+                  >
+                    Confirm All 4 Points
+                  </button>
+                )}
                 <span
-                  className={`mt-0.5 h-4 w-4 rounded-md border flex items-center justify-center shrink-0 transition ${
-                    checks[s.id] ? 'bg-emerald-600 border-emerald-500' : 'border-gray-600'
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                    allConfirmed
+                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40'
+                      : 'bg-gray-800 text-amber-300 border-amber-700/40'
                   }`}
                 >
-                  {checks[s.id] && <Check className="h-3 w-3 text-white" />}
+                  {confirmedCount}/4 confirmed
                 </span>
-                <span className="min-w-0">
-                  <span className={`block text-[11px] font-bold ${checks[s.id] ? 'text-emerald-200' : 'text-gray-200'}`}>
-                    {s.label}
-                  </span>
-                  <span className="block text-[10px] text-gray-500 mt-0.5">{s.hint}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Decision section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Verify path */}
-            <div className={`rounded-2xl border p-3.5 space-y-2 transition ${allChecked ? 'bg-emerald-950/20 border-emerald-800/50' : 'bg-gray-900/40 border-gray-800 opacity-60'}`}>
-              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" /> Accept as genuine
-              </p>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                placeholder="Optional note — e.g. verified against mail timestamp…"
-                className="w-full px-3 py-2 text-[11px] rounded-xl bg-gray-950 border border-gray-800 text-gray-100 placeholder-gray-600 focus:border-emerald-600 focus:outline-none"
-              />
-              <button
-                type="button"
-                disabled={!allChecked || deciding}
-                onClick={verify}
-                className={`w-full py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
-                  allChecked
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/40'
-                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {deciding ? 'Verifying…' : allChecked ? '✓ Verify Lead — It Counts' : `Check all ${STEPS.length} points to verify`}
-              </button>
-            </div>
-
-            {/* Reject path */}
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/40 p-3.5 space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
-                <ShieldX className="h-3.5 w-3.5" /> Reject as fake
-              </p>
-              <div className="space-y-1.5">
-                {['Screenshot looks edited / photoshopped', 'Details do not match the lead', 'Timestamp does not add up', 'Response looks staged'].map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setRejectionReason(rejectionReason === r ? '' : r)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                      rejectionReason === r
-                        ? 'bg-rose-950 border-rose-700/60 text-rose-200'
-                        : 'bg-gray-950 border-gray-800 text-gray-400 hover:border-gray-700'
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
               </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={1}
-                placeholder="Extra detail (optional)…"
-                className="w-full px-3 py-2 text-[11px] rounded-xl bg-gray-950 border border-gray-800 text-gray-100 placeholder-gray-600 focus:border-rose-700 focus:outline-none"
-              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                disabled={!rejectionReason || deciding}
-                onClick={reject}
-                className={`w-full py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
-                  rejectionReason
-                    ? 'bg-rose-800 hover:bg-rose-700 text-white'
-                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                onClick={() => toggleCheck('authentic')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition ${
+                  checklist.authentic
+                    ? 'bg-emerald-950/50 border-emerald-600/60 text-emerald-100'
+                    : 'bg-gray-900/80 border-gray-800 text-slate-300 hover:border-gray-700'
                 }`}
               >
-                {deciding ? 'Rejecting…' : rejectionReason ? '✕ Reject — Response Reset' : 'Pick a rejection reason'}
+                <div
+                  className={`w-4 h-4 rounded-md mt-0.5 flex items-center justify-center border shrink-0 transition ${
+                    checklist.authentic
+                      ? 'bg-emerald-500 border-emerald-400 text-gray-950'
+                      : 'border-slate-600 bg-gray-800'
+                  }`}
+                >
+                  {checklist.authentic && <Check className="h-3 w-3 stroke-[3]" />}
+                </div>
+                <div>
+                  <div className="font-semibold text-white">1. Screenshot looks authentic</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">No signs of editing or doctoring</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleCheck('detailsMatch')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition ${
+                  checklist.detailsMatch
+                    ? 'bg-emerald-950/50 border-emerald-600/60 text-emerald-100'
+                    : 'bg-gray-900/80 border-gray-800 text-slate-300 hover:border-gray-700'
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-md mt-0.5 flex items-center justify-center border shrink-0 transition ${
+                    checklist.detailsMatch
+                      ? 'bg-emerald-500 border-emerald-400 text-gray-950'
+                      : 'border-slate-600 bg-gray-800'
+                  }`}
+                >
+                  {checklist.detailsMatch && <Check className="h-3 w-3 stroke-[3]" />}
+                </div>
+                <div>
+                  <div className="font-semibold text-white">2. Contact details match</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">HR name/email/phone match the lead</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleCheck('timestampPlausible')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition ${
+                  checklist.timestampPlausible
+                    ? 'bg-emerald-950/50 border-emerald-600/60 text-emerald-100'
+                    : 'bg-gray-900/80 border-gray-800 text-slate-300 hover:border-gray-700'
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-md mt-0.5 flex items-center justify-center border shrink-0 transition ${
+                    checklist.timestampPlausible
+                      ? 'bg-emerald-500 border-emerald-400 text-gray-950'
+                      : 'border-slate-600 bg-gray-800'
+                  }`}
+                >
+                  {checklist.timestampPlausible && <Check className="h-3 w-3 stroke-[3]" />}
+                </div>
+                <div>
+                  <div className="font-semibold text-white">3. Date & time are plausible</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Timestamp is recent and matches record</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleCheck('responseMatches')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition ${
+                  checklist.responseMatches
+                    ? 'bg-emerald-950/50 border-emerald-600/60 text-emerald-100'
+                    : 'bg-gray-900/80 border-gray-800 text-slate-300 hover:border-gray-700'
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-md mt-0.5 flex items-center justify-center border shrink-0 transition ${
+                    checklist.responseMatches
+                      ? 'bg-emerald-500 border-emerald-400 text-gray-950'
+                      : 'border-slate-600 bg-gray-800'
+                  }`}
+                >
+                  {checklist.responseMatches && <Check className="h-3 w-3 stroke-[3]" />}
+                </div>
+                <div>
+                  <div className="font-semibold text-white">4. Response matches claim</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Content confirms the reported outcome</div>
+                </div>
               </button>
             </div>
           </div>
 
-          <p className="text-[10px] text-gray-500 flex items-center gap-1.5">
-            <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
-            Verifying marks this lead as genuine and counts toward performance. Rejecting resets its response to "No response yet" and the CRA must re-upload.
-          </p>
+          {/* Decision Panels: Accept vs Reject */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            {/* Accept Panel (Left, emerald) */}
+            <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-800/40 space-y-3 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Verify Lead (Accept)</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Marks the proof verified. The lead is eligible and flows into the CRM Directory.
+                </p>
+                <textarea
+                  placeholder="Optional admin verification note..."
+                  value={verifyNotes}
+                  onChange={(e) => setVerifyNotes(e.target.value)}
+                  rows={2}
+                  className="w-full mt-3 px-3 py-2 bg-gray-900/90 border border-emerald-700/50 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={isSubmitting}
+                className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg ${
+                  !isSubmitting
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-emerald-900/40 active:scale-[0.98]'
+                    : 'bg-emerald-950/60 text-emerald-500/50 border border-emerald-900/50 cursor-not-allowed'
+                }`}
+              >
+                <Check className="h-4 w-4 stroke-[3]" />
+                <span>{isSubmitting ? 'Verifying...' : '✓ Verify & Approve Lead — It Counts'}</span>
+              </button>
+            </div>
+
+            {/* Reject Panel (Right, rose) */}
+            <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-800/40 space-y-3 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
+                  <XCircle className="h-4 w-4" />
+                  <span>Reject Proof (Reset)</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Pick a reason. Resets response to &ldquo;No response yet&rdquo; for CRA re-upload.
+                </p>
+
+                {/* Single-pick reason buttons */}
+                <div className="space-y-1.5 mt-2.5">
+                  {REJECT_REASONS.map((reason) => {
+                    const isSelected = selectedRejectReason === reason;
+                    return (
+                      <button
+                        key={reason}
+                        type="button"
+                        onClick={() => setSelectedRejectReason(reason)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition ${
+                          isSelected
+                            ? 'bg-rose-900/60 border-rose-500 text-white font-bold'
+                            : 'bg-gray-900/70 border-gray-800 text-slate-300 hover:bg-gray-800/60'
+                        }`}
+                      >
+                        {isSelected ? '● ' : '○ '} {reason}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <textarea
+                  placeholder="Optional additional notes to CRA..."
+                  value={rejectNotes}
+                  onChange={(e) => setRejectNotes(e.target.value)}
+                  rows={1}
+                  className="w-full mt-2 px-3 py-1.5 bg-gray-900/90 border border-rose-700/50 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 resize-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleReject}
+                disabled={!selectedRejectReason || isSubmitting}
+                className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg ${
+                  selectedRejectReason && !isSubmitting
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white cursor-pointer shadow-rose-900/40'
+                    : 'bg-rose-950/60 text-rose-500/50 border border-rose-900/50 cursor-not-allowed'
+                }`}
+              >
+                <X className="h-4 w-4" />
+                <span>✕ Reject — Response Reset</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Warning */}
+        <div className="px-6 py-3 border-t border-gray-800/80 bg-gray-950 text-slate-400 text-[11px] flex items-center gap-2 shrink-0">
+          <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
+          <span>
+            Verifying marks this lead as genuine and counts toward performance. Rejecting resets its response to &lsquo;No response yet&rsquo; and the CRA must re-upload.
+          </span>
         </div>
       </div>
     </div>

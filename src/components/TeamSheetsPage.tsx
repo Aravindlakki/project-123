@@ -48,10 +48,12 @@ import {
   UserCheck,
   AtSign,
   AlertTriangle,
+  XCircle,
+  Camera,
+  Image,
 } from 'lucide-react';
 import { getShortCompanyName } from './HowToFindHRRowHelper';
-import { ProofReviewModal } from './ProofReviewModal';
-import { HRContact, Company, CRA } from '../types';
+import { HRContact, Company, CRA, LeadResponseStatus } from '../types';
 import { api } from '../services/api';
 import { clientFallbackStore } from '../services/clientFallbackStore';
 import { CompanyDetailsModal } from './CompanyDetailsModal';
@@ -59,29 +61,28 @@ import { ExcelWorksheetImportModal } from './ExcelWorksheetImportModal';
 import { SystemReportModal } from './SystemReportModal';
 import { HtmlLeadImportModal } from './HtmlLeadImportModal';
 import { PdfLeadImportModal } from './PdfLeadImportModal';
-import { validateIndianMobile } from '../utils/phoneValidator';import {
-getISTDateKey,
-formatISTDateHeading,
-formatIndianDate,
-formatIndianDateTime,
-formatIndianPhone,
-} from '../utils/formatters';
-import { isLeadOwnedByUser, cleanUploaderName } from '../utils/leadOwnership';
+import { ProofReviewModal } from './ProofReviewModal';
+import { validateIndianMobile } from '../utils/phoneValidator';
+import { isLeadOwnedByUser } from '../utils/leadOwnership';
 import { findDuplicateLead, duplicateWarningMessage } from '../utils/leadDuplicates';
 import {
-RESPONSE_OPTIONS,
-RESPONDED_VALUES,
-responseShortLabel,
-responseBadgeClass,
-responseLabel,
-isResponseStatus,
+  RESPONSE_OPTIONS,
+  responseLabel,
+  responseShortLabel,
+  responseBadgeClass,
 } from '../constants/worksheet';
-import type { LeadResponseStatus } from '../types';
+import {
+  getISTDateKey,
+  formatISTDateHeading,
+  formatIndianDateTime,
+  formatIndianPhone,
+} from '../utils/formatters';
 
 export interface TeamSheetsPageProps {
   initialSpoc?: string;
   currentUser?: any;
   adminMode?: boolean;
+  setActiveTab?: (tab: string) => void;
 }
 
 export interface PreparedWorksheetLead {
@@ -126,109 +127,87 @@ export const PIPELINE_STAGES = [
   { id: 'jd_submitted', label: 'JD Submitted' },
 ];
 
-/** Ordered flow used by the per-row stage advance buttons. */
-export type PipelineStageId = 'hr_sourcing' | 'hr_found' | 'contacted' | 'connected' | 'follow_up' | 'jd_submitted';
-
-export const STAGE_FLOW: Array<{ id: PipelineStageId; label: string }> = [
-  { id: 'hr_sourcing', label: 'HR Sourcing' },
-  { id: 'hr_found', label: 'HR Found' },
-  { id: 'contacted', label: 'Contacted' },
-  { id: 'connected', label: 'Connected' },
-  { id: 'follow_up', label: 'Follow-up' },
-  { id: 'jd_submitted', label: 'JD Submitted' },
-];
-
-const STAGE_STORAGE_LABEL: Record<PipelineStageId, string> = {
-  hr_sourcing: 'HR Sourcing',
-  hr_found: 'HR Found',
-  contacted: 'Contacted',
-  connected: 'Connected',
-  follow_up: 'Follow-up',
-  jd_submitted: 'JD Submitted',
-};
-
-/** Normalize whatever is stored on the lead (status/remarks + legacy values) to a stage id. */
-export const normalizeLeadStage = (lead: Pick<HRContact, 'status' | 'remarks'>): PipelineStageId => {
-  const raw = (lead.status || lead.remarks || '').toLowerCase().replace(/[\s\-_]/g, '');
-  switch (raw) {
-    case 'hrfound':
-      return 'hr_found';
-    case 'contacted':
-    case 'mailsent':
-      return 'contacted';
-    case 'connected':
-      return 'connected';
-    case 'followup':
-    case 'hold':
-      return 'follow_up';
-    case 'jdsubmitted':
-      return 'jd_submitted';
-    case 'responded':
-    case 'nohirings':
-      // Legacy remarks — an HR response is NOT a submitted JD. JD Submitted is
-      // reached only when a JD is actually submitted via JD Intake.
-      return 'connected';
-    case 'hrsourcing':
-    case 'pending':
-    default:
-      return 'hr_sourcing';
-  }
-};
-
-const stageBadgeClass = (stageId: PipelineStageId): string => {
-  switch (stageId) {
-    case 'hr_sourcing':
-      return 'bg-amber-950/80 text-amber-300 border-amber-700/50';
-    case 'hr_found':
-      return 'bg-sky-950/80 text-sky-300 border-sky-700/50';
-    case 'contacted':
-      return 'bg-indigo-950/80 text-indigo-300 border-indigo-700/50';
-    case 'connected':
-      return 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50';
-    case 'follow_up':
-      return 'bg-rose-950/80 text-rose-300 border-rose-700/50';
-    case 'jd_submitted':
-      return 'bg-purple-950/80 text-purple-300 border-purple-700/50';
-  }
-};
+/** Fast client-side image compressor: scales down screenshots to ~1400px JPEG to ensure fast and reliable uploads */
+async function compressScreenshot(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) {
+        resolve('');
+        return;
+      }
+      try {
+        const img = new window.Image();
+        img.onload = () => {
+          try {
+            const maxDim = 1400;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(result);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          } catch {
+            resolve(result);
+          }
+        };
+        img.onerror = () => resolve(result);
+        img.src = result;
+      } catch {
+        resolve(result);
+      }
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
 
 export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   currentUser,
   adminMode = false,
+  setActiveTab,
 }) => {
   const [leads, setLeads] = useState<HRContact[]>([]);
+  const allContactsRef = useRef<HRContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [usersMap, setUsersMap] = useState<Record<string, string>>({});
   const [allUsersList, setAllUsersList] = useState<CRA[]>([]);
 
   // Filter states
-  // NOTE (Part A): the worksheet is scoped to the logged-in user for everyone,
-  // including admins. The old "All team | Only me" toggle and member dropdown
-  // were removed; there is no uploader filter anymore.
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDomain, setSelectedDomain] = useState('all');
-  const [selectedResponse, setSelectedResponse] = useState<string>('all');
+  const [selectedResponse, setSelectedResponse] = useState('all');
   const [activeDateKey, setActiveDateKey] = useState<string>(() => getISTDateKey(new Date()));
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
   const [pipelineTab, setPipelineTab] = useState<string>('all');
 
-  // Full team contact list kept in memory ONLY for cross-teammate duplicate warnings
-  const allContactsRef = useRef<HRContact[]>([]);
-
-  // Inline response editing per lead id
+  // Response & Proof states
   const [responseEditId, setResponseEditId] = useState<string | null>(null);
-
-  // Mandatory proof-of-response modal (opens when a responded value is picked without a valid proof)
   const [proofModalLead, setProofModalLead] = useState<HRContact | null>(null);
   const [proofModalResponse, setProofModalResponse] = useState<LeadResponseStatus | null>(null);
   const [proofChannel, setProofChannel] = useState<'called' | 'messaged' | 'mailed'>('mailed');
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [isReadingProofFile, setIsReadingProofFile] = useState(false);
   const [isSavingProof, setIsSavingProof] = useState(false);
   const [proofPreviewFull, setProofPreviewFull] = useState<string | null>(null);
-  // Admin: which proof is being reviewed with notes
   const [reviewModalLead, setReviewModalLead] = useState<HRContact | null>(null);
-  const [reviewNotes, setReviewNotes] = useState('');
 
   // Post-upload notification banner
   const [postUploadBanner, setPostUploadBanner] = useState<{
@@ -309,11 +288,10 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         api.getCRAs().catch(() => []),
       ]);
 
-      // Keep the full team list ONLY for duplicate warnings (Part A).
       allContactsRef.current = fetchedLeads;
-
-      // My Worksheet is scoped to the logged-in user for everyone (incl. admins).
-      const myLeads = fetchedLeads.filter((l) => isLeadOwnedByUser(l, currentUser));
+      const myLeads = adminMode
+        ? fetchedLeads
+        : fetchedLeads.filter((l) => isLeadOwnedByUser(l, currentUser));
       setLeads(myLeads);
       setAllUsersList(fetchedUsers);
 
@@ -324,9 +302,12 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       setUsersMap(mapping);
     } catch (err) {
       console.error('Failed to fetch worksheet leads', err);
-      const fallback = clientFallbackStore.getContacts().filter((l) => isLeadOwnedByUser(l, currentUser));
+      const fallback = clientFallbackStore.getContacts();
       allContactsRef.current = fallback;
-      setLeads(fallback);
+      const myLeads = adminMode
+        ? fallback
+        : fallback.filter((l) => isLeadOwnedByUser(l, currentUser));
+      setLeads(myLeads);
     } finally {
       setIsLoading(false);
     }
@@ -334,12 +315,182 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
   useEffect(() => {
     fetchLeads();
-  }, [currentUser?.id]);
 
-  // Resolve human-readable uploader name for any contact (duplicate warnings etc.)
+    // Listen for proof verification events from Admin Proof Review Hub
+    const handleProofVerification = (e: any) => {
+      const detail = e?.detail;
+      if (detail?.leadId && detail?.status) {
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === detail.leadId
+              ? {
+                  ...l,
+                  proof_verified_status: detail.status,
+                  ...(detail.status === 'rejected'
+                    ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any }
+                    : {}),
+                }
+              : l
+          )
+        );
+        allContactsRef.current = allContactsRef.current.map((l) =>
+          l.id === detail.leadId
+            ? {
+                ...l,
+                proof_verified_status: detail.status,
+                ...(detail.status === 'rejected'
+                  ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any }
+                  : {}),
+              }
+            : l
+        );
+      } else {
+        fetchLeads();
+      }
+    };
+
+    window.addEventListener('proof_verification_updated', handleProofVerification);
+    window.addEventListener('worksheet_proof_updated', handleProofVerification);
+
+    return () => {
+      window.removeEventListener('proof_verification_updated', handleProofVerification);
+      window.removeEventListener('worksheet_proof_updated', handleProofVerification);
+    };
+  }, [currentUser?.id, adminMode]);
+
+  // Response handler with mandatory proof rule
+  const handleSetResponse = async (lead: HRContact, value: LeadResponseStatus, note?: string) => {
+    const isResponded = value !== 'no_response_yet';
+    // PROOF RULE: any responded value requires a screenshot proof (call/msg/mail)
+    if (isResponded && !(lead.proof_screenshot_url && lead.proof_verified_status !== 'rejected')) {
+      setProofModalLead(lead);
+      setProofModalResponse(value);
+      setProofChannel(lead.proof_channel || 'mailed');
+      setProofFile(null);
+      setProofPreview(null);
+      return;
+    }
+    const updates: Partial<HRContact> = {
+      response_status: value,
+      response_note: note !== undefined ? note : lead.response_note,
+      responded_at: isResponded ? (lead.responded_at || new Date().toISOString()) : null,
+    };
+    try {
+      await api.updateContact(lead.id, updates);
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...updates } : l)));
+      allContactsRef.current = allContactsRef.current.map((l) => (l.id === lead.id ? { ...l, ...updates } : l));
+      showToast(isResponded ? `Response saved: ${responseShortLabel(value)}` : 'Response reset to "No response yet"');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save response', 'error');
+    }
+  };
+
+  // Proof upload handler
+  const handleSaveProofUpload = async () => {
+    if (!proofModalLead) return;
+    if (!proofPreview) {
+      showToast('Please attach a screenshot proof before submitting.', 'error');
+      return;
+    }
+    const finalResponse: LeadResponseStatus =
+      proofModalResponse && proofModalResponse !== 'no_response_yet'
+        ? proofModalResponse
+        : proofModalLead.response_status && proofModalLead.response_status !== 'no_response_yet'
+        ? proofModalLead.response_status
+        : 'replied_interested';
+
+    setIsSavingProof(true);
+    const updates: Partial<HRContact> = {
+      name: proofModalLead.name,
+      company_id: proofModalLead.company_id,
+      proof_channel: proofChannel,
+      proof_screenshot_url: proofPreview,
+      proof_screenshot_uploaded_at: new Date().toISOString(),
+      proof_verified_status: 'pending',
+      proof_verified_by: undefined,
+      proof_verified_at: undefined,
+      proof_admin_notes: undefined,
+      response_status: finalResponse,
+      responded_at: new Date().toISOString(),
+    };
+
+    try {
+      await api.updateContact(proofModalLead.id, updates);
+      setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
+      allContactsRef.current = allContactsRef.current.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: proofModalLead.id } }));
+      showToast('Proof uploaded & sent to Admin for verification');
+      setProofModalLead(null);
+      setProofModalResponse(null);
+      setProofFile(null);
+      setProofPreview(null);
+    } catch (err: any) {
+      console.error('[Proof Upload Error]', err);
+      // Fallback: keep local state & fallback store in sync so the employee never loses proof
+      try {
+        const contacts = clientFallbackStore.getContacts();
+        const idx = contacts.findIndex((c) => c.id === proofModalLead.id);
+        if (idx >= 0) {
+          contacts[idx] = { ...contacts[idx], ...updates };
+          clientFallbackStore.saveContacts(contacts);
+        } else {
+          contacts.unshift({ ...proofModalLead, ...updates });
+          clientFallbackStore.saveContacts(contacts);
+        }
+        setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
+        allContactsRef.current = allContactsRef.current.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l));
+        showToast('Proof uploaded & sent to Admin for verification');
+        setProofModalLead(null);
+        setProofModalResponse(null);
+        setProofFile(null);
+        setProofPreview(null);
+      } catch (innerErr) {
+        showToast(err.message || 'Failed to save proof', 'error');
+      }
+    } finally {
+      setIsSavingProof(false);
+    }
+  };
+
+  // Proof review state helper
+  const getProofReviewState = (lead: HRContact): 'none' | 'pending' | 'verified' | 'rejected' => {
+    if (!lead.proof_screenshot_url) return 'none';
+    return (lead.proof_verified_status as any) || 'pending';
+  };
+
+  // Admin verification decision
+  const reviewLeadProof = async (
+    leadId: string,
+    decision: 'verified' | 'rejected',
+    adminNotes?: string,
+    reviewerName?: string
+  ) => {
+    const updates: Partial<HRContact> = {
+      proof_verified_status: decision,
+      proof_verified_by: reviewerName || currentUser?.name || 'Admin',
+      proof_verified_at: new Date().toISOString(),
+      proof_admin_notes: adminNotes,
+      ...(decision === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any } : {}),
+    };
+    try {
+      await api.updateContact(leadId, updates);
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updates } : l)));
+      allContactsRef.current = allContactsRef.current.map((l) => (l.id === leadId ? { ...l, ...updates } : l));
+      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId, status: decision } }));
+      if (decision === 'verified') {
+        showToast('Proof verified — lead now counts', 'success');
+      } else {
+        showToast('Proof rejected — response reset to No response yet', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update review status', 'error');
+    }
+  };
+
+  // Resolve human-readable uploader name for any contact
   const resolveUploaderName = (lead: HRContact): string => {
     if (lead.entered_by_name && lead.entered_by_name.trim()) {
-      return cleanUploaderName(lead.entered_by_name);
+      return lead.entered_by_name.replace(/\s*\((HTML|PDF|Excel).*?\)/i, '').trim();
     }
     if (lead.created_by && usersMap[lead.created_by]) {
       return usersMap[lead.created_by];
@@ -377,102 +528,15 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     return false;
   };
 
-  // Response helpers (Part A)
-  // PROOF RULE: any "responded" value requires a screenshot proof (call/msg/mail)
-  // which then goes to Admin for verification before the lead counts.
-  const handleSetResponse = async (lead: HRContact, value: LeadResponseStatus, note?: string) => {
-    const isResponded = value !== 'no_response_yet';
-
-    // Responded but no proof uploaded yet → open the proof modal first. Do not save yet.
-    if (isResponded && !(lead.proof_screenshot_url && lead.proof_verified_status !== 'rejected')) {
-      setProofModalLead(lead);
-      setProofModalResponse(value);
-      setProofChannel(lead.proof_channel || 'mailed');
-      setProofFile(null);
-      setProofPreview(null);
-      return;
-    }
-
-    const updates: Partial<HRContact> = {
-      response_status: value,
-      response_note: note !== undefined ? note : lead.response_note,
-      responded_at: isResponded ? (lead.responded_at || new Date().toISOString()) : null,
-    };
-    try {
-      await api.updateContact(lead.id, updates);
-      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...updates } : l)));
-      showToast(isResponded ? `Response saved: ${responseShortLabel(value)}` : 'Response reset to "No response yet"');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to save response', 'error');
-    }
-  };
-
-  // Upload/replace the proof screenshot for a lead (base64 data URL, pending admin review)
-  const uploadLeadProof = async (
-    lead: HRContact,
-    data: { channel: 'called' | 'messaged' | 'mailed'; screenshotUrl: string; filename?: string }
-  ) => {
-    const updates: Partial<HRContact> = {
-      proof_channel: data.channel,
-      proof_screenshot_url: data.screenshotUrl,
-      proof_screenshot_uploaded_at: new Date().toISOString(),
-      proof_verified_status: 'pending',
-      proof_verified_by: undefined,
-      proof_verified_at: undefined,
-      proof_admin_notes: undefined,
-    };
-    await api.updateContact(lead.id, updates);
-    setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...updates } : l)));
-  };
-
-  // Admin decision on a proof: verified → lead counts; rejected → response reset
-  const reviewLeadProof = async (
-    leadId: string,
-    decision: 'verified' | 'rejected',
-    adminNotes?: string,
-    reviewerName?: string
-  ) => {
-    const updates: Partial<HRContact> = {
-      proof_verified_status: decision,
-      proof_verified_by: reviewerName,
-      proof_verified_at: new Date().toISOString(),
-      proof_admin_notes: adminNotes,
-      ...(decision === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null } : {}),
-    };
-    await api.updateContact(leadId, updates);
-    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updates } : l)));
-  };
-
-  const getProofReviewState = (lead: HRContact): 'none' | 'pending' | 'verified' | 'rejected' => {
-    if (!lead.proof_screenshot_url) return 'none';
-    return lead.proof_verified_status || 'pending';
-  };
-
-  // Pipeline stage helpers — move a lead through: HR Sourcing → HR Found → Contacted → Connected → Follow-up → JD Submitted
-  const handleSetStage = async (lead: HRContact, stageId: PipelineStageId) => {
-    const label = STAGE_STORAGE_LABEL[stageId];
-    if (normalizeLeadStage(lead) === stageId) return;
-    try {
-      await api.updateContact(lead.id, { status: label });
-      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: label } : l)));
-      showToast(`Pipeline stage → ${label}`);
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update pipeline stage', 'error');
-    }
-  };
-
-  const advanceStage = (lead: HRContact) => {
-    const cur = normalizeLeadStage(lead);
-    const idx = STAGE_FLOW.findIndex((s) => s.id === cur);
-    const next = STAGE_FLOW[idx + 1];
-    if (next) handleSetStage(lead, next.id);
-  };
-
-  const getProofStatus = (lead: HRContact): { label: string; cls: string } => {
-    if (lead.proof_screenshot_url) {
-      return { label: `Uploaded${lead.proof_screenshot_uploaded_at ? ' ' + formatIndianDate(lead.proof_screenshot_uploaded_at) : ''}`, cls: 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40' };
-    }
-    return { label: 'None', cls: 'bg-gray-800/60 text-gray-500 border-gray-700/60' };
+  // Uploaded-By Filter helper: checks if lead belongs to the logged-in user
+  const isLeadUploadedByMe = (lead: HRContact): boolean => {
+    if (!currentUser) return false;
+    if (lead.created_by && lead.created_by === currentUser.id) return true;
+    if (lead.entered_by_name && currentUser.name && lead.entered_by_name.toLowerCase().includes(currentUser.name.toLowerCase())) return true;
+    if (lead.spoc && currentUser.name && lead.spoc.toLowerCase() === currentUser.name.split(' ')[0].toLowerCase()) return true;
+    const uploader = resolveUploaderName(lead).toLowerCase();
+    if (currentUser.name && uploader.includes(currentUser.name.toLowerCase())) return true;
+    return false;
   };
 
   // Open "HR Sourcing" drawer in place
@@ -651,6 +715,17 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       return;
     }
 
+    // Duplicate check: Warn if teammate already added this company+role
+    const dup = findDuplicateLead(allContactsRef.current, {
+      company_name: newCompanyName,
+      role_title: newRoleTitle,
+      hr_name: newHRName,
+    });
+    if (dup) {
+      setAddLeadError(duplicateWarningMessage(dup));
+      return;
+    }
+
     if (newHRPhone.trim()) {
       const validation = validateIndianMobile(newHRPhone);
       if (!validation.valid) {
@@ -662,19 +737,6 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     setIsSubmittingLead(true);
     setAddLeadError(null);
     setNewAddPhoneError(null);
-
-    // Cross-teammate duplicate warning (Part A): warn but do not block.
-    const dup = findDuplicateLead(allContactsRef.current, {
-      company_name: newCompanyName,
-      role_title: newRoleTitle,
-      hr_name: newHRName,
-      title: newHRTitle,
-    });
-    if (dup) {
-      setAddLeadError(duplicateWarningMessage(dup));
-      setIsSubmittingLead(false);
-      return;
-    }
 
     try {
       const uploaderName = currentUser?.name || 'Aravind Reddy';
@@ -689,7 +751,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         lead_source: newLeadSource,
         notes: newNotes.trim() || undefined,
         hr_name: newHRName.trim() || '',
-        title: newHRTitle.trim() || 'Talent Acquisition',
+        title: 'Talent Acquisition',
         email: newHREmail.trim() || undefined,
         phone: cleanedPhone,
         hr_linkedin: newHRLinkedin.trim() || undefined,
@@ -700,6 +762,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       });
 
       setLeads((prev) => [created, ...prev]);
+      allContactsRef.current = [created, ...allContactsRef.current];
       setActiveDateKey(getISTDateKey(new Date()));
       setShowAddLeadModal(false);
 
@@ -728,11 +791,11 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     }
   };
 
-  // Per-Day CSV Export (Part A: HR Role and Uploaded By removed; Response added)
+  // Per-Day CSV Export
   const handleExportDayCSV = (dateKey: string, dayLeads: HRContact[]) => {
     const csvRows = dayLeads.map((l) => ({
       'Company Name': l.company?.name || l.name,
-      'Date Uploaded': l.created_at ? formatIndianDateTime(l.created_at) : '—',
+      'Company LinkedIn': l.company?.linkedin_url || '—',
       'Company Size': l.company?.employee_count || '—',
       'Role / JD': l.role_title || l.title || '—',
       'HR Name': l.name || '—',
@@ -744,7 +807,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       'Response': responseShortLabel(l.response_status),
       'Response Note': l.response_note || '—',
       'Responded At': l.responded_at ? formatIndianDateTime(l.responded_at) : '—',
-      'Proof': l.proof_screenshot_url ? `Uploaded ${l.proof_screenshot_uploaded_at ? formatIndianDate(l.proof_screenshot_uploaded_at) : ''}`.trim() : 'None',
+      'Proof': l.proof_screenshot_url ? `Uploaded ${l.proof_screenshot_uploaded_at ? formatIndianDateTime(l.proof_screenshot_uploaded_at) : ''}`.trim() : 'None',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(csvRows);
@@ -794,7 +857,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   // Leads for the active open sheet filtered by search, domain, response, incomplete only, and pipeline stage
   const filteredLeads = useMemo(() => {
     return dayTotalLeads.filter((lead) => {
-      // Search (uploader search removed — worksheet is mine-only in Part A)
+      // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const comp = (lead.company?.name || lead.name || '').toLowerCase();
@@ -820,7 +883,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         }
       }
 
-      // Response Filter (Part A)
+      // Response Status Filter
       if (selectedResponse !== 'all') {
         if ((lead.response_status || 'no_response_yet') !== selectedResponse) {
           return false;
@@ -846,14 +909,33 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
       return true;
     });
-  }, [dayTotalLeads, searchQuery, selectedDomain, selectedResponse, onlyIncomplete, pipelineTab, currentUser, usersMap]);
+  }, [dayTotalLeads, searchQuery, selectedDomain, selectedResponse, onlyIncomplete, pipelineTab]);
 
   // Incomplete count in the currently open sheet
   const dayIncompleteCount = useMemo(() => {
     return filteredLeads.filter((l) => isLeadIncomplete(l)).length;
   }, [filteredLeads]);
 
-  // Unique uploaders for filter dropdown
+  // Pending admin verification count across my leads
+  const pendingVerificationCount = useMemo(() => {
+    return leads.filter((l) => l.proof_verified_status === 'pending' && l.proof_screenshot_url).length;
+  }, [leads]);
+
+  // Pipeline counts per stage for the current day
+  const pipelineCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: dayTotalLeads.length };
+    dayTotalLeads.forEach((lead) => {
+      const s = (lead.status || lead.remarks || '').toLowerCase().replace(/[\s-_]/g, '');
+      if (s === 'hrsourcing' || s === 'pending') counts['hr_sourcing'] = (counts['hr_sourcing'] || 0) + 1;
+      else if (s === 'hrfound') counts['hr_found'] = (counts['hr_found'] || 0) + 1;
+      else if (s === 'contacted' || s === 'mailsent') counts['contacted'] = (counts['contacted'] || 0) + 1;
+      else if (s === 'connected') counts['connected'] = (counts['connected'] || 0) + 1;
+      else if (s === 'followup' || s === 'hold') counts['follow_up'] = (counts['follow_up'] || 0) + 1;
+      else if (s === 'jdsubmitted' || s === 'responded') counts['jd_submitted'] = (counts['jd_submitted'] || 0) + 1;
+    });
+    return counts;
+  }, [dayTotalLeads]);
+
   // Unique domains for filter dropdown
   const uniqueDomains = useMemo(() => {
     const set = new Set<string>();
@@ -862,16 +944,6 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     });
     return Array.from(set).sort();
   }, [leads]);
-
-  // Per-stage counts for the Pipeline filter buttons
-  const stageCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const l of dayTotalLeads) {
-      const s = normalizeLeadStage(l);
-      counts[s] = (counts[s] || 0) + 1;
-    }
-    return counts;
-  }, [dayTotalLeads]);
 
   // Overall Statistics
   const stats = useMemo(() => {
@@ -922,7 +994,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               My Worksheet & HR Sourcing
             </h1>
             <p className="text-xs sm:text-sm text-gray-300 mt-1 max-w-2xl leading-relaxed">
-              Your own leads grouped into daily sheets. Discover verified HR contacts, update pipeline stages, log responses, and enter direct recruiter phone numbers manually.
+              Personal daily worksheet for logging outreach responses, uploading verified contact proofs, discovering HR leads, and tracking placement pipelines.
             </p>
           </div>
 
@@ -968,6 +1040,67 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Admin Action Alert: Pending Proofs */}
+      {(adminMode || currentUser?.role === 'admin') && pendingVerificationCount > 0 && (
+        <div className="bg-gradient-to-r from-amber-950/90 via-gray-900 to-amber-950/90 border border-amber-500/60 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-3 text-white animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/20 border border-amber-500/40 rounded-xl">
+              <Clock className="h-5 w-5 text-amber-400 animate-pulse" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-amber-200 flex items-center gap-2">
+                <span>{pendingVerificationCount} Proof{pendingVerificationCount === 1 ? '' : 's'} Pending Verification</span>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-200 border border-amber-500/40">
+                  Admin Action Needed
+                </span>
+              </div>
+              <div className="text-xs text-slate-300">
+                Outreach proofs were submitted by team members. Review or instantly approve them for the CRM directory.
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                const pendingLead = leads.find((l) => (l.proof_verified_status || 'pending') === 'pending' && l.proof_screenshot_url);
+                if (pendingLead) {
+                  await reviewLeadProof(pendingLead.id, 'verified', 'Approved from worksheet banner');
+                }
+              }}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
+            >
+              <Check className="h-4 w-4 stroke-[3]" />
+              <span>Quick Approve Next</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const pendingLead = leads.find((l) => (l.proof_verified_status || 'pending') === 'pending' && l.proof_screenshot_url);
+                if (pendingLead) setReviewModalLead(pendingLead);
+              }}
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Audit Proof</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (setActiveTab) {
+                  setActiveTab('proof-review');
+                } else {
+                  window.location.hash = '/admin/proof-review';
+                }
+              }}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-slate-700 transition cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Review Hub ({pendingVerificationCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Post-Upload Banner */}
       {postUploadBanner && (
@@ -1102,19 +1235,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               </select>
             </div>
 
-            {/* Response Filter (Part A) */}
+            {/* Response Filter */}
             <div className="flex items-center gap-1.5 bg-gray-950 border border-gray-700 rounded-xl px-2.5 py-1.5">
               <MessageSquare className="h-3.5 w-3.5 text-gray-400" />
               <select
                 value={selectedResponse}
                 onChange={(e) => setSelectedResponse(e.target.value)}
                 className="bg-transparent text-xs text-gray-200 focus:outline-none cursor-pointer"
-                title="Filter by response"
               >
                 <option value="all" className="bg-gray-900 text-white">All Responses</option>
-                {RESPONSE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value} className="bg-gray-900 text-white">
-                    {o.label}
+                {RESPONSE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-gray-900 text-white">
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -1188,13 +1320,14 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </div>
         </div>
 
-        {/* Pipeline Stages Sub-Nav */}
+        {/* Pipeline Stages Sub-Nav with Counts */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-gray-800/80">
           <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1 shrink-0">
             Pipeline:
           </span>
           {PIPELINE_STAGES.map((st) => {
             const isActive = pipelineTab === st.id;
+            const count = pipelineCounts[st.id] ?? 0;
             return (
               <button
                 key={st.id}
@@ -1205,32 +1338,15 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
               >
-                {st.label}
-                <span
-                  className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                    isActive ? 'bg-black/30 text-white' : 'bg-gray-800 text-gray-400'
-                  }`}
-                >
-                  {st.id === 'all' ? dayTotalLeads.length : stageCounts[st.id] || 0}
+                <span>{st.label}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-extrabold ${isActive ? 'bg-purple-800 text-purple-100' : 'bg-gray-800 text-gray-400'}`}>
+                  {count}
                 </span>
               </button>
             );
           })}
         </div>
       </div>
-
-      {/* Admin alert: proofs waiting for verification */}
-      {(adminMode || currentUser?.role === 'admin') &&
-        leads.some((l) => l.proof_verified_status === 'pending') && (
-          <div className="bg-amber-950/40 border border-amber-700/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-amber-200">
-              <b>{leads.filter((l) => l.proof_verified_status === 'pending').length}</b> proof screenshot(s) waiting for your verification. Click the screenshot in the Proof column to verify or reject.
-            </p>
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 border border-amber-600/50 rounded-lg px-2 py-1 bg-amber-900/40 shrink-0">
-              Admin action needed
-            </span>
-          </div>
-        )}
 
       {/* SINGLE ACTIVE DAILY SHEET CONTAINER */}
       <div
@@ -1358,8 +1474,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               <thead>
                 <tr className="bg-gray-950/80 text-[10px] uppercase font-bold text-gray-400 border-b border-gray-800 tracking-wider">
                   <th className="py-2 px-2.5">#</th>
-                  {/* Sticky Company column: always visible while scrolling sideways (Part A) */}
-                  <th className="py-2 px-2.5 sticky left-0 z-10 bg-gray-950/95 backdrop-blur-sm border-r border-gray-800 min-w-[150px]">Company Name</th>
+                  <th className="py-2 px-2.5 sticky left-0 z-10 bg-gray-900 border-r border-gray-800 min-w-[150px]">Company Name</th>
                   <th className="py-2 px-2.5">Date (IST)</th>
                   <th className="py-2 px-2.5">Company Size</th>
                   <th className="py-2 px-2.5">Role / JD</th>
@@ -1376,282 +1491,328 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               </thead>
               <tbody className="divide-y divide-gray-800/60">
                 {filteredLeads.map((lead, idx) => {
-                          const isIncomplete = isLeadIncomplete(lead);
-                          const missingFields = getMissingFields(lead);
-                          const canEdit = canUserEditLead(lead);
+                  const isIncomplete = isLeadIncomplete(lead);
+                  const canEdit = canUserEditLead(lead);
+                  const proofReviewState = getProofReviewState(lead);
+                  const isEditingResponse = responseEditId === lead.id;
 
-                          return (
-                            <tr
-                              key={lead.id}
-                              className={`transition-colors ${
-                                isIncomplete ? 'bg-amber-950/10' : ''
-                              } hover:bg-gray-800/40`}
+                  return (
+                    <tr
+                      key={lead.id}
+                      className={`hover:bg-gray-800/40 transition-colors ${
+                        isIncomplete ? 'bg-amber-950/10' : ''
+                      }`}
+                    >
+                      {/* Index */}
+                      <td className="py-2 px-2.5 text-gray-500 font-mono text-[11px]">
+                        {idx + 1}
+                      </td>
+
+                      {/* 1. Company Name (Sticky Left) */}
+                      <td className="py-2 px-2.5 sticky left-0 z-10 bg-gray-900 border-r border-gray-800 min-w-[150px]">
+                        <div
+                          className="font-bold text-white text-xs hover:text-purple-300 transition cursor-pointer"
+                          onClick={() => {
+                            if (lead.company) {
+                              setSelectedCompany(lead.company);
+                              setShowCompanyModal(true);
+                            }
+                          }}
+                        >
+                          {lead.company?.name || lead.name}
+                        </div>
+                        {lead.company?.website && (
+                          <a
+                            href={lead.company.website}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-gray-400 hover:text-purple-400 flex items-center gap-1 mt-0.5 truncate max-w-[150px]"
+                          >
+                            <Globe className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate">{lead.company.website.replace(/^https?:\/\//, '')}</span>
+                          </a>
+                        )}
+                      </td>
+
+                      {/* 2. Date (IST) */}
+                      <td className="py-2 px-2.5 text-gray-400 whitespace-nowrap text-[11px]">
+                        {lead.created_at ? formatIndianDateTime(lead.created_at) : '—'}
+                      </td>
+
+                      {/* 3. Company Size */}
+                      <td className="py-2 px-2.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-gray-800 text-gray-300 border border-gray-700 whitespace-nowrap">
+                          {lead.company?.employee_count || '100-250 employees'}
+                        </span>
+                      </td>
+
+                      {/* 4. Role / JD */}
+                      <td className="py-2 px-2.5 font-semibold text-gray-200 max-w-[160px] truncate" title={lead.role_title || lead.title || 'Sourced Lead'}>
+                        {lead.role_title || lead.title || 'Sourced Lead'}
+                      </td>
+
+                      {/* 5. HR Name */}
+                      <td className="py-2 px-2.5">
+                        {lead.name && lead.name !== 'Unknown Contact' && lead.name !== 'Talent Acquisition Team' ? (
+                          <span className="font-bold text-gray-100">{lead.name}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-rose-400 font-bold text-[10px] bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800/50">
+                            Need HR Name
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 6. Domain */}
+                      <td className="py-2 px-2.5 text-gray-400 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-purple-950/60 text-purple-300 border border-purple-800/40">
+                          {lead.domain || 'Technology'}
+                        </span>
+                      </td>
+
+                      {/* 7. Email */}
+                      <td className="py-2 px-2.5">
+                        {lead.email ? (
+                          <a
+                            href={`mailto:${lead.email}`}
+                            className="text-indigo-300 hover:text-indigo-200 underline text-[11px] truncate max-w-[140px] block"
+                            title={lead.email}
+                          >
+                            {lead.email}
+                          </a>
+                        ) : (
+                          <span className="text-gray-500 italic text-[11px]">—</span>
+                        )}
+                      </td>
+
+                      {/* 8. Contact Number (Phone) */}
+                      <td className="py-2 px-2.5">
+                        {lead.phone ? (
+                          <div className="flex items-center gap-1 font-mono text-[11px] text-emerald-400 whitespace-nowrap">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <span>{formatIndianPhone(lead.phone)}</span>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-amber-400 font-bold text-[10px] bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/50 whitespace-nowrap">
+                            Need Phone
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 9. LinkedIn */}
+                      <td className="py-2 px-2.5">
+                        {lead.linkedin_url ? (
+                          <a
+                            href={lead.linkedin_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-[11px]"
+                            title={lead.linkedin_url}
+                          >
+                            <Linkedin className="h-3.5 w-3.5 shrink-0" />
+                            <span>Profile</span>
+                            <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-rose-400 font-bold text-[10px] bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800/50 whitespace-nowrap">
+                            Need LinkedIn
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 10. Response Column */}
+                      <td className="py-2 px-2.5 whitespace-nowrap">
+                        {isEditingResponse ? (
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={lead.response_status || 'no_response_yet'}
+                              onChange={(e) => {
+                                handleSetResponse(lead, e.target.value as LeadResponseStatus);
+                                setResponseEditId(null);
+                              }}
+                              onBlur={() => setResponseEditId(null)}
+                              autoFocus
+                              className="bg-gray-950 border border-purple-500 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none"
                             >
-                              {/* Index */}
-                              <td className="py-2 px-2.5 text-gray-500 font-mono text-[11px]">
-                                {idx + 1}
-                              </td>
+                              {RESPONSE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => setResponseEditId(null)}
+                              className="p-1 text-gray-400 hover:text-white"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setResponseEditId(lead.id)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold border transition cursor-pointer hover:brightness-125 ${responseBadgeClass(
+                                lead.response_status
+                              )}`}
+                              title="Click to update outreach response"
+                            >
+                              <span>{responseShortLabel(lead.response_status)}</span>
+                              <ChevronDown className="h-3 w-3 opacity-60" />
+                            </button>
+                            {lead.responded_at && (
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                {formatIndianDateTime(lead.responded_at)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
 
-                              {/* 1. Company Name — STICKY (Part A) */}
-                              <td className="py-2 px-2.5 sticky left-0 z-10 bg-gray-900 border-r border-gray-800">
-                                <div className="font-bold text-white text-xs hover:text-purple-300 transition cursor-pointer"
-                                  onClick={() => {
-                                    if (lead.company) {
-                                      setSelectedCompany(lead.company);
-                                      setShowCompanyModal(true);
-                                    }
-                                  }}
-                                >
-                                  {lead.company?.name || lead.name}
-                                </div>
-                                {lead.company?.website && (
-                                  <a
-                                    href={lead.company.website}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-[10px] text-gray-400 hover:text-purple-400 flex items-center gap-1 mt-0.5 truncate max-w-[150px]"
-                                  >
-                                    <Globe className="h-2.5 w-2.5 shrink-0" />
-                                    <span className="truncate">{lead.company.website.replace(/^https?:\/\//, '')}</span>
-                                  </a>
-                                )}
-                              </td>
+                      {/* 11. Proof Column */}
+                      <td className="py-2 px-2.5 whitespace-nowrap">
+                        {lead.proof_screenshot_url ? (
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={lead.proof_screenshot_url}
+                              alt="Proof"
+                              onClick={() => {
+                                if (adminMode || currentUser?.role === 'admin') {
+                                  setReviewModalLead(lead);
+                                } else {
+                                  setProofPreviewFull(lead.proof_screenshot_url!);
+                                }
+                              }}
+                              className="w-8 h-8 rounded-lg object-cover border border-amber-600/60 cursor-pointer hover:scale-105 transition shadow-sm"
+                              title={
+                                adminMode || currentUser?.role === 'admin'
+                                  ? 'Click to open Admin Proof Verification Modal'
+                                  : 'Click to view full screenshot'
+                              }
+                            />
+                            <div className="text-[10px] text-slate-300">
+                              <span className="capitalize font-semibold">{lead.proof_channel || 'Proof'}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProofModalLead(lead);
+                              setProofModalResponse(
+                                lead.response_status && lead.response_status !== 'no_response_yet'
+                                  ? lead.response_status
+                                  : 'replied_interested'
+                              );
+                              setProofChannel(lead.proof_channel || 'mailed');
+                              setProofFile(null);
+                              setProofPreview(null);
+                            }}
+                            className="text-[10px] text-slate-500 hover:text-amber-300 italic flex items-center gap-1 transition"
+                            title="Upload screenshot proof"
+                          >
+                            <Camera className="h-3 w-3" />
+                            <span>No proof</span>
+                          </button>
+                        )}
+                      </td>
 
-                              {/* 2. Date Uploaded (IST) */}
-                              <td className="py-2 px-2.5 text-gray-400 whitespace-nowrap text-[11px]">
-                                {lead.created_at ? formatIndianDateTime(lead.created_at) : '—'}
-                              </td>
+                      {/* 12. Verification Column */}
+                      <td className="py-2 px-2.5 whitespace-nowrap">
+                        {proofReviewState === 'verified' && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-600/40"
+                            title="Admin verified this proof — lead is eligible and flows to CRM Directory"
+                          >
+                            <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                            <span>Eligible</span>
+                          </span>
+                        )}
 
-                              {/* 3. Company Size */}
-                              <td className="py-2 px-2.5">
-                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-gray-800 text-gray-300 border border-gray-700 whitespace-nowrap">
-                                  {lead.company?.employee_count || '100-250 employees'}
-                                </span>
-                              </td>
+                        {proofReviewState === 'rejected' && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-600/40"
+                            title={lead.proof_admin_notes || 'Proof rejected by Admin — response reset'}
+                          >
+                            <XCircle className="h-3 w-3 text-rose-400" />
+                            <span>Not Eligible</span>
+                          </span>
+                        )}
 
-                              {/* 4. Role / JD */}
-                              <td className="py-2 px-2.5 font-semibold text-gray-200 max-w-[160px] truncate" title={lead.role_title || lead.title || 'Sourced Lead'}>
-                                {lead.role_title || lead.title || 'Sourced Lead'}
-                              </td>
+                        {proofReviewState === 'pending' && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/40 cursor-pointer hover:bg-amber-900/80"
+                            onClick={() => {
+                              if (adminMode || currentUser?.role === 'admin') {
+                                setReviewModalLead(lead);
+                              }
+                            }}
+                            title="Proof submitted — awaiting Admin review"
+                          >
+                            <Clock className="h-3 w-3 text-amber-400" />
+                            <span>Under Review</span>
+                          </span>
+                        )}
 
-                              {/* 5. HR Name */}
-                              <td className="py-2 px-2.5">
-                                {lead.name && lead.name !== 'Unknown Contact' && lead.name !== 'Talent Acquisition Team' ? (
-                                  <span className="font-bold text-gray-100">{lead.name}</span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-rose-400 font-bold text-[10px] bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800/50">
-                                    Need HR Name
-                                  </span>
-                                )}
-                              </td>
+                        {proofReviewState === 'none' && (
+                          lead.response_status && lead.response_status !== 'no_response_yet' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/40">
+                              Proof Needed
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )
+                        )}
+                      </td>
 
-                              {/* 6. Domain */}
-                              <td className="py-2 px-2.5 text-gray-400 whitespace-nowrap">
-                                <span className="px-2 py-0.5 rounded text-[10px] bg-purple-950/60 text-purple-300 border border-purple-800/40">
-                                  {lead.domain || 'Technology'}
-                                </span>
-                              </td>
+                      {/* 13. Actions */}
+                      <td className="py-2 px-2.5 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* "HR Sourcing" / "Find HR" button on incomplete leads */}
+                          {isIncomplete && (
+                            <button
+                              onClick={() => handleOpenSourcingDrawer(lead)}
+                              className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-[10px] font-bold rounded-lg shadow transition flex items-center gap-1 cursor-pointer border border-purple-400/30"
+                              title="Open HR Sourcing toolkit & enter verified contacts"
+                            >
+                              <Sparkles className="h-3 w-3 text-yellow-300" />
+                              <span>HR Sourcing</span>
+                            </button>
+                          )}
 
-                              {/* 7. Email */}
-                              <td className="py-2 px-2.5">
-                                {lead.email ? (
-                                  <a
-                                    href={`mailto:${lead.email}`}
-                                    className="text-indigo-300 hover:text-indigo-200 underline text-[11px] truncate max-w-[140px] block"
-                                    title={lead.email}
-                                  >
-                                    {lead.email}
-                                  </a>
-                                ) : (
-                                  <span className="text-gray-500 italic text-[11px]">—</span>
-                                )}
-                              </td>
+                          {/* General Edit button for Admin or Creator */}
+                          {canEdit ? (
+                            <button
+                              onClick={() => handleOpenEditModal(lead)}
+                              className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition cursor-pointer"
+                              title="Edit lead details"
+                            >
+                              <Edit2 className="h-3.5 w-3.5 text-purple-400" />
+                            </button>
+                          ) : (
+                            <span
+                              className="p-1 text-gray-600 cursor-not-allowed opacity-40"
+                              title="Read-only lead"
+                            >
+                              <Lock className="h-3.5 w-3.5" />
+                            </span>
+                          )}
 
-                              {/* 8. Contact Number (Phone) */}
-                              <td className="py-2 px-2.5">
-                                {lead.phone ? (
-                                  <div className="flex items-center gap-1 font-mono text-[11px] text-emerald-400 whitespace-nowrap">
-                                    <Phone className="h-3 w-3 shrink-0" />
-                                    <span>{formatIndianPhone(lead.phone)}</span>
-                                  </div>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-amber-400 font-bold text-[10px] bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/50 whitespace-nowrap">
-                                    Need Phone
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* 9. LinkedIn URL */}
-                              <td className="py-2 px-2.5">
-                                {lead.linkedin_url ? (
-                                  <a
-                                    href={lead.linkedin_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-[11px]"
-                                    title={lead.linkedin_url}
-                                  >
-                                    <Linkedin className="h-3.5 w-3.5 shrink-0" />
-                                    <span>Profile</span>
-                                    <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                                  </a>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-rose-400 font-bold text-[10px] bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800/50 whitespace-nowrap">
-                                    Need LinkedIn
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* 10. Response (Part A) */}
-                              <td className="py-2 px-2.5">
-                                {responseEditId === lead.id ? (
-                                  <select
-                                    autoFocus
-                                    value={(lead.response_status || 'no_response_yet') as string}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (isResponseStatus(val)) {
-                                        handleSetResponse(lead, val);
-                                      }
-                                      setResponseEditId(null);
-                                    }}
-                                    onBlur={() => setResponseEditId(null)}
-                                    className="bg-gray-950 border border-purple-500 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none cursor-pointer"
-                                  >
-                                    {RESPONSE_OPTIONS.map((o) => (
-                                      <option key={o.value} value={o.value} className="bg-gray-900 text-white">
-                                        {o.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => setResponseEditId(lead.id)}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold transition cursor-pointer hover:brightness-125 ${responseBadgeClass(lead.response_status)}`}
-                                    title={lead.responded_at ? `Responded ${formatIndianDateTime(lead.responded_at)}` : 'Click to set response'}
-                                  >
-                                    <MessageSquare className="h-3 w-3 shrink-0" />
-                                    <span className="whitespace-nowrap">{responseShortLabel(lead.response_status)}</span>
-                                  </button>
-                                )}
-                                {lead.responded_at && (
-                                  <div className="text-[9px] text-gray-500 mt-0.5 whitespace-nowrap">
-                                    {formatIndianDateTime(lead.responded_at)}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* 11. Proof (Part A) — just the screenshot thumbnail */}
-                              <td className="py-2 px-2.5">
-                                {lead.proof_screenshot_url ? (
-                                  <img
-                                    src={lead.proof_screenshot_url}
-                                    alt=""
-                                    aria-label="Proof screenshot"
-                                    className="h-8 w-12 rounded-md object-cover border border-gray-700 group-hover:border-purple-500 transition cursor-pointer bg-gray-800"
-                                    onClick={() =>
-                                      adminMode || currentUser?.role === 'admin'
-                                        ? setReviewModalLead(lead)
-                                        : setProofPreviewFull(lead.proof_screenshot_url!)
-                                    }
-                                    title={
-                                      adminMode || currentUser?.role === 'admin'
-                                        ? `Click to verify / reject this proof${lead.proof_channel ? ` (sent via ${lead.proof_channel})` : ''}`
-                                        : `View proof screenshot${lead.proof_channel ? ` (sent via ${lead.proof_channel})` : ''}`
-                                    }
-                                    onError={(e) => { e.currentTarget.style.opacity = '0.3'; }}
-                                  />
-                                ) : (
-                                  <span className="text-[10px] text-gray-600 italic">None</span>
-                                )}
-                              </td>
-
-                              {/* 11b. Verification — did Admin confirm this lead is real? */}
-                              <td className="py-2 px-2.5">
-                                {(() => {
-                                  const state = getProofReviewState(lead);
-                                  const responded = lead.response_status && lead.response_status !== 'no_response_yet';
-                                  if (state === 'verified') {
-                                    return (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wide whitespace-nowrap bg-emerald-950/80 text-emerald-300 border-emerald-600/40" title="Admin verified this proof — lead is eligible and flows to CRM Directory">
-                                        <CheckCircle2 className="h-3 w-3 shrink-0" />
-                                        Eligible
-                                      </span>
-                                    );
-                                  }
-                                  if (state === 'rejected') {
-                                    return (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wide whitespace-nowrap bg-rose-950/80 text-rose-300 border-rose-600/40" title="Admin rejected this proof — lead is NOT eligible and is excluded from CRM Directory">
-                                        <X className="h-3 w-3 shrink-0" />
-                                        Not Eligible
-                                      </span>
-                                    );
-                                  }
-                                  if (state === 'pending') {
-                                    return (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wide whitespace-nowrap bg-amber-950/80 text-amber-300 border-amber-600/40" title="Proof uploaded — waiting for Admin verification">
-                                        <Clock className="h-3 w-3 shrink-0" />
-                                        Under Review
-                                      </span>
-                                    );
-                                  }
-                                  return (
-                                    <span className="text-[10px] text-gray-600 italic whitespace-nowrap" title={responded ? 'Response logged without proof yet' : 'No response yet'}>
-                                      {responded ? 'Proof Needed' : '—'}
-                                    </span>
-                                  );
-                                })()}
-                              </td>
-
-                              {/* 12. Actions */}
-                              <td className="py-2 px-2.5 text-center whitespace-nowrap">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  {/* "HR Sourcing" / "Find HR" button on incomplete leads */}
-                                  {isIncomplete && (
-                                    <button
-                                      onClick={() => handleOpenSourcingDrawer(lead)}
-                                      className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-[10px] font-bold rounded-lg shadow transition flex items-center gap-1 cursor-pointer border border-purple-400/30"
-                                      title="Open HR Sourcing toolkit & enter verified contacts"
-                                    >
-                                      <Sparkles className="h-3 w-3 text-yellow-300" />
-                                      <span>HR Sourcing</span>
-                                    </button>
-                                  )}
-
-                                  {/* General Edit button for Admin or Creator */}
-                                  {canEdit ? (
-                                    <button
-                                      onClick={() => handleOpenEditModal(lead)}
-                                      className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition cursor-pointer"
-                                      title="Edit lead details"
-                                    >
-                                      <Edit2 className="h-3.5 w-3.5 text-purple-400" />
-                                    </button>
-                                  ) : (
-                                    <span
-                                      className="p-1 text-gray-600 cursor-not-allowed opacity-40"
-                                      title="Read-only lead"
-                                    >
-                                      <Lock className="h-3.5 w-3.5" />
-                                    </span>
-                                  )}
-
-                                  {/* Delete (Admin only) */}
-                                  {(adminMode || currentUser?.role === 'admin') && (
-                                    <button
-                                      onClick={() => setLeadToDelete(lead.id)}
-                                      className="p-1 rounded text-gray-500 hover:text-rose-400 hover:bg-gray-800 transition cursor-pointer"
-                                      title="Delete lead (Admin only)"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                          {/* Delete (Admin only) */}
+                          {(adminMode || currentUser?.role === 'admin') && (
+                            <button
+                              onClick={() => setLeadToDelete(lead.id)}
+                              className="p-1 rounded text-gray-500 hover:text-rose-400 hover:bg-gray-800 transition cursor-pointer"
+                              title="Delete lead (Admin only)"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                       </tbody>
                     </table>
                   )}
@@ -1898,18 +2059,18 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-gray-300 font-semibold mb-1">HR Name *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Kavya Sharma"
-                      value={sourcingHRName}
-                      onChange={(e) => setSourcingHRName(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-gray-300 font-semibold mb-1">HR Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Kavya Sharma"
+                    value={sourcingHRName}
+                    onChange={(e) => setSourcingHRName(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-300 font-semibold mb-1">HR LinkedIn URL</label>
                     <input
@@ -1920,9 +2081,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                       className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-300 font-semibold mb-1">HR Email Address</label>
                     <input
@@ -2115,6 +2274,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                   <label className="block text-gray-300 font-semibold mb-1">HR LinkedIn URL</label>
                   <input
                     type="url"
+                    placeholder="https://linkedin.com/in/..."
                     value={editHRLinkedin}
                     onChange={(e) => setEditHRLinkedin(e.target.value)}
                     className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none"
@@ -2122,26 +2282,14 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">HR LinkedIn URL</label>
-                  <input
-                    type="url"
-                    value={editHRLinkedin}
-                    onChange={(e) => setEditHRLinkedin(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 font-semibold mb-1">HR Email</label>
-                  <input
-                    type="email"
-                    value={editHREmail}
-                    onChange={(e) => setEditHREmail(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-gray-300 font-semibold mb-1">HR Email</label>
+                <input
+                  type="email"
+                  value={editHREmail}
+                  onChange={(e) => setEditHREmail(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2318,7 +2466,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                   <span className="text-[10px] text-purple-300">Leave blank if unknown; source later</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-400 text-[11px] mb-1">HR Name</label>
                     <input
@@ -2330,6 +2478,19 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-gray-400 text-[11px] mb-1">HR Designation</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Talent Acquisition"
+                      value={newHRTitle}
+                      onChange={(e) => setNewHRTitle(e.target.value)}
+                      className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-gray-400 text-[11px] mb-1">LinkedIn URL</label>
                     <input
@@ -2506,153 +2667,253 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         />
       )}
 
-      {/* ─── Mandatory Proof-of-Response Upload Modal ─── */}
+      {/* Proof of Contact Upload Modal (Mandatory when response is claimed) */}
       {proofModalLead && (
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setProofModalLead(null)}>
-          <div
-            className="bg-gray-950 border border-purple-800/60 rounded-3xl w-full max-w-md max-h-[92vh] overflow-y-auto p-5 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-base font-black text-white">Proof of Contact Required</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  "<b className="text-purple-300">{proofModalLead.company?.name || proofModalLead.hr_name}</b>" — before saving "{responseLabel(proofModalResponse)}", upload a screenshot of the {proofChannel === 'called' ? 'call log' : proofChannel === 'messaged' ? 'message' : 'mail'}.
-                </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-gray-900 border border-amber-500/40 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500/20 text-amber-300 rounded-xl border border-amber-500/30">
+                  <Camera className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Proof of Outreach
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider font-bold">
+                      Mandatory
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Submit screenshot evidence for Admin verification
+                  </p>
+                </div>
               </div>
-              <button onClick={() => setProofModalLead(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 shrink-0">
-                <X className="h-4 w-4" />
+              <button
+                type="button"
+                onClick={() => {
+                  setProofModalLead(null);
+                  setProofModalResponse(null);
+                  setProofFile(null);
+                  setProofPreview(null);
+                }}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+              >
+                <X className="h-5 w-5" />
               </button>
             </div>
 
+            <div className="bg-gray-950/70 border border-gray-800 rounded-xl p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Company:</span>
+                <span className="font-semibold text-gray-200">{proofModalLead.company?.name || 'Company'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">HR Contact:</span>
+                <span className="font-semibold text-gray-200">{proofModalLead.name}</span>
+              </div>
+            </div>
+
+            {/* Response Selection */}
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1.5">How did they respond?</p>
-              <div className="flex gap-2">
-                {(
-                  [
-                    { id: 'called', label: '📞 Called' },
-                    { id: 'messaged', label: '💬 Messaged' },
-                    { id: 'mailed', label: '✉️ Mailed' },
-                  ] as const
-                ).map((c) => (
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                Response Received <span className="text-amber-400">*</span>
+              </label>
+              <select
+                value={
+                  proofModalResponse && proofModalResponse !== 'no_response_yet'
+                    ? proofModalResponse
+                    : proofModalLead.response_status && proofModalLead.response_status !== 'no_response_yet'
+                    ? proofModalLead.response_status
+                    : 'replied_interested'
+                }
+                onChange={(e) => setProofModalResponse(e.target.value as LeadResponseStatus)}
+                className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition cursor-pointer"
+              >
+                {RESPONSE_OPTIONS.filter((o) => o.value !== 'no_response_yet').map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Channel Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-2">
+                Outreach Channel Used
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'mailed', label: 'Email', icon: Mail },
+                  { id: 'messaged', label: 'Message / Chat', icon: MessageSquare },
+                  { id: 'called', label: 'Phone Call', icon: Phone },
+                ].map(({ id, label, icon: Icon }) => (
                   <button
-                    key={c.id}
+                    key={id}
                     type="button"
-                    onClick={() => setProofChannel(c.id)}
-                    className={`flex-1 py-2 rounded-xl text-[11px] font-bold transition ${
-                      proofChannel === c.id ? 'bg-purple-600 text-white' : 'bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800'
+                    onClick={() => setProofChannel(id as any)}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-medium transition cursor-pointer ${
+                      proofChannel === id
+                        ? 'bg-amber-500/20 text-amber-200 border-amber-500 shadow-sm'
+                        : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700'
                     }`}
                   >
-                    {c.label}
+                    <Icon className="h-4 w-4" />
+                    <span>{label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <label className="block w-full py-4 rounded-xl border-2 border-dashed border-gray-700 hover:border-purple-600 text-[11px] font-bold text-gray-400 hover:text-purple-300 transition text-center cursor-pointer">
-              {proofPreview ? '📷 Change screenshot' : '📷 Upload screenshot (PNG / JPG, max 3.5 MB)'}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  if (f.size > 3.5 * 1024 * 1024) {
-                    showToast('Screenshot too large — keep it under 3.5 MB', 'error');
-                    return;
-                  }
-                  setProofFile(f);
-                  const reader = new FileReader();
-                  reader.onload = () => setProofPreview(reader.result as string);
-                  reader.readAsDataURL(f);
-                }}
-              />
-            </label>
+            {/* Screenshot Upload */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-2">
+                Attach Screenshot Proof (PNG, JPG, max 5 MB) <span className="text-amber-400">*</span>
+              </label>
+              <div className="relative border-2 border-dashed border-gray-700 hover:border-amber-500/60 rounded-2xl p-4 bg-gray-950/50 text-center transition">
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={isReadingProofFile || isSavingProof}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 6 * 1024 * 1024) {
+                      showToast('File size must be under 6 MB', 'error');
+                      return;
+                    }
+                    setIsReadingProofFile(true);
+                    setProofFile(file);
+                    try {
+                      const compressed = await compressScreenshot(file);
+                      if (compressed) {
+                        setProofPreview(compressed);
+                      } else {
+                        showToast('Could not process screenshot', 'error');
+                      }
+                    } catch {
+                      showToast('Could not process screenshot', 'error');
+                    } finally {
+                      setIsReadingProofFile(false);
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                />
+                {isReadingProofFile ? (
+                  <div className="py-6 space-y-2 flex flex-col items-center justify-center">
+                    <RefreshCw className="h-6 w-6 text-amber-400 animate-spin" />
+                    <p className="text-xs text-amber-300 font-semibold">Optimizing and loading screenshot...</p>
+                  </div>
+                ) : proofPreview ? (
+                  <div className="space-y-2">
+                    <img
+                      src={proofPreview}
+                      alt="Proof Preview"
+                      className="max-h-36 mx-auto rounded-lg object-contain border border-gray-700 shadow"
+                    />
+                    <p className="text-[11px] text-emerald-400 font-medium flex items-center justify-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      Screenshot ready. Click or drag to change.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="py-4 space-y-2">
+                    <UploadCloud className="h-8 w-8 text-amber-400/80 mx-auto" />
+                    <p className="text-xs text-gray-300 font-medium">
+                      Click or drag and drop screenshot here
+                    </p>
+                    <p className="text-[10px] text-gray-500">
+                      Must show HR response or outgoing outreach timestamp
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {proofPreview && (
-              <img src={proofPreview} alt="Proof preview" className="w-full max-h-48 object-contain rounded-2xl border border-gray-700 cursor-pointer" onClick={() => setProofPreviewFull(proofPreview)} />
-            )}
-
-            <p className="text-[10px] text-amber-300/90 bg-amber-950/40 border border-amber-800/40 rounded-xl px-3 py-2">
-              This proof goes to <b>Admin for verification</b>. The lead only counts once Admin approves it.
-            </p>
-
-            <div className="flex gap-2">
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-800">
               <button
                 type="button"
                 onClick={() => {
                   setProofModalLead(null);
-                  setProofPreview(null);
+                  setProofModalResponse(null);
                   setProofFile(null);
+                  setProofPreview(null);
                 }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-300 border border-gray-700 hover:bg-gray-900"
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold rounded-xl transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={!proofFile || isSavingProof}
-                onClick={async () => {
-                  if (!proofFile || !proofPreview || !proofModalLead) return;
-                  setIsSavingProof(true);
-                  try {
-                    await uploadLeadProof(proofModalLead, {
-                      channel: proofChannel,
-                      screenshotUrl: proofPreview,
-                      filename: proofFile.name,
-                    });
-                    if (proofModalResponse) {
-                      const updates: Partial<HRContact> = {
-                        response_status: proofModalResponse,
-                        responded_at: proofModalLead.responded_at || new Date().toISOString(),
-                      };
-                      await api.updateContact(proofModalLead.id, updates);
-                      setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
-                    }
-                    showToast('Proof uploaded — sent to Admin for verification');
-                    setProofModalLead(null);
-                    setProofPreview(null);
-                    setProofFile(null);
-                  } catch (err: any) {
-                    showToast(err.message || 'Failed to upload proof', 'error');
-                  } finally {
-                    setIsSavingProof(false);
-                  }
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-900/40 disabled:opacity-40"
+                disabled={!proofPreview || isSavingProof || isReadingProofFile}
+                onClick={handleSaveProofUpload}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-gray-950 text-xs font-bold rounded-xl shadow-lg transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
-                {isSavingProof ? 'Uploading…' : 'Upload & Send to Admin'}
+                {isSavingProof ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : isReadingProofFile ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Processing Image...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>Submit Proof for Verification</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ─── Admin Proof Review Modal ─── */}
+      {/* Admin Proof Review Modal */}
       {reviewModalLead && (
         <ProofReviewModal
           lead={reviewModalLead}
           reviewerName={currentUser?.name || 'Admin'}
           onClose={() => setReviewModalLead(null)}
           onDecision={async (decision, notes) => {
-            await reviewLeadProof(reviewModalLead.id, decision, notes, currentUser?.name);
-            showToast(
-              decision === 'verified'
-                ? 'Proof verified — lead now counts'
-                : 'Proof rejected — response reset to No response yet',
-              decision === 'verified' ? 'success' : 'error'
-            );
+            await reviewLeadProof(reviewModalLead.id, decision, notes, currentUser?.name || 'Admin');
             setReviewModalLead(null);
           }}
           onOpenFull={(url) => setProofPreviewFull(url)}
         />
       )}
 
-      {/* Full-size proof preview */}
+      {/* Full Screenshot Lightbox */}
       {proofPreviewFull && (
-        <div className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-6" onClick={() => setProofPreviewFull(null)}>
-          <img src={proofPreviewFull} alt="Proof full view" className="max-h-[85vh] max-w-full rounded-2xl border border-gray-700" />
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setProofPreviewFull(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-gray-900 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center px-4 py-2 border-b border-gray-800">
+              <span className="text-xs font-semibold text-gray-300">Proof of Contact Screenshot</span>
+              <button
+                type="button"
+                onClick={() => setProofPreviewFull(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-2 overflow-auto max-h-[80vh] flex items-center justify-center">
+              <img
+                src={proofPreviewFull}
+                alt="Proof Full Screenshot"
+                className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-lg"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

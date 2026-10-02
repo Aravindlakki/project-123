@@ -1,5 +1,10 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { clientFallbackStore } from './clientFallbackStore';
+
+// Re-exported so pages/components (e.g. admin proof review) can read local fallback data
+// through the data-service module without a second import path.
+export { clientFallbackStore };
+
 import { 
   Company, 
   HRContact, 
@@ -300,6 +305,16 @@ export const supabaseDataService = {
         created_by: c.created_by || undefined,
         created_at: c.created_at,
         company: c.company || undefined,
+        response_status: c.response_status || 'no_response_yet',
+        response_note: c.response_note || undefined,
+        responded_at: c.responded_at || undefined,
+        proof_channel: c.proof_channel || undefined,
+        proof_screenshot_url: c.proof_screenshot_url || undefined,
+        proof_screenshot_uploaded_at: c.proof_screenshot_uploaded_at || undefined,
+        proof_verified_status: c.proof_verified_status || undefined,
+        proof_verified_by: c.proof_verified_by || undefined,
+        proof_verified_at: c.proof_verified_at || undefined,
+        proof_admin_notes: c.proof_admin_notes || undefined,
       }));
     } catch (err) {
       console.warn('[Supabase] Failed to fetch contacts, using fallback:', err);
@@ -341,6 +356,16 @@ export const supabaseDataService = {
         created_by: data.created_by || undefined,
         created_at: data.created_at,
         company: data.company || undefined,
+        response_status: data.response_status || 'no_response_yet',
+        response_note: data.response_note || undefined,
+        responded_at: data.responded_at || undefined,
+        proof_channel: data.proof_channel || undefined,
+        proof_screenshot_url: data.proof_screenshot_url || undefined,
+        proof_screenshot_uploaded_at: data.proof_screenshot_uploaded_at || undefined,
+        proof_verified_status: data.proof_verified_status || undefined,
+        proof_verified_by: data.proof_verified_by || undefined,
+        proof_verified_at: data.proof_verified_at || undefined,
+        proof_admin_notes: data.proof_admin_notes || undefined,
       };
     } catch (_) {
       return null;
@@ -361,6 +386,16 @@ export const supabaseDataService = {
         location: contact.location,
         remarks: contact.remarks,
         spoc: contact.spoc,
+        response_status: contact.response_status || 'no_response_yet',
+        response_note: contact.response_note,
+        responded_at: contact.responded_at,
+        proof_channel: contact.proof_channel,
+        proof_screenshot_url: contact.proof_screenshot_url,
+        proof_screenshot_uploaded_at: contact.proof_screenshot_uploaded_at,
+        proof_verified_status: contact.proof_verified_status || 'pending',
+        proof_verified_by: contact.proof_verified_by,
+        proof_verified_at: contact.proof_verified_at,
+        proof_admin_notes: contact.proof_admin_notes,
         created_at: new Date().toISOString(),
         ...contact,
       };
@@ -385,6 +420,16 @@ export const supabaseDataService = {
           remarks: contact.remarks || null,
           spoc: contact.spoc || null,
           source: contact.source || 'manual',
+          response_status: contact.response_status || 'no_response_yet',
+          response_note: contact.response_note || null,
+          responded_at: contact.responded_at || null,
+          proof_channel: contact.proof_channel || null,
+          proof_screenshot_url: contact.proof_screenshot_url || null,
+          proof_screenshot_uploaded_at: contact.proof_screenshot_uploaded_at || null,
+          proof_verified_status: contact.proof_verified_status || 'pending',
+          proof_verified_by: contact.proof_verified_by || null,
+          proof_verified_at: contact.proof_verified_at || null,
+          proof_admin_notes: contact.proof_admin_notes || null,
         })
         .select('*, company:companies(*)')
         .single();
@@ -405,6 +450,16 @@ export const supabaseDataService = {
         location: contact.location,
         remarks: contact.remarks,
         spoc: contact.spoc,
+        response_status: contact.response_status || 'no_response_yet',
+        response_note: contact.response_note,
+        responded_at: contact.responded_at,
+        proof_channel: contact.proof_channel,
+        proof_screenshot_url: contact.proof_screenshot_url,
+        proof_screenshot_uploaded_at: contact.proof_screenshot_uploaded_at,
+        proof_verified_status: contact.proof_verified_status || 'pending',
+        proof_verified_by: contact.proof_verified_by,
+        proof_verified_at: contact.proof_verified_at,
+        proof_admin_notes: contact.proof_admin_notes,
         created_at: new Date().toISOString(),
         ...contact,
       };
@@ -444,7 +499,17 @@ export const supabaseDataService = {
         }
         return contacts[idx];
       }
-      throw new Error('Contact not found');
+      const newContact: HRContact = {
+        id,
+        name: updates.name || 'Lead Contact',
+        company_id: updates.company_id || 'comp_1',
+        source: 'manual',
+        created_at: new Date().toISOString(),
+        ...updates,
+      };
+      contacts.unshift(newContact);
+      clientFallbackStore.saveContacts(contacts);
+      return newContact;
     }
 
     const effectiveRemarks = updates.remarks !== undefined
@@ -467,32 +532,30 @@ export const supabaseDataService = {
     if (updates.domain !== undefined) updatePayload.domain = updates.domain;
     if (updates.location !== undefined) updatePayload.location = updates.location;
     if (effectiveRemarks !== undefined) updatePayload.remarks = effectiveRemarks;
-  if (updates.spoc !== undefined) updatePayload.spoc = updates.spoc;
-  if (updates.entered_by_name !== undefined) updatePayload.entered_by_name = updates.entered_by_name;
-  // My Worksheet response tracking (Part A)
-  if (updates.response_status !== undefined) updatePayload.response_status = updates.response_status;
-  if (updates.response_note !== undefined) updatePayload.response_note = updates.response_note;
-  if (updates.responded_at !== undefined) updatePayload.responded_at = updates.responded_at;
-  // Proof-of-contact verification (admin workflow)
-  if (updates.proof_channel !== undefined) updatePayload.proof_channel = updates.proof_channel;
-  if (updates.proof_screenshot_url !== undefined) updatePayload.proof_screenshot_url = updates.proof_screenshot_url;
-  if (updates.proof_screenshot_uploaded_at !== undefined) updatePayload.proof_screenshot_uploaded_at = updates.proof_screenshot_uploaded_at;
-  if (updates.proof_verified_status !== undefined) updatePayload.proof_verified_status = updates.proof_verified_status;
-  if (updates.proof_verified_by !== undefined) updatePayload.proof_verified_by = updates.proof_verified_by;
-  if (updates.proof_verified_at !== undefined) updatePayload.proof_verified_at = updates.proof_verified_at;
-  if (updates.proof_admin_notes !== undefined) updatePayload.proof_admin_notes = updates.proof_admin_notes;
+    if (updates.spoc !== undefined) updatePayload.spoc = updates.spoc;
+    if (updates.entered_by_name !== undefined) updatePayload.entered_by_name = updates.entered_by_name;
+    if (updates.response_status !== undefined) updatePayload.response_status = updates.response_status;
+    if (updates.response_note !== undefined) updatePayload.response_note = updates.response_note;
+    if (updates.responded_at !== undefined) updatePayload.responded_at = updates.responded_at;
+    if (updates.proof_channel !== undefined) updatePayload.proof_channel = updates.proof_channel;
+    if (updates.proof_screenshot_url !== undefined) updatePayload.proof_screenshot_url = updates.proof_screenshot_url;
+    if (updates.proof_screenshot_uploaded_at !== undefined) updatePayload.proof_screenshot_uploaded_at = updates.proof_screenshot_uploaded_at;
+    if (updates.proof_verified_status !== undefined) updatePayload.proof_verified_status = updates.proof_verified_status;
+    if (updates.proof_verified_by !== undefined) updatePayload.proof_verified_by = updates.proof_verified_by;
+    if (updates.proof_verified_at !== undefined) updatePayload.proof_verified_at = updates.proof_verified_at;
+    if (updates.proof_admin_notes !== undefined) updatePayload.proof_admin_notes = updates.proof_admin_notes;
 
     const { data, error } = await supabase
-      .from('contacts')  .update(updatePayload)
-  .eq('id', id)
-  .select('*, company:companies(*)')
-  .single();
-if (error) {
-  console.error('[Supabase updateContact error]', error);
-  throw new Error(error.message);
-}
-// NOTE (Part A): response_status/response_note/responded_at flow through this same
-// payload; the DB CHECK constraint validates response_status values.
+      .from('contacts')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('*, company:companies(*)')
+      .single();
+
+    if (error) {
+      console.error('[Supabase updateContact error]', error);
+      throw new Error(error.message);
+    }
 
     // Keep client fallback store in sync with these updates
     try {
@@ -511,6 +574,16 @@ if (error) {
       status: effectiveRemarks || data?.remarks || 'HR Sourcing',
       notes: updates.notes,
       role_title: effectiveTitle || data?.title,
+      response_status: data?.response_status || updates.response_status || 'no_response_yet',
+      response_note: data?.response_note !== undefined ? data?.response_note : updates.response_note,
+      responded_at: data?.responded_at !== undefined ? data?.responded_at : updates.responded_at,
+      proof_channel: data?.proof_channel !== undefined ? data?.proof_channel : updates.proof_channel,
+      proof_screenshot_url: data?.proof_screenshot_url !== undefined ? data?.proof_screenshot_url : updates.proof_screenshot_url,
+      proof_screenshot_uploaded_at: data?.proof_screenshot_uploaded_at !== undefined ? data?.proof_screenshot_uploaded_at : updates.proof_screenshot_uploaded_at,
+      proof_verified_status: data?.proof_verified_status !== undefined ? data?.proof_verified_status : updates.proof_verified_status,
+      proof_verified_by: data?.proof_verified_by !== undefined ? data?.proof_verified_by : updates.proof_verified_by,
+      proof_verified_at: data?.proof_verified_at !== undefined ? data?.proof_verified_at : updates.proof_verified_at,
+      proof_admin_notes: data?.proof_admin_notes !== undefined ? data?.proof_admin_notes : updates.proof_admin_notes,
     };
   },
 
@@ -570,8 +643,13 @@ if (error) {
         proof_screenshot_url: c.proof_screenshot_url,
         proof_screenshot_uploaded_at: c.proof_screenshot_uploaded_at,
         response_status: c.response_status || 'no_response_yet',
-        response_note: c.response_note || undefined,
-        responded_at: c.responded_at || undefined,
+        response_note: c.response_note,
+        responded_at: c.responded_at,
+        proof_channel: c.proof_channel,
+        proof_verified_status: c.proof_verified_status,
+        proof_verified_by: c.proof_verified_by,
+        proof_verified_at: c.proof_verified_at,
+        proof_admin_notes: c.proof_admin_notes,
         spoc: c.spoc,
         source: c.source || 'manual',
         created_at: c.created_at,
@@ -657,7 +735,6 @@ if (error) {
         spoc: lead.spoc,
         source: 'manual',
         entered_by_name: lead.entered_by_name,
-        response_status: 'no_response_yet',
         created_at: new Date().toISOString(),
         company,
       };
@@ -747,7 +824,6 @@ if (error) {
 
     if (contactErr) throw new Error(contactErr.message);
 
-    // Legacy behavior kept: a worksheet lead auto-creates a sourcing JD entry.
     try {
       const nextJdId = `JD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       await supabase.from('job_descriptions').insert({
@@ -785,7 +861,6 @@ if (error) {
       notes: lead.notes,
       role_title: lead.role_title || contactData.title,
       lead_source: lead.lead_source || 'Manual',
-      response_status: 'no_response_yet',
       spoc: contactData.spoc,
       source: contactData.source || 'manual',
       created_at: contactData.created_at,

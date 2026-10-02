@@ -94,26 +94,29 @@ export function createWorksheetLead(req: Request, res: Response) {
     if (employee_count) comp.employee_count = employee_count;
     if (linkedin_url) comp.linkedin_url = linkedin_url;
     if (website) comp.website = website;
-  }const newContact: HRContact = {
-id: `cont_lead_${Date.now()}`,
-name: hr_name.trim(),
-title: title?.trim() || 'HR Specialist',
-company_id: comp.id,
-phone: phone?.trim(),
-email: email?.trim(),
-linkedin_url: hr_linkedin?.trim(),
-domain: domain?.trim() || 'General IT',
-location: location?.trim() || 'Hyderabad',
-remarks: remarks?.trim() || 'Pending',
-spoc: spoc?.trim() || user.name.split(' ')[0],
-entered_by_name: entered_by_name?.trim() || user.name,
-source: 'manual',
-created_by: user.id,
-response_status: 'no_response_yet',
-created_at: new Date().toISOString(),
-};
-hrContacts.unshift(newContact);
-return res.status(201).json(enrichContact(newContact));
+  }
+
+  const newContact: HRContact = {
+    id: `cont_lead_${Date.now()}`,
+    name: hr_name.trim(),
+    title: title?.trim() || 'HR Specialist',
+    company_id: comp.id,
+    phone: phone?.trim(),
+    email: email?.trim(),
+    linkedin_url: hr_linkedin?.trim(),
+    domain: domain?.trim() || 'General IT',
+    location: location?.trim() || 'Hyderabad',
+    remarks: remarks?.trim() || 'Pending',
+    spoc: spoc?.trim() || user.name.split(' ')[0],
+    entered_by_name: entered_by_name?.trim() || user.name,
+    source: 'manual',
+    response_status: 'no_response_yet',
+    created_by: user.id,
+    created_at: new Date().toISOString(),
+  };
+
+  hrContacts.unshift(newContact);
+  return res.status(201).json(enrichContact(newContact));
 }
 
 export function bulkCreateWorksheetLeads(req: Request, res: Response) {
@@ -157,24 +160,26 @@ export function bulkCreateWorksheetLeads(req: Request, res: Response) {
       }
       if (item.website && !comp.website) comp.website = item.website;
       if (item.linkedin_url && !comp.linkedin_url) comp.linkedin_url = item.linkedin_url;
-    }const newContact: HRContact = {
-id: `cont_bulk_${Date.now()}_${i}`,
-name: hrName,
-title: item.title?.trim() || item.designation?.trim() || 'HR Lead',
-company_id: comp.id,
-phone: item.phone?.trim() || '',
-email: item.email?.trim() || '',
-linkedin_url: item.hr_linkedin?.trim() || item.linkedin_url?.trim() || '',
-domain: item.domain?.trim() || comp.industry || 'Technology',
-location: item.location?.trim() || comp.location || '',
-remarks: item.remarks?.trim() || 'Imported via Excel',
-spoc: item.spoc?.trim() || user.name.split(' ')[0],
-entered_by_name: item.entered_by_name?.trim() || user.name,
-source: 'excel_import',
-created_by: user.id,
-response_status: 'no_response_yet',
-created_at: new Date().toISOString(),
-};
+    }
+
+    const newContact: HRContact = {
+      id: `cont_bulk_${Date.now()}_${i}`,
+      name: hrName,
+      title: item.title?.trim() || item.designation?.trim() || 'HR Lead',
+      company_id: comp.id,
+      phone: item.phone?.trim() || '',
+      email: item.email?.trim() || '',
+      linkedin_url: item.hr_linkedin?.trim() || item.linkedin_url?.trim() || '',
+      domain: item.domain?.trim() || comp.industry || 'Technology',
+      location: item.location?.trim() || comp.location || '',
+      remarks: item.remarks?.trim() || 'Imported via Excel',
+      spoc: item.spoc?.trim() || user.name.split(' ')[0],
+      entered_by_name: item.entered_by_name?.trim() || user.name,
+      source: 'excel_import',
+      response_status: 'no_response_yet',
+      created_by: user.id,
+      created_at: new Date().toISOString(),
+    };
     hrContacts.unshift(newContact);
     contactsCreated++;
   }

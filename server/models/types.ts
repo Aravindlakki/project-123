@@ -32,6 +32,14 @@ export interface Company {
   creator?: CRA;
 }
 
+export type LeadResponseStatus =
+  | 'no_response_yet'
+  | 'replied_interested'
+  | 'replied_asked_jd'
+  | 'replied_not_interested'
+  | 'call_scheduled'
+  | 'wrong_contact';
+
 export interface HRContact {
   id: string;
   name: string;
@@ -50,12 +58,14 @@ export interface HRContact {
   spoc?: string;
   proof_screenshot_url?: string;
   proof_screenshot_uploaded_at?: string;
-
-  // My Worksheet response tracking (Part A)
-  response_status?: 'no_response_yet' | 'replied_interested' | 'replied_asked_jd' | 'replied_not_interested' | 'call_scheduled' | 'wrong_contact';
+  response_status?: LeadResponseStatus;
   response_note?: string;
   responded_at?: string;
-
+  proof_channel?: 'called' | 'messaged' | 'mailed';
+  proof_verified_status?: 'pending' | 'verified' | 'rejected';
+  proof_verified_by?: string;
+  proof_verified_at?: string;
+  proof_admin_notes?: string;
   company?: Company;
   creator?: CRA;
 }

@@ -733,11 +733,25 @@ export const api = {
     }
     try {
       const res = await fetch(`${API_BASE}/contacts/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify(updates),
       });
-      if (res.ok) return await res.json();
+      if (res.ok && isJson(res)) {
+        const data = await res.json();
+        try {
+          const contacts = clientFallbackStore.getContacts();
+          const idx = contacts.findIndex((c) => c.id === id);
+          if (idx >= 0) {
+            contacts[idx] = { ...contacts[idx], ...updates, ...data };
+            clientFallbackStore.saveContacts(contacts);
+          } else {
+            contacts.unshift({ ...updates, ...data, id });
+            clientFallbackStore.saveContacts(contacts);
+          }
+        } catch (_) {}
+        return data;
+      }
     } catch (_) {}
     return supabaseDataService.updateContact(id, updates);
   },

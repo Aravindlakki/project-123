@@ -34,6 +34,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
   const [jds, setJds] = useState<JD[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<CRA[]>([]);
+  const [pendingProofsCount, setPendingProofsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [selectedDrilldown, setSelectedDrilldown] = useState<string>('all');
@@ -57,17 +58,24 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
   const loadData = async () => {
     setLoading(true);
     try {
-      const [fetchedStats, fetchedJDs, fetchedTasks, fetchedUsers] = await Promise.all([
+      const [fetchedStats, fetchedJDs, fetchedTasks, fetchedUsers, fetchedLeads] = await Promise.all([
         Promise.resolve(api.getTeamLeadStats()),
         api.getJDs().catch(() => []),
         api.getTasks().catch(() => []),
         api.getAdminUsers(true).catch(() => []),
+        api.getWorksheetLeads().catch(() => []),
       ]);
 
       setStats(fetchedStats);
       setJds(fetchedJDs);
       setTasks(fetchedTasks);
       setUsers(fetchedUsers);
+
+      const pendingProofs = fetchedLeads.filter(
+        (l: any) => Boolean(l.proof_screenshot_url) && (l.proof_verified_status || 'pending') === 'pending'
+      ).length;
+      setPendingProofsCount(pendingProofs);
+
       setLastRefreshed(
         new Date().toLocaleTimeString('en-IN', {
           hour: '2-digit',
@@ -142,6 +150,44 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
           </button>
         </div>
       </div>
+
+      {/* Admin Action Alert: Pending Outreach Proofs */}
+      {pendingProofsCount > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-950/80 via-gray-900 to-amber-950/80 border border-amber-500/60 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/20 border border-amber-500/40 rounded-xl">
+              <ShieldCheck className="h-6 w-6 text-amber-400 animate-pulse" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-amber-200 flex items-center gap-2">
+                <span>{pendingProofsCount} Outreach Proof{pendingProofsCount === 1 ? '' : 's'} Awaiting Admin Approval</span>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-amber-500 text-gray-950">
+                  Action Needed
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Employees have submitted response screenshots for verification. Approve them to unlock leads for CRM.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (setActiveTab) {
+                setActiveTab('proof-review');
+              } else {
+                window.location.hash = '/admin/proof-review';
+              }
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-gray-950 font-black text-xs rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer self-start sm:self-auto shrink-0"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            <span>Open Proof Review Hub</span>
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* 7 Required Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">

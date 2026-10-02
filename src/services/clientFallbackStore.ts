@@ -167,6 +167,7 @@ function initializeMockData(forceResetRoster: boolean = false) {
         location: lead.location,
         entered_by_name: lead.entered_by_name,
         source: 'import',
+        response_status: 'no_response_yet',
         company,
         created_at: new Date().toISOString(),
       });

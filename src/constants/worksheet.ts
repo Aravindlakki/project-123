@@ -1,14 +1,6 @@
 import { LeadResponseStatus } from '../types';
 
-/**
- * My Worksheet response options (Part A).
- * Single source of truth for the row dropdown, the Response filter, and CSV export.
- */
-export const RESPONSE_OPTIONS: Array<{
-  value: LeadResponseStatus;
-  label: string;
-  shortLabel: string;
-}> = [
+export const RESPONSE_OPTIONS: Array<{ value: LeadResponseStatus; label: string; shortLabel: string }> = [
   { value: 'no_response_yet', label: 'No response yet', shortLabel: 'No response' },
   { value: 'replied_interested', label: 'Replied - interested', shortLabel: 'Interested' },
   { value: 'replied_asked_jd', label: 'Replied - asked for JD/details', shortLabel: 'Asked for JD' },
@@ -17,10 +9,7 @@ export const RESPONSE_OPTIONS: Array<{
   { value: 'wrong_contact', label: 'Wrong contact/bounced', shortLabel: 'Wrong contact' },
 ];
 
-/** Non-default response values (any of these means the HR actually responded). */
-export const RESPONDED_VALUES: LeadResponseStatus[] = RESPONSE_OPTIONS.filter(
-  (o) => o.value !== 'no_response_yet'
-).map((o) => o.value);
+export const RESPONDED_VALUES: LeadResponseStatus[] = RESPONSE_OPTIONS.filter((o) => o.value !== 'no_response_yet').map((o) => o.value);
 
 export function responseLabel(value?: LeadResponseStatus | string | null): string {
   if (!value) return RESPONSE_OPTIONS[0].label;
@@ -36,20 +25,13 @@ export function isResponseStatus(value?: string | null): value is LeadResponseSt
   return RESPONSE_OPTIONS.some((o) => o.value === value);
 }
 
-/** Tailwind classes per response value, used by the row badge and the filter dropdown. */
 export function responseBadgeClass(value?: LeadResponseStatus | string | null): string {
   switch (value) {
-    case 'replied_interested':
-      return 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40';
-    case 'replied_asked_jd':
-      return 'bg-sky-950/80 text-sky-300 border-sky-600/40';
-    case 'replied_not_interested':
-      return 'bg-rose-950/80 text-rose-300 border-rose-600/40';
-    case 'call_scheduled':
-      return 'bg-indigo-950/80 text-indigo-300 border-indigo-600/40';
-    case 'wrong_contact':
-      return 'bg-gray-800 text-gray-400 border-gray-600/40';
-    default:
-      return 'bg-gray-800/60 text-gray-500 border-gray-700/60';
+    case 'replied_interested': return 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40';
+    case 'replied_asked_jd': return 'bg-sky-950/80 text-sky-300 border-sky-600/40';
+    case 'replied_not_interested': return 'bg-rose-950/80 text-rose-300 border-rose-600/40';
+    case 'call_scheduled': return 'bg-indigo-950/80 text-indigo-300 border-indigo-600/40';
+    case 'wrong_contact': return 'bg-gray-800 text-gray-400 border-gray-600/40';
+    default: return 'bg-gray-800/60 text-gray-500 border-gray-700/60';
   }
 }
