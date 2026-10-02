@@ -27,6 +27,7 @@ interface CompanyDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateCompany?: (updated: Company) => void;
+  onCompanyUpdated?: () => void;
   onAddRole?: (companyName: string) => void;
   onContactAdded?: (newContact: HRContact) => void;
   currentUser?: CRA | null;
@@ -37,6 +38,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
   isOpen,
   onClose,
   onUpdateCompany,
+  onCompanyUpdated,
   onAddRole,
   onContactAdded,
   currentUser: propUser,
@@ -117,6 +119,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
         entered_by_name: enteredByName.trim(),
       });
       onUpdateCompany?.(updated);
+      onCompanyUpdated?.();
       setIsEditing(false);
       setFeedback({ type: 'success', text: 'Company details updated successfully' });
     } catch (err: any) {
