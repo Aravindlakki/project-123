@@ -168,7 +168,7 @@ export function resolveEmployeeCredential(inputEmail: string): EmployeeCredentia
 }
 
 export function getFormattedCredentialsText(): string {
-  let output = '=== PLACEMEIN OFFICIAL TEAM ROSTER & LOGIN CREDENTIALS ===\n';
+  let output = '=== CRM OFFICIAL TEAM ROSTER & LOGIN CREDENTIALS ===\n';
   output += `Universal Default Password: ${DEFAULT_EMPLOYEE_PASSWORD}\n\n`;
 
   output += '--- 1. CEO ADMIN ---\n';

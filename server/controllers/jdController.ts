@@ -129,14 +129,14 @@ Return ONLY a valid JSON object without markdown formatting with these exact key
     raw_text,
     ocr_warning: null,
     ai_active: false,
-    extraction_engine: 'PLACEMEIN Intelligent Document Parser',
+    extraction_engine: 'CRM Intelligent Document Parser',
   });
 }
 
 export function getExtractionStatus(req: Request, res: Response) {
   return res.json({
     ai_active: !!process.env.GEMINI_API_KEY,
-    engine: process.env.GEMINI_API_KEY ? 'Google Gemini 3.8 Flash (Auto-failover enabled)' : 'PLACEMEIN Intelligent Document Parser',
+    engine: process.env.GEMINI_API_KEY ? 'Google Gemini 3.8 Flash (Auto-failover enabled)' : 'CRM Intelligent Document Parser',
     message: 'AI document parsing and OCR extraction active and ready.',
   });
 }

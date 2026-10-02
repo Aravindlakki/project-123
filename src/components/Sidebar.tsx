@@ -17,6 +17,8 @@ import {
   User,
   ArrowLeftRight,
   FileSpreadsheet,
+  Cpu,
+  Layers,
 } from 'lucide-react';
 import { CRA } from '../types';
 
@@ -48,6 +50,8 @@ const adminItems = [
   { id: 'admin-team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
   { id: 'admin-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
+  { id: 'admin-jd-bank-tech', label: 'JD Bank — Tech', icon: Cpu },
+  { id: 'admin-jd-bank-non-tech', label: 'JD Bank — Non-Tech', icon: Layers },
   { id: 'admin-jd-list', label: 'JD List & Tracking', icon: Briefcase },
   { id: 'admin-tasks', label: 'Task Management', icon: CheckSquare },
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
@@ -116,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="bg-white p-2 rounded-2xl shrink-0 shadow-sm border border-purple-200/50 flex items-center justify-center">
               <img
                 src="/placemein-logo.png"
-                alt="Placemein"
+                alt="CRM"
                 className="h-7 w-7 object-contain"
                 onError={(e) => {
                   const target = e.currentTarget;
@@ -128,7 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             {!collapsed && (
               <div>
-                <span className="text-lg font-black text-white block">PLACEMEIN</span>
+                <span className="text-lg font-black text-white block">CRM</span>
                 <span className={`text-[10px] font-black uppercase tracking-widest ${isAdmin ? 'text-amber-300' : 'text-purple-300'}`}>
                   {isAdmin ? 'Admin Portal' : 'CRA Employee Portal'}
                 </span>

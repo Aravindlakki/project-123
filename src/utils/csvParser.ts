@@ -110,7 +110,7 @@ interface ColumnMap {
 
 /**
  * Intelligent, multi-pass column header resolver
- * Resolves complex sheets (like PLACEMEIN daily exports) where "Company Name",
+ * Resolves complex sheets (like CRM daily exports) where "Company Name",
  * "Company LinkedIn", "HR Contact Name", and "HR LinkedIn" coexist.
  */
 function resolveColumns(rawHeaders: string[]): { colMap: ColumnMap; matchedCount: number } {

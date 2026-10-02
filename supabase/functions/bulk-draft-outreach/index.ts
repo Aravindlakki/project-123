@@ -55,7 +55,7 @@ serve(async (req) => {
       const companyName = info?.company_name || 'your team';
 
       if (apiKey) {
-        const prompt = `You are a Corporate Relations Associate (CRA) at Placemein, an Indian recruitment and student talent placement partnership organization.
+        const prompt = `You are a Corporate Relations Associate (CRA) at CRM, an Indian recruitment and student talent placement partnership organization.
 Draft a brief, professional outreach message for:
 - Contact: ${contactName}
 - Company: ${companyName}
@@ -72,13 +72,13 @@ Return ONLY the raw draft message text, with no preamble.`;
 
       // High-quality contextual fallback template
       if (channel === 'call') {
-        drafts[cid] = `Hello ${contactName}, this is calling from Placemein Campus Relations regarding technical hiring partnerships at ${companyName}. Do you have 2 minutes to discuss our pre-vetted campus candidates?`;
+        drafts[cid] = `Hello ${contactName}, this is calling from CRM Campus Relations regarding technical hiring partnerships at ${companyName}. Do you have 2 minutes to discuss our pre-vetted campus candidates?`;
       } else if (channel === 'linkedin') {
-        drafts[cid] = `Hi ${contactName}, noticed your team's expansion at ${companyName}. At Placemein, we connect growing tech teams with pre-screened fresh graduates across Tech & Data domains. Would love to share our candidate roster!`;
+        drafts[cid] = `Hi ${contactName}, noticed your team's expansion at ${companyName}. At CRM, we connect growing tech teams with pre-screened fresh graduates across Tech & Data domains. Would love to share our candidate roster!`;
       } else if (channel === 'whatsapp' || channel === 'text') {
-        drafts[cid] = `Hi ${contactName} 👋 Following up from Placemein regarding talent opportunities at ${companyName}. We have vetted candidates ready for immediate interviews. Open to receiving a 1-page summary?`;
+        drafts[cid] = `Hi ${contactName} 👋 Following up from CRM regarding talent opportunities at ${companyName}. We have vetted candidates ready for immediate interviews. Open to receiving a 1-page summary?`;
       } else {
-        drafts[cid] = `Subject: Placemein Candidate Pipeline for ${companyName}\n\nDear ${contactName},\n\nHope this finds you well. Reaching out from Placemein regarding ${companyName}'s hiring plans. We have highly skilled engineering candidates ready for technical evaluations.\n\nBest regards,\nPlacemein CRA Team`;
+        drafts[cid] = `Subject: CRM Candidate Pipeline for ${companyName}\n\nDear ${contactName},\n\nHope this finds you well. Reaching out from CRM regarding ${companyName}'s hiring plans. We have highly skilled engineering candidates ready for technical evaluations.\n\nBest regards,\nCRM CRA Team`;
       }
     }
 

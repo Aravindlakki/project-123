@@ -528,6 +528,7 @@ export const clientFallbackStore = {
           spoc: item.spoc?.trim() || 'Namitha',
           entered_by_name: item.entered_by_name?.trim() || 'Aravind Reddy',
           source: 'import',
+          response_status: 'no_response_yet',
           company,
           created_at: new Date().toISOString(),
         };
@@ -705,6 +706,7 @@ export const clientFallbackStore = {
             phone: newJD.hr_phone?.trim() || undefined,
             linkedin_url: newJD.hr_linkedin?.trim() || undefined,
             source: 'manual',
+            response_status: 'no_response_yet',
             created_at: new Date().toISOString(),
           };
           contacts.unshift(newContact);

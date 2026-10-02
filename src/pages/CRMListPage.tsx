@@ -363,6 +363,14 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
 
   const filteredContacts = contacts.filter((c) => {
     const comp = companies.find((co) => co.id === c.company_id) || c.company;
+
+    // ELIGIBILITY RULE: leads whose proof was rejected by Admin are NOT eligible
+    // — they never enter the CRM Directory. A lead with a responded status but no
+    // verified proof is also excluded (proof is mandatory to count).
+    const claimedResponse = c.response_status && c.response_status !== 'no_response_yet';
+    if (c.proof_verified_status === 'rejected') return false;
+    if (claimedResponse && c.proof_verified_status !== 'verified') return false;
+
     // Team member filter
     if (selectedMemberFilter !== 'all') {
       const normMem = selectedMemberFilter.toLowerCase().split(' ')[0];

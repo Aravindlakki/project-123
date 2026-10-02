@@ -610,7 +610,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
     XLSX.utils.book_append_sheet(wb, ws, 'Worksheet_Leads_Template');
-    XLSX.writeFile(wb, 'Placemein_Worksheet_Leads_Template.xlsx');
+    XLSX.writeFile(wb, 'CRM_Worksheet_Leads_Template.xlsx');
   };
 
   const currentSheet = sheets[activeSheetIndex];

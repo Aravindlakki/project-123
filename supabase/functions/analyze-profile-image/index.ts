@@ -79,13 +79,13 @@ serve(async (req) => {
     const base64Data = btoa(binary);
     const mimeType = file.type || 'image/png';
 
-    const prompt = `You are a Corporate Relations Associate (CRA) at Placemein, an Indian student placement partnership organization.
+    const prompt = `You are a Corporate Relations Associate (CRA) at CRM, an Indian student placement partnership organization.
 Analyze this attached screenshot of an HR / recruiter / executive profile (e.g. LinkedIn profile).
 Identify their actual role, skills, company background, and hiring interests.
 
 Then compose personalized outreach material:
 1. profile_summary: Brief 1-2 sentence summary of their background.
-2. relevant_hooks: 1 sentence explaining why Placemein's pre-assessed candidates (Full-Stack, Data, AI) are relevant to them.
+2. relevant_hooks: 1 sentence explaining why CRM's pre-assessed candidates (Full-Stack, Data, AI) are relevant to them.
 3. email_subject: A concise, compelling, non-spammy subject line.
 4. email_body: A warm, professional 3-paragraph outreach email proposing a campus hiring partnership.
 5. sms_body: A short SMS / WhatsApp hook (under 160 chars).
@@ -108,8 +108,8 @@ Return ONLY a valid JSON object matching this schema:
       profile_summary: `Profile analyzed for recruitment lead at ${companyName}. Focuses on technical talent acquisition and early career hiring.`,
       relevant_hooks: `Align with ${companyName}'s active hiring initiatives in engineering and data science.`,
       email_subject: `Connecting with ${companyName} — Pre-assessed Technical Graduate Pipeline`,
-      email_body: `Dear ${contactName},\n\nI was reviewing your active leadership in technical recruitment at ${companyName}. At Placemein, we partner with industry-leading teams to provide pre-screened graduate talent ready for immediate contribution.\n\nOur candidates undergo rigorous full-stack and domain assessments before recommendation. Would you be open to reviewing a short 1-page talent profile cohort this week?\n\nWarm regards,\nCorporate Relations Team | Placemein`,
-      sms_body: `Hi ${contactName}, saw your hiring focus at ${companyName}. Placemein has pre-screened engineering grads ready for interviews. Can we share the roster?`,
+      email_body: `Dear ${contactName},\n\nI was reviewing your active leadership in technical recruitment at ${companyName}. At CRM, we partner with industry-leading teams to provide pre-screened graduate talent ready for immediate contribution.\n\nOur candidates undergo rigorous full-stack and domain assessments before recommendation. Would you be open to reviewing a short 1-page talent profile cohort this week?\n\nWarm regards,\nCorporate Relations Team | CRM`,
+      sms_body: `Hi ${contactName}, saw your hiring focus at ${companyName}. CRM has pre-screened engineering grads ready for interviews. Can we share the roster?`,
     };
 
     if (aiText) {

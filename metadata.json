@@ -1,5 +1,5 @@
 {
-  "name": "PLACEMEIN CRA Outreach",
+  "name": "CRM Recruitment Suite",
   "description": "Recruitment & Sourcing CRM for CRA outreach, tasks, and candidate pipeline management",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

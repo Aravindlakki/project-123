@@ -1,6 +1,6 @@
-# Supabase Database Migration Guide for PLACEMEIN CRA CRM
+# Supabase Database Migration Guide for CRM
 
-This directory contains the SQL scripts required to provision your shared PostgreSQL database on Supabase for the PLACEMEIN CRA CRM.
+This directory contains the SQL scripts required to provision your shared PostgreSQL database on Supabase for the CRM.
 
 ---
 

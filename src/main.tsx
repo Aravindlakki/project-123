@@ -23,7 +23,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[PLACEMEIN ErrorBoundary] Caught error:', error, errorInfo);
+    console.error('[CRM ErrorBoundary] Caught error:', error, errorInfo);
   }
 
   handleReset = () => {
@@ -43,9 +43,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         <div className="min-h-screen bg-gradient-to-br from-purple-950 via-gray-950 to-amber-950 flex items-center justify-center p-6 text-white font-sans">
           <div className="max-w-md w-full bg-gray-900/90 border border-purple-800/60 rounded-3xl p-8 space-y-6 shadow-2xl text-center">
             <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-xl border border-purple-200">
-              <img src="/placemein-logo.png" alt="PLACEMEIN" className="h-12 w-12 object-contain" />
+              <img src="/placemein-logo.png" alt="CRM" className="h-12 w-12 object-contain" />
             </div>
-            <h1 className="text-xl font-bold">PLACEMEIN CRA Outreach</h1>
+            <h1 className="text-xl font-bold">CRM Recruitment Suite</h1>
             <p className="text-sm text-gray-300">
               A temporary runtime issue occurred while loading this workspace view.
             </p>

@@ -336,7 +336,7 @@ export const systemSettings: SystemSettings = {
   gemini_api_configured: !!process.env.GEMINI_API_KEY,
   openrouter_model: 'google/gemma-4-31b-it:free',
   ai_extraction_active: true,
-  extraction_engine: process.env.GEMINI_API_KEY ? 'Google Gemini 3.8 Flash' : 'PLACEMEIN Intelligence Engine (Gemini/Smart OCR)',
+  extraction_engine: process.env.GEMINI_API_KEY ? 'Google Gemini 3.8 Flash' : 'CRM Intelligence Engine (Gemini/Smart OCR)',
 };
 
 // Enrichment helper functions

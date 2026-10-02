@@ -1,5 +1,5 @@
 -- ==============================================================================
--- PLACEMEIN CRA CRM - SUPABASE SCHEMA (schema.sql)
+-- CRM - SUPABASE SCHEMA (schema.sql)
 -- Run this FIRST in your Supabase SQL Editor.
 -- ==============================================================================
 

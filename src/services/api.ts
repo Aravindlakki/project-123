@@ -1520,7 +1520,7 @@ export const api = {
       }
     } catch (_) {}
     return {
-      draft_message: `Hi, I am reaching out from Placemein regarding partnering for talent recruitment opportunities. We have trained talent ready for immediate interviews.`,
+      draft_message: `Hi, I am reaching out from CRM regarding partnering for talent recruitment opportunities. We have trained talent ready for immediate interviews.`,
     };
   },
 

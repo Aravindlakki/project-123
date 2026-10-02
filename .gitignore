@@ -1,6 +1,7 @@
 # --- Production & Build artifacts ---
 dist/
 dist-ssr/
+dist-preview/
 build/
 frontend/dist/
 frontend/build/

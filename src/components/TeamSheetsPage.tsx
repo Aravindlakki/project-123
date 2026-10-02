@@ -50,6 +50,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { getShortCompanyName } from './HowToFindHRRowHelper';
+import { ProofReviewModal } from './ProofReviewModal';
 import { HRContact, Company, CRA } from '../types';
 import { api } from '../services/api';
 import { clientFallbackStore } from '../services/clientFallbackStore';
@@ -58,13 +59,24 @@ import { ExcelWorksheetImportModal } from './ExcelWorksheetImportModal';
 import { SystemReportModal } from './SystemReportModal';
 import { HtmlLeadImportModal } from './HtmlLeadImportModal';
 import { PdfLeadImportModal } from './PdfLeadImportModal';
-import { validateIndianMobile } from '../utils/phoneValidator';
-import {
-  getISTDateKey,
-  formatISTDateHeading,
-  formatIndianDateTime,
-  formatIndianPhone,
+import { validateIndianMobile } from '../utils/phoneValidator';import {
+getISTDateKey,
+formatISTDateHeading,
+formatIndianDate,
+formatIndianDateTime,
+formatIndianPhone,
 } from '../utils/formatters';
+import { isLeadOwnedByUser, cleanUploaderName } from '../utils/leadOwnership';
+import { findDuplicateLead, duplicateWarningMessage } from '../utils/leadDuplicates';
+import {
+RESPONSE_OPTIONS,
+RESPONDED_VALUES,
+responseShortLabel,
+responseBadgeClass,
+responseLabel,
+isResponseStatus,
+} from '../constants/worksheet';
+import type { LeadResponseStatus } from '../types';
 
 export interface TeamSheetsPageProps {
   initialSpoc?: string;
@@ -114,6 +126,72 @@ export const PIPELINE_STAGES = [
   { id: 'jd_submitted', label: 'JD Submitted' },
 ];
 
+/** Ordered flow used by the per-row stage advance buttons. */
+export type PipelineStageId = 'hr_sourcing' | 'hr_found' | 'contacted' | 'connected' | 'follow_up' | 'jd_submitted';
+
+export const STAGE_FLOW: Array<{ id: PipelineStageId; label: string }> = [
+  { id: 'hr_sourcing', label: 'HR Sourcing' },
+  { id: 'hr_found', label: 'HR Found' },
+  { id: 'contacted', label: 'Contacted' },
+  { id: 'connected', label: 'Connected' },
+  { id: 'follow_up', label: 'Follow-up' },
+  { id: 'jd_submitted', label: 'JD Submitted' },
+];
+
+const STAGE_STORAGE_LABEL: Record<PipelineStageId, string> = {
+  hr_sourcing: 'HR Sourcing',
+  hr_found: 'HR Found',
+  contacted: 'Contacted',
+  connected: 'Connected',
+  follow_up: 'Follow-up',
+  jd_submitted: 'JD Submitted',
+};
+
+/** Normalize whatever is stored on the lead (status/remarks + legacy values) to a stage id. */
+export const normalizeLeadStage = (lead: Pick<HRContact, 'status' | 'remarks'>): PipelineStageId => {
+  const raw = (lead.status || lead.remarks || '').toLowerCase().replace(/[\s\-_]/g, '');
+  switch (raw) {
+    case 'hrfound':
+      return 'hr_found';
+    case 'contacted':
+    case 'mailsent':
+      return 'contacted';
+    case 'connected':
+      return 'connected';
+    case 'followup':
+    case 'hold':
+      return 'follow_up';
+    case 'jdsubmitted':
+      return 'jd_submitted';
+    case 'responded':
+    case 'nohirings':
+      // Legacy remarks — an HR response is NOT a submitted JD. JD Submitted is
+      // reached only when a JD is actually submitted via JD Intake.
+      return 'connected';
+    case 'hrsourcing':
+    case 'pending':
+    default:
+      return 'hr_sourcing';
+  }
+};
+
+const stageBadgeClass = (stageId: PipelineStageId): string => {
+  switch (stageId) {
+    case 'hr_sourcing':
+      return 'bg-amber-950/80 text-amber-300 border-amber-700/50';
+    case 'hr_found':
+      return 'bg-sky-950/80 text-sky-300 border-sky-700/50';
+    case 'contacted':
+      return 'bg-indigo-950/80 text-indigo-300 border-indigo-700/50';
+    case 'connected':
+      return 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50';
+    case 'follow_up':
+      return 'bg-rose-950/80 text-rose-300 border-rose-700/50';
+    case 'jd_submitted':
+      return 'bg-purple-950/80 text-purple-300 border-purple-700/50';
+  }
+};
+
 export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   currentUser,
   adminMode = false,
@@ -124,13 +202,33 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [allUsersList, setAllUsersList] = useState<CRA[]>([]);
 
   // Filter states
+  // NOTE (Part A): the worksheet is scoped to the logged-in user for everyone,
+  // including admins. The old "All team | Only me" toggle and member dropdown
+  // were removed; there is no uploader filter anymore.
   const [searchQuery, setSearchQuery] = useState('');
-  const [uploaderFilterMode, setUploaderFilterMode] = useState<'all' | 'me'>('all');
-  const [selectedUploader, setSelectedUploader] = useState('all');
   const [selectedDomain, setSelectedDomain] = useState('all');
+  const [selectedResponse, setSelectedResponse] = useState<string>('all');
   const [activeDateKey, setActiveDateKey] = useState<string>(() => getISTDateKey(new Date()));
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
   const [pipelineTab, setPipelineTab] = useState<string>('all');
+
+  // Full team contact list kept in memory ONLY for cross-teammate duplicate warnings
+  const allContactsRef = useRef<HRContact[]>([]);
+
+  // Inline response editing per lead id
+  const [responseEditId, setResponseEditId] = useState<string | null>(null);
+
+  // Mandatory proof-of-response modal (opens when a responded value is picked without a valid proof)
+  const [proofModalLead, setProofModalLead] = useState<HRContact | null>(null);
+  const [proofModalResponse, setProofModalResponse] = useState<LeadResponseStatus | null>(null);
+  const [proofChannel, setProofChannel] = useState<'called' | 'messaged' | 'mailed'>('mailed');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [isSavingProof, setIsSavingProof] = useState(false);
+  const [proofPreviewFull, setProofPreviewFull] = useState<string | null>(null);
+  // Admin: which proof is being reviewed with notes
+  const [reviewModalLead, setReviewModalLead] = useState<HRContact | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
 
   // Post-upload notification banner
   const [postUploadBanner, setPostUploadBanner] = useState<{
@@ -211,7 +309,12 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         api.getCRAs().catch(() => []),
       ]);
 
-      setLeads(fetchedLeads);
+      // Keep the full team list ONLY for duplicate warnings (Part A).
+      allContactsRef.current = fetchedLeads;
+
+      // My Worksheet is scoped to the logged-in user for everyone (incl. admins).
+      const myLeads = fetchedLeads.filter((l) => isLeadOwnedByUser(l, currentUser));
+      setLeads(myLeads);
       setAllUsersList(fetchedUsers);
 
       const mapping: Record<string, string> = {};
@@ -221,7 +324,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       setUsersMap(mapping);
     } catch (err) {
       console.error('Failed to fetch worksheet leads', err);
-      const fallback = clientFallbackStore.getContacts();
+      const fallback = clientFallbackStore.getContacts().filter((l) => isLeadOwnedByUser(l, currentUser));
+      allContactsRef.current = fallback;
       setLeads(fallback);
     } finally {
       setIsLoading(false);
@@ -230,12 +334,12 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
   useEffect(() => {
     fetchLeads();
-  }, []);
+  }, [currentUser?.id]);
 
-  // Resolve human-readable uploader name for any contact
+  // Resolve human-readable uploader name for any contact (duplicate warnings etc.)
   const resolveUploaderName = (lead: HRContact): string => {
     if (lead.entered_by_name && lead.entered_by_name.trim()) {
-      return lead.entered_by_name.replace(/\s*\((HTML|PDF|Excel).*?\)/i, '').trim();
+      return cleanUploaderName(lead.entered_by_name);
     }
     if (lead.created_by && usersMap[lead.created_by]) {
       return usersMap[lead.created_by];
@@ -273,15 +377,102 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     return false;
   };
 
-  // Uploaded-By Filter helper: checks if lead belongs to the logged-in user
-  const isLeadUploadedByMe = (lead: HRContact): boolean => {
-    if (!currentUser) return false;
-    if (lead.created_by && lead.created_by === currentUser.id) return true;
-    if (lead.entered_by_name && currentUser.name && lead.entered_by_name.toLowerCase().includes(currentUser.name.toLowerCase())) return true;
-    if (lead.spoc && currentUser.name && lead.spoc.toLowerCase() === currentUser.name.split(' ')[0].toLowerCase()) return true;
-    const uploader = resolveUploaderName(lead).toLowerCase();
-    if (currentUser.name && uploader.includes(currentUser.name.toLowerCase())) return true;
-    return false;
+  // Response helpers (Part A)
+  // PROOF RULE: any "responded" value requires a screenshot proof (call/msg/mail)
+  // which then goes to Admin for verification before the lead counts.
+  const handleSetResponse = async (lead: HRContact, value: LeadResponseStatus, note?: string) => {
+    const isResponded = value !== 'no_response_yet';
+
+    // Responded but no proof uploaded yet → open the proof modal first. Do not save yet.
+    if (isResponded && !(lead.proof_screenshot_url && lead.proof_verified_status !== 'rejected')) {
+      setProofModalLead(lead);
+      setProofModalResponse(value);
+      setProofChannel(lead.proof_channel || 'mailed');
+      setProofFile(null);
+      setProofPreview(null);
+      return;
+    }
+
+    const updates: Partial<HRContact> = {
+      response_status: value,
+      response_note: note !== undefined ? note : lead.response_note,
+      responded_at: isResponded ? (lead.responded_at || new Date().toISOString()) : null,
+    };
+    try {
+      await api.updateContact(lead.id, updates);
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...updates } : l)));
+      showToast(isResponded ? `Response saved: ${responseShortLabel(value)}` : 'Response reset to "No response yet"');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save response', 'error');
+    }
+  };
+
+  // Upload/replace the proof screenshot for a lead (base64 data URL, pending admin review)
+  const uploadLeadProof = async (
+    lead: HRContact,
+    data: { channel: 'called' | 'messaged' | 'mailed'; screenshotUrl: string; filename?: string }
+  ) => {
+    const updates: Partial<HRContact> = {
+      proof_channel: data.channel,
+      proof_screenshot_url: data.screenshotUrl,
+      proof_screenshot_uploaded_at: new Date().toISOString(),
+      proof_verified_status: 'pending',
+      proof_verified_by: undefined,
+      proof_verified_at: undefined,
+      proof_admin_notes: undefined,
+    };
+    await api.updateContact(lead.id, updates);
+    setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...updates } : l)));
+  };
+
+  // Admin decision on a proof: verified → lead counts; rejected → response reset
+  const reviewLeadProof = async (
+    leadId: string,
+    decision: 'verified' | 'rejected',
+    adminNotes?: string,
+    reviewerName?: string
+  ) => {
+    const updates: Partial<HRContact> = {
+      proof_verified_status: decision,
+      proof_verified_by: reviewerName,
+      proof_verified_at: new Date().toISOString(),
+      proof_admin_notes: adminNotes,
+      ...(decision === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null } : {}),
+    };
+    await api.updateContact(leadId, updates);
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updates } : l)));
+  };
+
+  const getProofReviewState = (lead: HRContact): 'none' | 'pending' | 'verified' | 'rejected' => {
+    if (!lead.proof_screenshot_url) return 'none';
+    return lead.proof_verified_status || 'pending';
+  };
+
+  // Pipeline stage helpers — move a lead through: HR Sourcing → HR Found → Contacted → Connected → Follow-up → JD Submitted
+  const handleSetStage = async (lead: HRContact, stageId: PipelineStageId) => {
+    const label = STAGE_STORAGE_LABEL[stageId];
+    if (normalizeLeadStage(lead) === stageId) return;
+    try {
+      await api.updateContact(lead.id, { status: label });
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: label } : l)));
+      showToast(`Pipeline stage → ${label}`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update pipeline stage', 'error');
+    }
+  };
+
+  const advanceStage = (lead: HRContact) => {
+    const cur = normalizeLeadStage(lead);
+    const idx = STAGE_FLOW.findIndex((s) => s.id === cur);
+    const next = STAGE_FLOW[idx + 1];
+    if (next) handleSetStage(lead, next.id);
+  };
+
+  const getProofStatus = (lead: HRContact): { label: string; cls: string } => {
+    if (lead.proof_screenshot_url) {
+      return { label: `Uploaded${lead.proof_screenshot_uploaded_at ? ' ' + formatIndianDate(lead.proof_screenshot_uploaded_at) : ''}`, cls: 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40' };
+    }
+    return { label: 'None', cls: 'bg-gray-800/60 text-gray-500 border-gray-700/60' };
   };
 
   // Open "HR Sourcing" drawer in place
@@ -472,6 +663,19 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     setAddLeadError(null);
     setNewAddPhoneError(null);
 
+    // Cross-teammate duplicate warning (Part A): warn but do not block.
+    const dup = findDuplicateLead(allContactsRef.current, {
+      company_name: newCompanyName,
+      role_title: newRoleTitle,
+      hr_name: newHRName,
+      title: newHRTitle,
+    });
+    if (dup) {
+      setAddLeadError(duplicateWarningMessage(dup));
+      setIsSubmittingLead(false);
+      return;
+    }
+
     try {
       const uploaderName = currentUser?.name || 'Aravind Reddy';
       const cleanedPhone = newHRPhone.trim() ? validateIndianMobile(newHRPhone).normalized : undefined;
@@ -524,7 +728,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     }
   };
 
-  // Per-Day CSV Export
+  // Per-Day CSV Export (Part A: HR Role and Uploaded By removed; Response added)
   const handleExportDayCSV = (dateKey: string, dayLeads: HRContact[]) => {
     const csvRows = dayLeads.map((l) => ({
       'Company Name': l.company?.name || l.name,
@@ -532,19 +736,21 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       'Company Size': l.company?.employee_count || '—',
       'Role / JD': l.role_title || l.title || '—',
       'HR Name': l.name || '—',
-      'HR Role': l.title || '—',
       'Domain': l.domain || 'Technology',
       'Email': l.email || '—',
       'Contact Number': l.phone || '—',
       'LinkedIn': l.linkedin_url || '—',
-      'Uploaded By': resolveUploaderName(l),
       'Status': l.status || l.remarks || 'HR Sourcing',
+      'Response': responseShortLabel(l.response_status),
+      'Response Note': l.response_note || '—',
+      'Responded At': l.responded_at ? formatIndianDateTime(l.responded_at) : '—',
+      'Proof': l.proof_screenshot_url ? `Uploaded ${l.proof_screenshot_uploaded_at ? formatIndianDate(l.proof_screenshot_uploaded_at) : ''}`.trim() : 'None',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(csvRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Day Leads');
-    XLSX.writeFile(workbook, `Placemein_Worksheet_${dateKey}.xlsx`);
+    XLSX.writeFile(workbook, `CRM_Worksheet_${dateKey}.xlsx`);
     showToast(`Exported ${dayLeads.length} leads for ${dateKey}`);
   };
 
@@ -585,10 +791,10 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     return leads.filter((lead) => getISTDateKey(lead.created_at) === activeDateKey);
   }, [leads, activeDateKey]);
 
-  // Leads for the active open sheet filtered by search, uploader, domain, incomplete only, and pipeline stage
+  // Leads for the active open sheet filtered by search, domain, response, incomplete only, and pipeline stage
   const filteredLeads = useMemo(() => {
     return dayTotalLeads.filter((lead) => {
-      // Search
+      // Search (uploader search removed — worksheet is mine-only in Part A)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const comp = (lead.company?.name || lead.name || '').toLowerCase();
@@ -596,25 +802,13 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         const role = (lead.role_title || lead.title || '').toLowerCase();
         const phone = (lead.phone || '').toLowerCase();
         const email = (lead.email || '').toLowerCase();
-        const uploader = resolveUploaderName(lead).toLowerCase();
         if (
           !comp.includes(q) &&
           !hr.includes(q) &&
           !role.includes(q) &&
           !phone.includes(q) &&
-          !email.includes(q) &&
-          !uploader.includes(q)
+          !email.includes(q)
         ) {
-          return false;
-        }
-      }
-
-      // "All team | Only me" filter & specific uploader dropdown
-      if (uploaderFilterMode === 'me') {
-        if (!isLeadUploadedByMe(lead)) return false;
-      } else if (selectedUploader !== 'all') {
-        const uploader = resolveUploaderName(lead);
-        if (uploader.toLowerCase() !== selectedUploader.toLowerCase()) {
           return false;
         }
       }
@@ -622,6 +816,13 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       // Domain Filter
       if (selectedDomain !== 'all') {
         if ((lead.domain || '').toLowerCase() !== selectedDomain.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // Response Filter (Part A)
+      if (selectedResponse !== 'all') {
+        if ((lead.response_status || 'no_response_yet') !== selectedResponse) {
           return false;
         }
       }
@@ -645,7 +846,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
       return true;
     });
-  }, [dayTotalLeads, searchQuery, uploaderFilterMode, selectedUploader, selectedDomain, onlyIncomplete, pipelineTab, currentUser, usersMap]);
+  }, [dayTotalLeads, searchQuery, selectedDomain, selectedResponse, onlyIncomplete, pipelineTab, currentUser, usersMap]);
 
   // Incomplete count in the currently open sheet
   const dayIncompleteCount = useMemo(() => {
@@ -653,15 +854,6 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   }, [filteredLeads]);
 
   // Unique uploaders for filter dropdown
-  const uniqueUploaders = useMemo(() => {
-    const set = new Set<string>();
-    leads.forEach((l) => {
-      const name = resolveUploaderName(l);
-      if (name) set.add(name);
-    });
-    return Array.from(set).sort();
-  }, [leads, usersMap]);
-
   // Unique domains for filter dropdown
   const uniqueDomains = useMemo(() => {
     const set = new Set<string>();
@@ -670,6 +862,16 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     });
     return Array.from(set).sort();
   }, [leads]);
+
+  // Per-stage counts for the Pipeline filter buttons
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const l of dayTotalLeads) {
+      const s = normalizeLeadStage(l);
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    return counts;
+  }, [dayTotalLeads]);
 
   // Overall Statistics
   const stats = useMemo(() => {
@@ -713,14 +915,14 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 <FileSpreadsheet className="h-5 w-5" />
               </span>
               <span className={`text-xs font-bold uppercase tracking-wider ${adminMode ? 'text-amber-300' : 'text-purple-300'}`}>
-                {adminMode ? 'Admin Portal · Master Outreach Sheets' : 'Collaborative Team Worksheet · All Leads'}
+                {adminMode ? 'Admin Portal · My Worksheet' : 'My Worksheet · My Leads'}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              {adminMode ? 'All Worksheets & Team Activity' : 'Team Worksheet & HR Sourcing'}
+              My Worksheet & HR Sourcing
             </h1>
             <p className="text-xs sm:text-sm text-gray-300 mt-1 max-w-2xl leading-relaxed">
-              Shared team visibility of company leads grouped into daily sheets. Discover verified HR contacts, update pipeline stages, and enter direct recruiter phone numbers manually.
+              Your own leads grouped into daily sheets. Discover verified HR contacts, update pipeline stages, log responses, and enter direct recruiter phone numbers manually.
             </p>
           </div>
 
@@ -817,7 +1019,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             <Building2 className="h-4 w-4 text-purple-400" />
           </div>
           <div className="text-2xl font-black text-white mt-1.5">{stats.total}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">Across all team daily sheets</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">In my daily sheets (this view)</div>
         </div>
 
         <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 shadow-sm">
@@ -867,7 +1069,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search company, HR name, phone, email, uploader..."
+              placeholder="Search company, HR name, phone, email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-gray-950 border border-gray-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
@@ -883,51 +1085,6 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Uploaded By Toggle: All team | Only me */}
-            <div className="flex items-center bg-gray-950 border border-gray-700 rounded-xl p-0.5">
-              <button
-                type="button"
-                onClick={() => setUploaderFilterMode('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  uploaderFilterMode === 'all'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                All team
-              </button>
-              <button
-                type="button"
-                onClick={() => setUploaderFilterMode('me')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  uploaderFilterMode === 'me'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                Only me
-              </button>
-            </div>
-
-            {/* Specific Member Filter (when All team is selected) */}
-            {uploaderFilterMode === 'all' && (
-              <div className="flex items-center gap-1.5 bg-gray-950 border border-gray-700 rounded-xl px-2.5 py-1.5">
-                <User className="h-3.5 w-3.5 text-gray-400" />
-                <select
-                  value={selectedUploader}
-                  onChange={(e) => setSelectedUploader(e.target.value)}
-                  className="bg-transparent text-xs text-gray-200 focus:outline-none cursor-pointer"
-                >
-                  <option value="all" className="bg-gray-900 text-white">All Members</option>
-                  {uniqueUploaders.map((u) => (
-                    <option key={u} value={u} className="bg-gray-900 text-white">
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {/* Domain Filter */}
             <div className="flex items-center gap-1.5 bg-gray-950 border border-gray-700 rounded-xl px-2.5 py-1.5">
               <Tag className="h-3.5 w-3.5 text-gray-400" />
@@ -940,6 +1097,24 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 {uniqueDomains.map((d) => (
                   <option key={d} value={d} className="bg-gray-900 text-white">
                     {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Response Filter (Part A) */}
+            <div className="flex items-center gap-1.5 bg-gray-950 border border-gray-700 rounded-xl px-2.5 py-1.5">
+              <MessageSquare className="h-3.5 w-3.5 text-gray-400" />
+              <select
+                value={selectedResponse}
+                onChange={(e) => setSelectedResponse(e.target.value)}
+                className="bg-transparent text-xs text-gray-200 focus:outline-none cursor-pointer"
+                title="Filter by response"
+              >
+                <option value="all" className="bg-gray-900 text-white">All Responses</option>
+                {RESPONSE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value} className="bg-gray-900 text-white">
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -1024,18 +1199,38 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
               <button
                 key={st.id}
                 onClick={() => setPipelineTab(st.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   isActive
                     ? 'bg-purple-600 text-white shadow-sm shadow-purple-900/50'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
                 }`}
               >
                 {st.label}
+                <span
+                  className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                    isActive ? 'bg-black/30 text-white' : 'bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  {st.id === 'all' ? dayTotalLeads.length : stageCounts[st.id] || 0}
+                </span>
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* Admin alert: proofs waiting for verification */}
+      {(adminMode || currentUser?.role === 'admin') &&
+        leads.some((l) => l.proof_verified_status === 'pending') && (
+          <div className="bg-amber-950/40 border border-amber-700/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-amber-200">
+              <b>{leads.filter((l) => l.proof_verified_status === 'pending').length}</b> proof screenshot(s) waiting for your verification. Click the screenshot in the Proof column to verify or reject.
+            </p>
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 border border-amber-600/50 rounded-lg px-2 py-1 bg-amber-900/40 shrink-0">
+              Admin action needed
+            </span>
+          </div>
+        )}
 
       {/* SINGLE ACTIVE DAILY SHEET CONTAINER */}
       <div
@@ -1146,9 +1341,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                     type="button"
                     onClick={() => {
                       setSearchQuery('');
-                      setUploaderFilterMode('all');
-                      setSelectedUploader('all');
                       setSelectedDomain('all');
+                      setSelectedResponse('all');
                       setOnlyIncomplete(false);
                       setPipelineTab('all');
                     }}
@@ -1163,19 +1357,21 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-950/80 text-[10px] uppercase font-bold text-gray-400 border-b border-gray-800 tracking-wider">
-                  <th className="py-3 px-3.5">#</th>
-                  <th className="py-3 px-3.5">Company Name</th>
-                  <th className="py-3 px-3">Date Uploaded (IST)</th>
-                  <th className="py-3 px-3">Company Size</th>
-                  <th className="py-3 px-3.5">Role / JD</th>
-                  <th className="py-3 px-3">HR Name</th>
-                  <th className="py-3 px-3">HR Role</th>
-                  <th className="py-3 px-3">Domain</th>
-                  <th className="py-3 px-3">Email Address</th>
-                  <th className="py-3 px-3">Contact Number</th>
-                  <th className="py-3 px-3">LinkedIn URL</th>
-                  <th className="py-3 px-3">Uploaded By</th>
-                  <th className="py-3 px-3 text-center">Actions</th>
+                  <th className="py-2 px-2.5">#</th>
+                  {/* Sticky Company column: always visible while scrolling sideways (Part A) */}
+                  <th className="py-2 px-2.5 sticky left-0 z-10 bg-gray-950/95 backdrop-blur-sm border-r border-gray-800 min-w-[150px]">Company Name</th>
+                  <th className="py-2 px-2.5">Date (IST)</th>
+                  <th className="py-2 px-2.5">Company Size</th>
+                  <th className="py-2 px-2.5">Role / JD</th>
+                  <th className="py-2 px-2.5">HR Name</th>
+                  <th className="py-2 px-2.5">Domain</th>
+                  <th className="py-2 px-2.5">Email</th>
+                  <th className="py-2 px-2.5">Contact Number</th>
+                  <th className="py-2 px-2.5">LinkedIn</th>
+                  <th className="py-2 px-2.5">Response</th>
+                  <th className="py-2 px-2.5">Proof</th>
+                  <th className="py-2 px-2.5">Verification</th>
+                  <th className="py-2 px-2.5 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
@@ -1183,22 +1379,21 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                           const isIncomplete = isLeadIncomplete(lead);
                           const missingFields = getMissingFields(lead);
                           const canEdit = canUserEditLead(lead);
-                          const uploader = resolveUploaderName(lead);
 
                           return (
                             <tr
                               key={lead.id}
-                              className={`hover:bg-gray-800/40 transition-colors ${
+                              className={`transition-colors ${
                                 isIncomplete ? 'bg-amber-950/10' : ''
-                              }`}
+                              } hover:bg-gray-800/40`}
                             >
                               {/* Index */}
-                              <td className="py-3 px-3.5 text-gray-500 font-mono text-[11px]">
+                              <td className="py-2 px-2.5 text-gray-500 font-mono text-[11px]">
                                 {idx + 1}
                               </td>
 
-                              {/* 1. Company Name */}
-                              <td className="py-3 px-3.5">
+                              {/* 1. Company Name — STICKY (Part A) */}
+                              <td className="py-2 px-2.5 sticky left-0 z-10 bg-gray-900 border-r border-gray-800">
                                 <div className="font-bold text-white text-xs hover:text-purple-300 transition cursor-pointer"
                                   onClick={() => {
                                     if (lead.company) {
@@ -1223,24 +1418,24 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                               </td>
 
                               {/* 2. Date Uploaded (IST) */}
-                              <td className="py-3 px-3 text-gray-400 whitespace-nowrap text-[11px]">
+                              <td className="py-2 px-2.5 text-gray-400 whitespace-nowrap text-[11px]">
                                 {lead.created_at ? formatIndianDateTime(lead.created_at) : '—'}
                               </td>
 
                               {/* 3. Company Size */}
-                              <td className="py-3 px-3">
+                              <td className="py-2 px-2.5">
                                 <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-gray-800 text-gray-300 border border-gray-700 whitespace-nowrap">
                                   {lead.company?.employee_count || '100-250 employees'}
                                 </span>
                               </td>
 
                               {/* 4. Role / JD */}
-                              <td className="py-3 px-3.5 font-semibold text-gray-200 max-w-[160px] truncate" title={lead.role_title || lead.title || 'Sourced Lead'}>
+                              <td className="py-2 px-2.5 font-semibold text-gray-200 max-w-[160px] truncate" title={lead.role_title || lead.title || 'Sourced Lead'}>
                                 {lead.role_title || lead.title || 'Sourced Lead'}
                               </td>
 
                               {/* 5. HR Name */}
-                              <td className="py-3 px-3">
+                              <td className="py-2 px-2.5">
                                 {lead.name && lead.name !== 'Unknown Contact' && lead.name !== 'Talent Acquisition Team' ? (
                                   <span className="font-bold text-gray-100">{lead.name}</span>
                                 ) : (
@@ -1250,20 +1445,15 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                                 )}
                               </td>
 
-                              {/* 6. HR Role */}
-                              <td className="py-3 px-3 text-gray-300 text-[11px] truncate max-w-[130px]">
-                                {lead.title || 'Talent Lead'}
-                              </td>
-
-                              {/* 7. Domain */}
-                              <td className="py-3 px-3 text-gray-400 whitespace-nowrap">
+                              {/* 6. Domain */}
+                              <td className="py-2 px-2.5 text-gray-400 whitespace-nowrap">
                                 <span className="px-2 py-0.5 rounded text-[10px] bg-purple-950/60 text-purple-300 border border-purple-800/40">
                                   {lead.domain || 'Technology'}
                                 </span>
                               </td>
 
-                              {/* 8. Email */}
-                              <td className="py-3 px-3">
+                              {/* 7. Email */}
+                              <td className="py-2 px-2.5">
                                 {lead.email ? (
                                   <a
                                     href={`mailto:${lead.email}`}
@@ -1277,8 +1467,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                                 )}
                               </td>
 
-                              {/* 9. Contact Number (Phone) */}
-                              <td className="py-3 px-3">
+                              {/* 8. Contact Number (Phone) */}
+                              <td className="py-2 px-2.5">
                                 {lead.phone ? (
                                   <div className="flex items-center gap-1 font-mono text-[11px] text-emerald-400 whitespace-nowrap">
                                     <Phone className="h-3 w-3 shrink-0" />
@@ -1291,8 +1481,8 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                                 )}
                               </td>
 
-                              {/* 10. LinkedIn URL */}
-                              <td className="py-3 px-3">
+                              {/* 9. LinkedIn URL */}
+                              <td className="py-2 px-2.5">
                                 {lead.linkedin_url ? (
                                   <a
                                     href={lead.linkedin_url}
@@ -1312,20 +1502,110 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                                 )}
                               </td>
 
-                              {/* 11. Uploaded By */}
-                              <td className="py-3 px-3 whitespace-nowrap">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-5 h-5 rounded-full bg-purple-900/80 text-purple-300 border border-purple-700/60 flex items-center justify-center text-[10px] font-bold shrink-0">
-                                    {uploader[0]}
+                              {/* 10. Response (Part A) */}
+                              <td className="py-2 px-2.5">
+                                {responseEditId === lead.id ? (
+                                  <select
+                                    autoFocus
+                                    value={(lead.response_status || 'no_response_yet') as string}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (isResponseStatus(val)) {
+                                        handleSetResponse(lead, val);
+                                      }
+                                      setResponseEditId(null);
+                                    }}
+                                    onBlur={() => setResponseEditId(null)}
+                                    className="bg-gray-950 border border-purple-500 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none cursor-pointer"
+                                  >
+                                    {RESPONSE_OPTIONS.map((o) => (
+                                      <option key={o.value} value={o.value} className="bg-gray-900 text-white">
+                                        {o.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setResponseEditId(lead.id)}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold transition cursor-pointer hover:brightness-125 ${responseBadgeClass(lead.response_status)}`}
+                                    title={lead.responded_at ? `Responded ${formatIndianDateTime(lead.responded_at)}` : 'Click to set response'}
+                                  >
+                                    <MessageSquare className="h-3 w-3 shrink-0" />
+                                    <span className="whitespace-nowrap">{responseShortLabel(lead.response_status)}</span>
+                                  </button>
+                                )}
+                                {lead.responded_at && (
+                                  <div className="text-[9px] text-gray-500 mt-0.5 whitespace-nowrap">
+                                    {formatIndianDateTime(lead.responded_at)}
                                   </div>
-                                  <span className="font-semibold text-gray-200 text-[11px]">
-                                    {uploader}
-                                  </span>
-                                </div>
+                                )}
+                              </td>
+
+                              {/* 11. Proof (Part A) — just the screenshot thumbnail */}
+                              <td className="py-2 px-2.5">
+                                {lead.proof_screenshot_url ? (
+                                  <img
+                                    src={lead.proof_screenshot_url}
+                                    alt=""
+                                    aria-label="Proof screenshot"
+                                    className="h-8 w-12 rounded-md object-cover border border-gray-700 group-hover:border-purple-500 transition cursor-pointer bg-gray-800"
+                                    onClick={() =>
+                                      adminMode || currentUser?.role === 'admin'
+                                        ? setReviewModalLead(lead)
+                                        : setProofPreviewFull(lead.proof_screenshot_url!)
+                                    }
+                                    title={
+                                      adminMode || currentUser?.role === 'admin'
+                                        ? `Click to verify / reject this proof${lead.proof_channel ? ` (sent via ${lead.proof_channel})` : ''}`
+                                        : `View proof screenshot${lead.proof_channel ? ` (sent via ${lead.proof_channel})` : ''}`
+                                    }
+                                    onError={(e) => { e.currentTarget.style.opacity = '0.3'; }}
+                                  />
+                                ) : (
+                                  <span className="text-[10px] text-gray-600 italic">None</span>
+                                )}
+                              </td>
+
+                              {/* 11b. Verification — did Admin confirm this lead is real? */}
+                              <td className="py-2 px-2.5">
+                                {(() => {
+                                  const state = getProofReviewState(lead);
+                                  const responded = lead.response_status && lead.response_status !== 'no_response_yet';
+                                  if (state === 'verified') {
+                                    return (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wide whitespace-nowrap bg-emerald-950/80 text-emerald-300 border-emerald-600/40" title="Admin verified this proof — lead is eligible and flows to CRM Directory">
+                                        <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                        Eligible
+                                      </span>
+                                    );
+                                  }
+                                  if (state === 'rejected') {
+                                    return (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wide whitespace-nowrap bg-rose-950/80 text-rose-300 border-rose-600/40" title="Admin rejected this proof — lead is NOT eligible and is excluded from CRM Directory">
+                                        <X className="h-3 w-3 shrink-0" />
+                                        Not Eligible
+                                      </span>
+                                    );
+                                  }
+                                  if (state === 'pending') {
+                                    return (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wide whitespace-nowrap bg-amber-950/80 text-amber-300 border-amber-600/40" title="Proof uploaded — waiting for Admin verification">
+                                        <Clock className="h-3 w-3 shrink-0" />
+                                        Under Review
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span className="text-[10px] text-gray-600 italic whitespace-nowrap" title={responded ? 'Response logged without proof yet' : 'No response yet'}>
+                                      {responded ? 'Proof Needed' : '—'}
+                                    </span>
+                                  );
+                                })()}
                               </td>
 
                               {/* 12. Actions */}
-                              <td className="py-3 px-3 text-center whitespace-nowrap">
+                              <td className="py-2 px-2.5 text-center whitespace-nowrap">
                                 <div className="flex items-center justify-center gap-1.5">
                                   {/* "HR Sourcing" / "Find HR" button on incomplete leads */}
                                   {isIncomplete && (
@@ -1351,7 +1631,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                                   ) : (
                                     <span
                                       className="p-1 text-gray-600 cursor-not-allowed opacity-40"
-                                      title={`Read-only: Uploaded by ${uploader}`}
+                                      title="Read-only lead"
                                     >
                                       <Lock className="h-3.5 w-3.5" />
                                     </span>
@@ -1631,19 +1911,6 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-gray-300 font-semibold mb-1">HR Designation / Role</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Lead Technical Recruiter"
-                      value={sourcingHRTitle}
-                      onChange={(e) => setSourcingHRTitle(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
                     <label className="block text-gray-300 font-semibold mb-1">HR LinkedIn URL</label>
                     <input
                       type="url"
@@ -1653,7 +1920,9 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                       className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-gray-300 font-semibold mb-1">HR Email Address</label>
                     <input
@@ -1843,11 +2112,11 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 font-semibold mb-1">HR Role / Title</label>
+                  <label className="block text-gray-300 font-semibold mb-1">HR LinkedIn URL</label>
                   <input
-                    type="text"
-                    value={editHRTitle}
-                    onChange={(e) => setEditHRTitle(e.target.value)}
+                    type="url"
+                    value={editHRLinkedin}
+                    onChange={(e) => setEditHRLinkedin(e.target.value)}
                     className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none"
                   />
                 </div>
@@ -2049,7 +2318,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                   <span className="text-[10px] text-purple-300">Leave blank if unknown; source later</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-gray-400 text-[11px] mb-1">HR Name</label>
                     <input
@@ -2061,19 +2330,6 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-gray-400 text-[11px] mb-1">HR Designation</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Talent Acquisition"
-                      value={newHRTitle}
-                      onChange={(e) => setNewHRTitle(e.target.value)}
-                      className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-gray-400 text-[11px] mb-1">LinkedIn URL</label>
                     <input
@@ -2248,6 +2504,156 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
           isOpen={showReportModal}
           onClose={() => setShowReportModal(false)}
         />
+      )}
+
+      {/* ─── Mandatory Proof-of-Response Upload Modal ─── */}
+      {proofModalLead && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setProofModalLead(null)}>
+          <div
+            className="bg-gray-950 border border-purple-800/60 rounded-3xl w-full max-w-md max-h-[92vh] overflow-y-auto p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-base font-black text-white">Proof of Contact Required</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  "<b className="text-purple-300">{proofModalLead.company?.name || proofModalLead.hr_name}</b>" — before saving "{responseLabel(proofModalResponse)}", upload a screenshot of the {proofChannel === 'called' ? 'call log' : proofChannel === 'messaged' ? 'message' : 'mail'}.
+                </p>
+              </div>
+              <button onClick={() => setProofModalLead(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 shrink-0">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1.5">How did they respond?</p>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { id: 'called', label: '📞 Called' },
+                    { id: 'messaged', label: '💬 Messaged' },
+                    { id: 'mailed', label: '✉️ Mailed' },
+                  ] as const
+                ).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setProofChannel(c.id)}
+                    className={`flex-1 py-2 rounded-xl text-[11px] font-bold transition ${
+                      proofChannel === c.id ? 'bg-purple-600 text-white' : 'bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="block w-full py-4 rounded-xl border-2 border-dashed border-gray-700 hover:border-purple-600 text-[11px] font-bold text-gray-400 hover:text-purple-300 transition text-center cursor-pointer">
+              {proofPreview ? '📷 Change screenshot' : '📷 Upload screenshot (PNG / JPG, max 3.5 MB)'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  if (f.size > 3.5 * 1024 * 1024) {
+                    showToast('Screenshot too large — keep it under 3.5 MB', 'error');
+                    return;
+                  }
+                  setProofFile(f);
+                  const reader = new FileReader();
+                  reader.onload = () => setProofPreview(reader.result as string);
+                  reader.readAsDataURL(f);
+                }}
+              />
+            </label>
+
+            {proofPreview && (
+              <img src={proofPreview} alt="Proof preview" className="w-full max-h-48 object-contain rounded-2xl border border-gray-700 cursor-pointer" onClick={() => setProofPreviewFull(proofPreview)} />
+            )}
+
+            <p className="text-[10px] text-amber-300/90 bg-amber-950/40 border border-amber-800/40 rounded-xl px-3 py-2">
+              This proof goes to <b>Admin for verification</b>. The lead only counts once Admin approves it.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setProofModalLead(null);
+                  setProofPreview(null);
+                  setProofFile(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-300 border border-gray-700 hover:bg-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!proofFile || isSavingProof}
+                onClick={async () => {
+                  if (!proofFile || !proofPreview || !proofModalLead) return;
+                  setIsSavingProof(true);
+                  try {
+                    await uploadLeadProof(proofModalLead, {
+                      channel: proofChannel,
+                      screenshotUrl: proofPreview,
+                      filename: proofFile.name,
+                    });
+                    if (proofModalResponse) {
+                      const updates: Partial<HRContact> = {
+                        response_status: proofModalResponse,
+                        responded_at: proofModalLead.responded_at || new Date().toISOString(),
+                      };
+                      await api.updateContact(proofModalLead.id, updates);
+                      setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
+                    }
+                    showToast('Proof uploaded — sent to Admin for verification');
+                    setProofModalLead(null);
+                    setProofPreview(null);
+                    setProofFile(null);
+                  } catch (err: any) {
+                    showToast(err.message || 'Failed to upload proof', 'error');
+                  } finally {
+                    setIsSavingProof(false);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-900/40 disabled:opacity-40"
+              >
+                {isSavingProof ? 'Uploading…' : 'Upload & Send to Admin'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Admin Proof Review Modal ─── */}
+      {reviewModalLead && (
+        <ProofReviewModal
+          lead={reviewModalLead}
+          reviewerName={currentUser?.name || 'Admin'}
+          onClose={() => setReviewModalLead(null)}
+          onDecision={async (decision, notes) => {
+            await reviewLeadProof(reviewModalLead.id, decision, notes, currentUser?.name);
+            showToast(
+              decision === 'verified'
+                ? 'Proof verified — lead now counts'
+                : 'Proof rejected — response reset to No response yet',
+              decision === 'verified' ? 'success' : 'error'
+            );
+            setReviewModalLead(null);
+          }}
+          onOpenFull={(url) => setProofPreviewFull(url)}
+        />
+      )}
+
+      {/* Full-size proof preview */}
+      {proofPreviewFull && (
+        <div className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-6" onClick={() => setProofPreviewFull(null)}>
+          <img src={proofPreviewFull} alt="Proof full view" className="max-h-[85vh] max-w-full rounded-2xl border border-gray-700" />
+        </div>
       )}
     </div>
   );

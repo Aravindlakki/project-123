@@ -29,7 +29,7 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm sm:text-lg font-black text-white flex items-center gap-1.5 sm:gap-2 truncate">
-                  <span className="truncate">PLACEMEIN Blueprint</span>
+                  <span className="truncate">CRM Blueprint</span>
                   <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
                     PDF
                   </span>
@@ -80,10 +80,10 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="bg-white p-2.5 rounded-2xl shadow-md border border-purple-200">
-                  <img src="/placemein-logo.png" alt="PLACEMEIN" className="h-8 w-8 object-contain" />
+                  <img src="/placemein-logo.png" alt="CRM" className="h-8 w-8 object-contain" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black tracking-tight text-white print:text-black">PLACEMEIN</h1>
+                  <h1 className="text-2xl font-black tracking-tight text-white print:text-black">CRM</h1>
                   <p className="text-xs font-bold uppercase tracking-widest text-purple-400 print:text-purple-700">
                     Recruitment Automation & Candidate Relationship Associate (CRA) CRM
                   </p>
@@ -104,7 +104,7 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
               <span>1. Executive Summary</span>
             </h2>
             <p className="text-xs sm:text-sm text-gray-300 print:text-gray-800 leading-relaxed">
-              <b>PLACEMEIN</b> is an enterprise-grade recruitment operations and CRA candidate relationship management platform.
+              <b>CRM</b> is an enterprise-grade recruitment operations and CRA candidate relationship management platform.
               It serves as the central operating system for frontline sourcing associates (CRAs) and leadership executives (CEO, Directors, Team Leads).
               The system standardizes hiring pipeline intake, multi-channel candidate/client touchpoints (Calls, Emails, LinkedIn, WhatsApp),
               daily attendance validation, priority Kanban tasks, and performance scorecards into a cohesive, resilient software architecture.
@@ -275,7 +275,7 @@ export const SystemReportModal: React.FC<SystemReportModalProps> = ({ isOpen, on
 
           {/* Document Footer */}
           <div className="pt-6 border-t border-gray-800 print:border-gray-300 flex flex-col sm:flex-row items-center justify-between text-[11px] text-gray-500 print:text-gray-600 gap-2">
-            <span>PLACEMEIN Recruitment Automation CRM · Confidential Internal Operational Report</span>
+            <span>CRM Recruitment Automation Suite · Confidential Internal Operational Report</span>
             <span>Generated from Active System Architecture & Data Model</span>
           </div>
 

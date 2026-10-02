@@ -1,5 +1,5 @@
 -- ==============================================================================
--- PLACEMEIN CRM - ROLLBACK SCRIPT FOR DAILY SHEETS & PERMISSIONS
+-- CRM - ROLLBACK SCRIPT FOR DAILY SHEETS & PERMISSIONS
 -- File: supabase/migrations/20260929_daily_sheets_and_permissions_rollback.sql
 -- ==============================================================================
 

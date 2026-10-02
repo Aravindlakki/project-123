@@ -257,6 +257,16 @@ Requirements:
   };
 
   useEffect(() => {
+    // Prefill from CRM "Add Role" handoff (company name passed from CRMListPage)
+    try {
+      const prefillRaw = localStorage.getItem('placemein:hr-sourcing-prefill');
+      if (prefillRaw) {
+        const prefill = JSON.parse(prefillRaw);
+        if (prefill?.company) setCompanyInput(prefill.company);
+        if (prefill?.title) setJdTitle(prefill.title);
+        localStorage.removeItem('placemein:hr-sourcing-prefill');
+      }
+    } catch (_) {}
     api.getCompanies().then(setCompanies).catch(console.error);
     loadJDs();
     api.getJDExtractionStatus().then(setExtractionStatus).catch(() => undefined);

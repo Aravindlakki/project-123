@@ -4,6 +4,11 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { JDIntakePage } from './pages/JDIntakePage';
 import { HRSourcingPage } from './pages/HRSourcingPage';
+import { PipelinePage } from './pages/PipelinePage';
+import { OutreachDraftsPage } from './pages/OutreachDraftsPage';
+import { ProofOfResponsePage } from './pages/ProofOfResponsePage';
+import { FollowUpsPage } from './pages/FollowUpsPage';
+import { JDBankPage } from './pages/JDBankPage';
 import { CRMListPage } from './pages/CRMListPage';
 import { JDListPage } from './pages/JDListPage';
 import { PerformancePage } from './pages/PerformancePage';
@@ -17,6 +22,8 @@ import { api, getAuthToken, clearAuthToken } from './services/api';
 import { isSupabaseConfigured } from './services/supabase';
 import { CRA } from './types';
 import { ShieldCheck, User, Lock, LogIn, Menu, FileText, Database } from 'lucide-react';
+import { AdminLayout } from './components/admin/AdminLayout';
+import './styles/adminTheme.css';
 
 const getRouteFromUrl = (): string => {
   const hash = window.location.hash.replace(/^#\/?/, '/');
@@ -46,8 +53,14 @@ const routeToTab = (rawPath: string) => {
     '/team-lead-dashboard': 'team-lead-dashboard',
     '/team-sheets': 'team-sheets',
     '/hr-sourcing': 'hr-sourcing',
+    '/pipeline': 'pipeline',
+    '/pipeline/drafts': 'outreach-drafts',
+    '/pipeline/proofs': 'proof-of-response',
+    '/pipeline/follow-ups': 'follow-ups',
     '/jd-intake': 'jd-intake',
     '/jd-list': 'jd-list',
+    '/jd-bank/tech': 'jd-bank-tech',
+    '/jd-bank/non-tech': 'jd-bank-non-tech',
     '/crm': 'crm',
     '/tasks': 'tasks',
     '/performance': 'performance',
@@ -56,6 +69,9 @@ const routeToTab = (rawPath: string) => {
     '/admin/team-sheets': 'admin-sheets',
     '/admin/sheets': 'admin-sheets',
     '/admin/jd-list': 'admin-jd-list',
+    '/admin/jd-bank/tech': 'admin-jd-bank-tech',
+    '/admin/jd-bank/non-tech': 'admin-jd-bank-non-tech',
+    '/admin/pipeline/proofs': 'admin-proof-review',
     '/admin/team-lead-dashboard': 'admin-team-lead-dashboard',
     '/admin/tasks': 'admin-tasks',
     '/admin/companies': 'admin-companies',
@@ -80,14 +96,23 @@ const tabToRoute: Record<string, string> = {
   'team-lead-dashboard': '/team-lead-dashboard',
   'team-sheets': '/team-sheets',
   'hr-sourcing': '/hr-sourcing',
+  'pipeline': '/pipeline',
+  'outreach-drafts': '/pipeline/drafts',
+  'proof-of-response': '/pipeline/proofs',
+  'follow-ups': '/pipeline/follow-ups',
   'jd-intake': '/jd-intake',
   'jd-list': '/jd-list',
+  'jd-bank-tech': '/jd-bank/tech',
+  'jd-bank-non-tech': '/jd-bank/non-tech',
   crm: '/crm',
   tasks: '/tasks',
   performance: '/performance',
   'admin-users': '/admin/users',
   'admin-sheets': '/admin/worksheets',
   'admin-jd-list': '/admin/jd-list',
+  'admin-jd-bank-tech': '/admin/jd-bank/tech',
+  'admin-jd-bank-non-tech': '/admin/jd-bank/non-tech',
+  'admin-proof-review': '/admin/pipeline/proofs',
   'admin-team-lead-dashboard': '/admin/team-lead-dashboard',
   'admin-tasks': '/admin/tasks',
   'admin-companies': '/admin/companies',
@@ -289,12 +314,30 @@ export const App: React.FC = () => {
         return 'My Dashboard';
       case 'hr-sourcing':
         return 'HR Sourcing';
+      case 'pipeline':
+        return 'Recruitment Pipeline';
+      case 'outreach-drafts':
+        return 'Outreach Drafts';
+      case 'proof-of-response':
+        return 'Proof of Response';
+      case 'follow-ups':
+        return 'Follow-ups';
+      case 'jd-bank-tech':
+        return 'JD Bank — Tech';
+      case 'jd-bank-non-tech':
+        return 'JD Bank — Non-Tech';
       case 'jd-intake':
         return 'JD Intake';
       case 'jd-list':
         return 'JD List';
       case 'admin-jd-list':
         return 'JD List & Oversight';
+      case 'admin-jd-bank-tech':
+        return 'JD Bank — Tech';
+      case 'admin-jd-bank-non-tech':
+        return 'JD Bank — Non-Tech';
+      case 'admin-proof-review':
+        return 'Proof Review Queue';
       case 'crm':
         return 'CRM Directory';
       case 'tasks':
@@ -307,6 +350,54 @@ export const App: React.FC = () => {
   };
 
   const heading = getTabHeading();
+
+  /* ────────────────────────────────────────────────────────────────────────
+   * ADMIN LEADERSHIP PORTAL SHELL
+   * Every admin menu page renders inside the single AdminLayout (sidebar +
+   * header + content area), which also applies the data-portal="admin"
+   * theme scope. The employee branch below is untouched.
+   * ───────────────────────────────────────────────────────────────────── */
+  if (adminMode) {
+    return (
+      <>
+        <AdminLayout
+          activeTab={activeTab}
+          onNavigate={navigate}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onExitAdmin={handleExitAdmin}
+        >
+          {activeTab === 'admin-jd-list' && <JDListPage currentUser={currentUser} adminMode={true} />}
+          {activeTab === 'admin-jd-bank-tech' && <JDBankPage currentUser={currentUser} defaultCategory="tech" standalone />}
+          {activeTab === 'admin-jd-bank-non-tech' && <JDBankPage currentUser={currentUser} defaultCategory="non_tech" standalone />}
+          {activeTab === 'admin-proof-review' && <ProofOfResponsePage currentUser={currentUser} adminReviewMode />}
+          {/* Admin Oversight Views - Kept strictly inside AdminLayout */}
+          {activeTab === 'admin-team-lead-dashboard' && (
+            <TeamLeadDashboardPage setActiveTab={navigate} adminMode={true} />
+          )}
+          {activeTab === 'admin-sheets' && (
+            <TeamSheetsPage currentUser={currentUser} adminMode={true} />
+          )}
+          {activeTab === 'admin-users' && <AdminPortalPage initialTab="users" />}
+          {activeTab === 'admin-companies' && <AdminPortalPage initialTab="companies" />}
+          {activeTab === 'admin-settings' && <AdminPortalPage initialTab="settings" />}
+          {activeTab === 'admin-tasks' && <TaskManagementPage />}
+          {activeTab === 'admin-performance' && <PerformancePage />}
+        </AdminLayout>
+        <AdminLoginModal
+          isOpen={showAdminLoginModal}
+          onClose={() => setShowAdminLoginModal(false)}
+          onSuccess={handleAdminLoginSuccess}
+          initialEmail={currentUser.role === 'admin' ? currentUser.email : ''}
+          onCancelToEmployee={handleExitAdmin}
+        />
+        <SystemReportModal
+          isOpen={showSystemReportModal}
+          onClose={() => setShowSystemReportModal(false)}
+        />
+      </>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${adminMode ? 'bg-gradient-to-br from-gray-950 via-amber-950/20 to-gray-950' : 'bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950'} text-gray-100 flex font-sans`}>
@@ -411,6 +502,12 @@ export const App: React.FC = () => {
           {activeTab === 'jd-intake' && <JDIntakePage />}
           {activeTab === 'jd-list' && <JDListPage currentUser={currentUser} />}
           {activeTab === 'hr-sourcing' && <HRSourcingPage onNavigateToJDIntake={() => navigate('jd-intake')} />}
+          {activeTab === 'pipeline' && <PipelinePage currentUser={currentUser} />}
+          {activeTab === 'outreach-drafts' && <OutreachDraftsPage currentUser={currentUser} />}
+          {activeTab === 'proof-of-response' && <ProofOfResponsePage currentUser={currentUser} />}
+          {activeTab === 'follow-ups' && <FollowUpsPage currentUser={currentUser} />}
+          {activeTab === 'jd-bank-tech' && <JDBankPage currentUser={currentUser} defaultCategory="tech" standalone />}
+          {activeTab === 'jd-bank-non-tech' && <JDBankPage currentUser={currentUser} defaultCategory="non_tech" standalone />}
           {activeTab === 'crm' && (
             <CRMListPage
               onAddRole={(companyName) => {
@@ -422,6 +519,9 @@ export const App: React.FC = () => {
           {activeTab === 'admin-jd-list' && (
             <JDListPage currentUser={currentUser} adminMode={true} />
           )}
+          {activeTab === 'admin-jd-bank-tech' && <JDBankPage currentUser={currentUser} defaultCategory="tech" standalone />}
+          {activeTab === 'admin-jd-bank-non-tech' && <JDBankPage currentUser={currentUser} defaultCategory="non_tech" standalone />}
+          {activeTab === 'admin-proof-review' && <ProofOfResponsePage currentUser={currentUser} adminReviewMode />}
           {/* Admin Oversight Views - Kept strictly inside Admin Portal */}
           {activeTab === 'admin-team-lead-dashboard' && (
             <TeamLeadDashboardPage setActiveTab={navigate} adminMode={true} />
@@ -436,7 +536,7 @@ export const App: React.FC = () => {
           {activeTab === 'admin-performance' && <PerformancePage />}
         </main>
         <footer className={`border-t py-4 text-center text-xs ${adminMode ? 'bg-amber-950/50 border-amber-800/40 text-amber-200/70' : 'bg-purple-950/50 border-purple-800/40 text-purple-200/70'}`}>
-          PLACEMEIN © {new Date().getFullYear()} — Internal Recruitment Automation CRM
+          CRM © {new Date().getFullYear()} — Internal Recruitment Automation Platform
         </footer>
       </div>
 

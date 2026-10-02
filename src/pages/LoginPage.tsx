@@ -123,7 +123,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
           <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-xl shadow-purple-600/20 border border-neutral-200 flex items-center justify-center">
             <img
               src="/placemein-logo.png"
-              alt="Placemein Logo"
+              alt="CRM Logo"
               className="h-10 w-10 object-contain"
               onError={(e) => {
                 const target = e.currentTarget;
@@ -134,7 +134,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
             />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">PLACEMEIN</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">CRM</h1>
             <p className="text-xs sm:text-sm text-neutral-400 font-normal">
               Recruitment Automation & CRA Sourcing CRM
             </p>

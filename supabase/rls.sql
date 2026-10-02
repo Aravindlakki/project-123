@@ -1,5 +1,5 @@
 -- ==============================================================================
--- PLACEMEIN CRA CRM - ROW LEVEL SECURITY POLICIES & SECURITY TRIGGERS (rls.sql)
+-- CRM - ROW LEVEL SECURITY POLICIES & SECURITY TRIGGERS (rls.sql)
 -- Run this SECOND in your Supabase SQL Editor after schema.sql.
 -- ==============================================================================
 

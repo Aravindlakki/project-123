@@ -50,6 +50,12 @@ export interface HRContact {
   spoc?: string;
   proof_screenshot_url?: string;
   proof_screenshot_uploaded_at?: string;
+
+  // My Worksheet response tracking (Part A)
+  response_status?: 'no_response_yet' | 'replied_interested' | 'replied_asked_jd' | 'replied_not_interested' | 'call_scheduled' | 'wrong_contact';
+  response_note?: string;
+  responded_at?: string;
+
   company?: Company;
   creator?: CRA;
 }

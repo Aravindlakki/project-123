@@ -13,7 +13,17 @@ export type HRSourcingStatus =
   | 'Follow-up'
   | 'JD Submitted';
 
+/** My Worksheet response dropdown values (Part A). Backed by contacts.response_status. */
+export type LeadResponseStatus =
+  | 'no_response_yet'
+  | 'replied_interested'
+  | 'replied_asked_jd'
+  | 'replied_not_interested'
+  | 'call_scheduled'
+  | 'wrong_contact';
+
 export * from './attendance';
+export * from './pipeline';
 
 export interface CRA {
   id: string;
@@ -77,6 +87,18 @@ export interface HRContact {
   hr_linkedin?: string;
   proof_screenshot_url?: string;
   proof_screenshot_uploaded_at?: string;
+
+  // My Worksheet response tracking (Part A)
+  response_status?: LeadResponseStatus;
+  response_note?: string;
+  responded_at?: string;
+
+  // Proof of contact — mandatory when a response is logged. Goes to Admin for verification.
+  proof_channel?: 'called' | 'messaged' | 'mailed';
+  proof_verified_status?: 'pending' | 'verified' | 'rejected';
+  proof_verified_by?: string;
+  proof_verified_at?: string;
+  proof_admin_notes?: string;
 }
 
 export interface JD {

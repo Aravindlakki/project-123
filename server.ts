@@ -23,7 +23,7 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'placemein-backend',
+    service: 'crm-backend',
     architecture: 'MVC',
     framework: 'Express + TypeScript',
     timestamp: new Date().toISOString(),
@@ -32,7 +32,7 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api', (req, res) => {
   res.json({
-    name: 'PLACEMEIN CRA Outreach Backend API',
+    name: 'CRM Recruitment Suite Backend API',
     status: 'online',
     version: '1.0.0',
     docs: 'Available routes mounted under /api/v1',
@@ -73,7 +73,7 @@ async function startServer() {
       } else {
         res.json({
           status: 'ok',
-          service: 'placemein-backend',
+          service: 'crm-backend',
           message: 'Backend API is running. Frontend build in dist/',
         });
       }
@@ -81,7 +81,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Placemein CRA Backend] MVC Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[CRM CRA Backend] MVC Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

@@ -1,4 +1,4 @@
-# PLACEMEIN CRM - Deployment Guide
+# CRM — Deployment Guide
 
 This project is configured to deploy with **Vercel** for the Frontend and **Render** for the Backend from your single GitHub repository.
 
@@ -8,9 +8,9 @@ This project is configured to deploy with **Vercel** for the Frontend and **Rend
 
 1. Go to [render.com](https://render.com/) and sign in.
 2. Click **New +** > **Web Service**.
-3. Connect your GitHub repository (`placemein-cra-outreach` or your repo name).
+3. Connect your GitHub repository (`crm` or your repo name).
 4. Configure the settings:
-   - **Name**: `placemein-backend`
+   - **Name**: `crm-backend`
    - **Language**: `Node`
    - **Branch**: `main`
    - **Region**: Any (e.g. *Oregon, US*)
@@ -24,7 +24,7 @@ This project is configured to deploy with **Vercel** for the Frontend and **Rend
    - `FRONTEND_URL` = *(Optional: your Vercel URL once created, e.g. `https://your-frontend.vercel.app`)*
 6. Click **Create Web Service**.
 7. Once deployed, Render will provide your public backend URL, e.g.:
-   `https://placemein-backend.onrender.com`
+   `https://crm-backend.onrender.com`
 
 > **Note**: Test your backend health check by visiting:
 > `https://your-backend.onrender.com/api/health`
@@ -43,7 +43,7 @@ This project is configured to deploy with **Vercel** for the Frontend and **Rend
    - **Output Directory**: `dist`
 5. Under **Environment Variables**, add:
    - **`VITE_API_URL`**: Your Render backend URL from Step 1, e.g.:
-     `https://placemein-backend.onrender.com`
+     `https://crm-backend.onrender.com`
    - **`VITE_BASE_PATH`**: `/`
 6. Click **Deploy**.
 7. Your app is live at `https://your-frontend.vercel.app`!

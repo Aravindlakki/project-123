@@ -467,20 +467,32 @@ export const supabaseDataService = {
     if (updates.domain !== undefined) updatePayload.domain = updates.domain;
     if (updates.location !== undefined) updatePayload.location = updates.location;
     if (effectiveRemarks !== undefined) updatePayload.remarks = effectiveRemarks;
-    if (updates.spoc !== undefined) updatePayload.spoc = updates.spoc;
-    if (updates.entered_by_name !== undefined) updatePayload.entered_by_name = updates.entered_by_name;
+  if (updates.spoc !== undefined) updatePayload.spoc = updates.spoc;
+  if (updates.entered_by_name !== undefined) updatePayload.entered_by_name = updates.entered_by_name;
+  // My Worksheet response tracking (Part A)
+  if (updates.response_status !== undefined) updatePayload.response_status = updates.response_status;
+  if (updates.response_note !== undefined) updatePayload.response_note = updates.response_note;
+  if (updates.responded_at !== undefined) updatePayload.responded_at = updates.responded_at;
+  // Proof-of-contact verification (admin workflow)
+  if (updates.proof_channel !== undefined) updatePayload.proof_channel = updates.proof_channel;
+  if (updates.proof_screenshot_url !== undefined) updatePayload.proof_screenshot_url = updates.proof_screenshot_url;
+  if (updates.proof_screenshot_uploaded_at !== undefined) updatePayload.proof_screenshot_uploaded_at = updates.proof_screenshot_uploaded_at;
+  if (updates.proof_verified_status !== undefined) updatePayload.proof_verified_status = updates.proof_verified_status;
+  if (updates.proof_verified_by !== undefined) updatePayload.proof_verified_by = updates.proof_verified_by;
+  if (updates.proof_verified_at !== undefined) updatePayload.proof_verified_at = updates.proof_verified_at;
+  if (updates.proof_admin_notes !== undefined) updatePayload.proof_admin_notes = updates.proof_admin_notes;
 
     const { data, error } = await supabase
-      .from('contacts')
-      .update(updatePayload)
-      .eq('id', id)
-      .select('*, company:companies(*)')
-      .single();
-
-    if (error) {
-      console.error('[Supabase updateContact error]', error);
-      throw new Error(error.message);
-    }
+      .from('contacts')  .update(updatePayload)
+  .eq('id', id)
+  .select('*, company:companies(*)')
+  .single();
+if (error) {
+  console.error('[Supabase updateContact error]', error);
+  throw new Error(error.message);
+}
+// NOTE (Part A): response_status/response_note/responded_at flow through this same
+// payload; the DB CHECK constraint validates response_status values.
 
     // Keep client fallback store in sync with these updates
     try {
@@ -557,6 +569,9 @@ export const supabaseDataService = {
         created_by: c.created_by,
         proof_screenshot_url: c.proof_screenshot_url,
         proof_screenshot_uploaded_at: c.proof_screenshot_uploaded_at,
+        response_status: c.response_status || 'no_response_yet',
+        response_note: c.response_note || undefined,
+        responded_at: c.responded_at || undefined,
         spoc: c.spoc,
         source: c.source || 'manual',
         created_at: c.created_at,
@@ -642,6 +657,7 @@ export const supabaseDataService = {
         spoc: lead.spoc,
         source: 'manual',
         entered_by_name: lead.entered_by_name,
+        response_status: 'no_response_yet',
         created_at: new Date().toISOString(),
         company,
       };
@@ -731,6 +747,7 @@ export const supabaseDataService = {
 
     if (contactErr) throw new Error(contactErr.message);
 
+    // Legacy behavior kept: a worksheet lead auto-creates a sourcing JD entry.
     try {
       const nextJdId = `JD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       await supabase.from('job_descriptions').insert({
@@ -768,6 +785,7 @@ export const supabaseDataService = {
       notes: lead.notes,
       role_title: lead.role_title || contactData.title,
       lead_source: lead.lead_source || 'Manual',
+      response_status: 'no_response_yet',
       spoc: contactData.spoc,
       source: contactData.source || 'manual',
       created_at: contactData.created_at,
@@ -1101,6 +1119,9 @@ export const supabaseDataService = {
       } catch (e) {
         console.warn('[Storage] Fallback store error:', e);
       }
+      // PIPELINE RULE: submitting a JD via JD Intake moves the sourcing lead
+      // (same company) to the "JD Submitted" stage in the worksheet.
+      this.promoteLeadToJdSubmitted(jd);
       return fallbackJD;
     }
 
@@ -1122,14 +1143,46 @@ export const supabaseDataService = {
       if (error) {
         console.warn('[Supabase] Failed to insert JD into Supabase, saving locally:', error);
         try { clientFallbackStore.saveJD(fallbackJD); } catch (_) {}
+        this.promoteLeadToJdSubmitted(jd);
         return fallbackJD;
       }
       try { clientFallbackStore.saveJD(data); } catch (_) {}
+      this.promoteLeadToJdSubmitted(jd);
       return data;
     } catch (err) {
       console.warn('[Supabase] Exception inserting JD, saving locally:', err);
       try { clientFallbackStore.saveJD(fallbackJD); } catch (_) {}
+      this.promoteLeadToJdSubmitted(jd);
       return fallbackJD;
+    }
+  },
+
+  /**
+   * PIPELINE RULE: when a JD is submitted via JD Intake, the worksheet lead for
+   * the same company advances to the "JD Submitted" stage (status field).
+   */
+  promoteLeadToJdSubmitted(jd: Partial<JD>) {
+    try {
+      if (!jd.company_id && !jd.company_name) return;
+      const contacts = clientFallbackStore.getContacts();
+      const companies = clientFallbackStore.getCompanies();
+      const comp = jd.company_id
+        ? companies.find((c) => c.id === jd.company_id)
+        : companies.find((c) => (c.name || '').toLowerCase() === (jd.company_name || '').toLowerCase());
+      if (!comp) return;
+
+      let changed = false;
+      const updated = contacts.map((c) => {
+        const matchesCompany = c.company_id === comp.id || c.company?.id === comp.id;
+        if (!matchesCompany) return c;
+        // Skip leads already further along or already marked
+        if ((c.status || c.remarks || '') === 'JD Submitted') return c;
+        changed = true;
+        return { ...c, status: 'JD Submitted' };
+      });
+      if (changed) clientFallbackStore.saveContacts(updated);
+    } catch (e) {
+      console.warn('[pipeline] Could not promote lead to JD Submitted:', e);
     }
   },
 

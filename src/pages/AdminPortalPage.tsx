@@ -41,6 +41,19 @@ import {
   Briefcase,
   ExternalLink,
 } from 'lucide-react';
+import {
+  AdminPageHeader,
+  AdminCard,
+  AdminButton,
+  AdminIconButton,
+  AdminModal,
+  AdminLabel,
+  AdminInput,
+  AdminSelect,
+  AdminStatCard,
+  AdminTable,
+  AdminEmptyState,
+} from '../components/admin/ui';
 
 interface AdminPortalPageProps {
   initialTab?: 'users' | 'companies' | 'settings';
@@ -474,53 +487,36 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-900/80 via-amber-950/90 to-gray-950 border border-amber-800/60 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-semibold rounded-full flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
-              Administrative Governance
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Placemein System Administration
-          </h1>
-          <p className="text-amber-200/70 text-sm max-w-2xl">
-            Configure recruitment employee accounts, oversee verified job openings, merge duplicate company records, and manage target benchmarks.
-          </p>
-        </div>
+      {/* Header Banner — shared admin page header */}
+      <AdminPageHeader
+        badge={
+          <span className="admin-badge admin-badge-gold">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Administrative Governance
+          </span>
+        }
+        title="CRM System Administration"
+        subtitle="Configure recruitment employee accounts, oversee verified job openings, merge duplicate company records, and manage target benchmarks."
+        actions={
+          <>
+            {activeTab === 'users' && (
+              <AdminButton onClick={() => setShowAddUserModal(true)}>
+                <Plus className="h-4 w-4" />
+                <span>Add Team Member</span>
+              </AdminButton>
+            )}
+            <AdminIconButton label="Refresh" onClick={loadData}>
+              <RefreshCw className="h-4 w-4" />
+            </AdminIconButton>
+          </>
+        }
+      />
 
-        <div className="flex items-center gap-3">
-          {activeTab === 'users' && (
-            <button
-              onClick={() => setShowAddUserModal(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Team Member</span>
-            </button>
-          )}
-
-          <button
-            onClick={loadData}
-            title="Refresh"
-            className="p-2.5 rounded-xl bg-amber-900/40 hover:bg-amber-800/50 border border-amber-700/60 text-amber-200 hover:text-white transition"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-3 border-b border-amber-800/40 pb-3">
+      {/* Tabs — shared admin tab bar */}
+      <div className="admin-tabs">
         <button
           onClick={() => setActiveTab('users')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === 'users'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-amber-200/80 hover:bg-amber-900/30'
-          }`}
+          className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`}
         >
           <Users className="h-4 w-4" />
           <span>User Management</span>
@@ -528,11 +524,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
         <button
           onClick={() => setActiveTab('companies')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === 'companies'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-amber-200/80 hover:bg-amber-900/30'
-          }`}
+          className={`admin-tab ${activeTab === 'companies' ? 'active' : ''}`}
         >
           <Building2 className="h-4 w-4" />
           <span>Company & JD Oversight</span>
@@ -540,11 +532,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            activeTab === 'settings'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-amber-200/80 hover:bg-amber-900/30'
-          }`}
+          className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`}
         >
           <Settings className="h-4 w-4" />
           <span>System Settings</span>
@@ -555,7 +543,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       {activeTab === 'users' && (
         <div className="space-y-6">
           {/* Canonical Roster Integrity Header Banner */}
-          <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-950/70 via-gray-950 to-purple-950/50 border border-amber-600/40 shadow-xl space-y-4">
+          <AdminCard className="p-5 space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
@@ -563,7 +551,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     <ShieldCheck className="h-5 w-5" />
                   </span>
                   <h3 className="text-base font-black text-white tracking-tight">
-                    Official Placemein Team Roster (8 Canonical Members)
+                    Official CRM Team Roster (8 Canonical Members)
                   </h3>
                 </div>
                 <p className="text-xs text-amber-200/80 mt-1">
@@ -575,8 +563,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 <button
                   type="button"
                   onClick={handleResetToCanonicalRoster}
-                  className="px-3.5 py-2 bg-amber-900/60 hover:bg-amber-800/80 border border-amber-600/60 text-amber-200 hover:text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm"
-                  title="Resets any corrupt cached local state back to the exact 8 canonical Placemein members"
+                  className="admin-btn admin-btn-secondary admin-btn-sm shrink-0"
+                  title="Resets any corrupt cached local state back to the exact 8 canonical CRM members"
                 >
                   <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
                   <span>Sync / Reset 8 Roster</span>
@@ -585,31 +573,16 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
             </div>
 
             {/* Quick Metrics Badges */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">Total Members</div>
-                <div className="text-lg font-black text-white">{users.length} Unique</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">CEO Admin</div>
-                <div className="text-lg font-black text-amber-400">1 (Aravind Reddy)</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider">Admins</div>
-                <div className="text-lg font-black text-indigo-300">2 (Mansi, Vineela)</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50">
-                <div className="text-[10px] uppercase font-bold text-purple-300 tracking-wider">CRA Specialists</div>
-                <div className="text-lg font-black text-purple-300">5 Employees</div>
-              </div>
-              <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-800/50 col-span-2 sm:col-span-1">
-                <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Duplicates</div>
-                <div className="text-lg font-black text-emerald-400">0 (Strictly Deduped)</div>
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              <AdminStatCard label="Total Members" value={`${users.length} Unique`} />
+              <AdminStatCard label="CEO Admin" value="1 (Aravind Reddy)" tone="gold" />
+              <AdminStatCard label="Admins" value="2 (Mansi, Vineela)" tone="info" />
+              <AdminStatCard label="CRA Specialists" value="5 Employees" tone="gold" />
+              <AdminStatCard label="Duplicates" value="0 (Strictly Deduped)" tone="success" className="col-span-2 sm:col-span-1" />
             </div>
-          </div>
+          </AdminCard>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs">
+          <div className="admin-card flex flex-wrap items-center justify-between gap-4 p-4 text-xs">
             <div className="flex items-center gap-2 flex-1 max-w-md">
               <Search className="h-4 w-4 text-amber-400 shrink-0" />
               <input
@@ -628,7 +601,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 <select
                   value={userStatusFilter}
                   onChange={(e) => setUserStatusFilter(e.target.value as any)}
-                  className="bg-amber-950/80 border border-amber-700/60 rounded-xl px-2.5 py-1 text-xs text-white focus:outline-none"
+                  className="admin-select admin-select-inline"
                 >
                   <option value="all">All Members ({users.length})</option>
                   <option value="active">Active Only ({users.filter(u => u.is_active !== false && !u.deleted_at).length})</option>
@@ -648,7 +621,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   setNewUserStatus('active');
                   setShowAddUserModal(true);
                 }}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-lg transition flex items-center gap-1.5 shrink-0"
+                className="admin-btn admin-btn-primary shrink-0"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Team Member</span>
@@ -657,14 +630,13 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
           </div>
 
           {loading ? (
-            <div className="p-12 text-center text-amber-300/60 flex flex-col items-center gap-3">
-              <RefreshCw className="h-6 w-6 animate-spin text-amber-400" />
+            <div className="admin-empty">
+              <RefreshCw className="h-6 w-6 animate-spin" style={{ color: 'var(--admin-primary)' }} />
               <p>Loading users...</p>
             </div>
           ) : (
-            <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl overflow-x-auto">
-              <table className="w-full text-left text-xs text-amber-100">
-                <thead className="bg-amber-900/30 text-amber-300 font-semibold border-b border-amber-800/50">
+            <AdminTable>
+              <thead>
                   <tr>
                     <th className="py-3 px-4">Employee Name</th>
                     <th className="py-3 px-3">Emp ID</th>
@@ -959,8 +931,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     })
                   )}
                 </tbody>
-              </table>
-            </div>
+            </AdminTable>
           )}
         </div>
       )}
@@ -969,7 +940,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
       {activeTab === 'companies' && (
         <div className="space-y-8">
           {/* Section A: Job Descriptions & Admin Eligibility Oversight (JD-ID) */}
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-6">
+          <AdminCard className="space-y-6 p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-black text-white flex items-center gap-2.5">
@@ -1032,7 +1003,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   value={jdSearch}
                   onChange={(e) => setJdSearch(e.target.value)}
                   placeholder="Search by JD-ID, role, company, or HR name..."
-                  className="w-full bg-amber-950/60 border border-amber-700/60 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-amber-300/40 focus:outline-none focus:border-amber-400"
+                  className="admin-input admin-input-has-icon"
                 />
               </div>
 
@@ -1092,11 +1063,11 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
             {/* List of JDs */}
             {allJDs.length === 0 ? (
-              <div className="p-8 text-center text-xs text-amber-300/70 space-y-2 bg-amber-950/20 rounded-2xl border border-amber-800/30">
-                <FileCheck className="h-8 w-8 mx-auto text-amber-400 opacity-60" />
-                <p className="font-bold text-white">No job descriptions found</p>
-                <p>JDs uploaded through the JD Intake page will be recorded here with official JD-IDs.</p>
-              </div>
+              <AdminEmptyState
+                icon={<FileCheck className="h-8 w-8 opacity-60" style={{ color: 'var(--admin-primary)' }} />}
+                title="No job descriptions found"
+                message="JDs uploaded through the JD Intake page will be recorded here with official JD-IDs."
+              />
             ) : (
               <div className="space-y-3.5">
                 {allJDs
@@ -1264,7 +1235,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenJdReview(jd)}
-                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-amber-950/40"
+                            className="admin-btn admin-btn-primary admin-btn-sm"
                           >
                             <Sliders className="h-3.5 w-3.5" />
                             <span>Admin Review & Decision</span>
@@ -1310,10 +1281,10 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   })}
               </div>
             )}
-          </div>
+          </AdminCard>
 
           {/* Section B: Company Merge Tool */}
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-4">
+          <AdminCard className="space-y-4 p-6">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Database className="h-5 w-5 text-amber-400" />
@@ -1326,13 +1297,13 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
             <form onSubmit={handleMergeCompanies} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs items-end">
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
+                <label className="admin-label">
                   Source Company (Will be merged & removed) *
                 </label>
                 <select
                   value={sourceCompanyId}
                   onChange={(e) => setSourceCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none"
+                  className="admin-select"
                 >
                   <option value="">Select duplicate company...</option>
                   {companies.map((c) => (
@@ -1344,13 +1315,13 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
               </div>
 
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
+                <label className="admin-label">
                   Target Company (Primary record to keep) *
                 </label>
                 <select
                   value={targetCompanyId}
                   onChange={(e) => setTargetCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none"
+                  className="admin-select"
                 >
                   <option value="">Select primary company...</option>
                   {companies.map((c) => (
@@ -1362,24 +1333,24 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
               </div>
 
               <div>
-                <button
+                <AdminButton
                   type="submit"
                   disabled={isMerging || !sourceCompanyId || !targetCompanyId}
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"
+                  className="w-full"
                 >
                   <ArrowRight className="h-4 w-4" />
                   {isMerging ? 'Merging...' : 'Merge Companies'}
-                </button>
+                </AdminButton>
               </div>
             </form>
-          </div>
+          </AdminCard>
         </div>
       )}
 
       {/* TAB 3: SYSTEM SETTINGS */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-6">
+          <AdminCard className="space-y-6 p-6">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Sliders className="h-5 w-5 text-amber-400" />
@@ -1392,7 +1363,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
             <form onSubmit={handleSaveSettings} className="space-y-4 max-w-md text-xs">
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
+                <label className="admin-label">
                   Default Monthly Verified JD Target (per CRA)
                 </label>
                 <input
@@ -1401,22 +1372,21 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   max="200"
                   value={defaultTarget}
                   onChange={(e) => setDefaultTarget(parseInt(e.target.value) || 1)}
-                  className="w-full px-3.5 py-2.5 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="admin-input"
                 />
               </div>
 
-              <button
+              <AdminButton
                 type="submit"
                 disabled={isSavingSettings}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg transition"
               >
                 {isSavingSettings ? 'Saving...' : 'Update Benchmark'}
-              </button>
+              </AdminButton>
             </form>
-          </div>
+          </AdminCard>
 
           {/* TASK SNOOZE DURATION CONFIGURATION */}
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-6">
+          <AdminCard className="space-y-6 p-6">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Clock className="h-5 w-5 text-amber-400" />
@@ -1429,7 +1399,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
             <form onSubmit={handleSaveSnoozeDuration} className="space-y-4 max-w-md text-xs">
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
+                <label className="admin-label">
                   Default Snooze Interval (Minutes)
                 </label>
                 <div className="flex items-center gap-2">
@@ -1439,7 +1409,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     max="1440"
                     value={snoozeDuration}
                     onChange={(e) => setSnoozeDuration(parseInt(e.target.value) || 60)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/60 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-input"
                   />
                   <span className="text-amber-200/70 whitespace-nowrap font-medium">
                     ({Math.round(snoozeDuration / 60 * 10) / 10} hours)
@@ -1466,18 +1436,17 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 ))}
               </div>
 
-              <button
+              <AdminButton
                 type="submit"
                 disabled={isSavingSnooze}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg transition flex items-center gap-2"
               >
                 <Clock className="h-4 w-4" />
                 <span>{isSavingSnooze ? 'Saving...' : 'Update Snooze Duration'}</span>
-              </button>
+              </AdminButton>
             </form>
-          </div>
+          </AdminCard>
 
-          <div className="p-6 rounded-3xl bg-amber-950/30 border border-amber-800/40 shadow-xl space-y-4">
+          <AdminCard className="space-y-4 p-6">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-amber-400" />
@@ -1525,62 +1494,46 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 <p className="text-[11px] text-amber-200/60">Phone strictly empty for manual verification</p>
               </div>
             </div>
-          </div>
+          </AdminCard>
         </div>
       )}
 
-      {/* MERGE CONFIRMATION MODAL */}
+      {/* MERGE CONFIRMATION MODAL — shared admin modal */}
       {showMergeConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-gray-950 border border-amber-800/70 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-amber-300">
-              <AlertTriangle className="h-6 w-6 text-amber-400 shrink-0" />
-              <h3 className="text-base font-bold text-white">Confirm Company Merge</h3>
-            </div>
+        <AdminModal
+          isOpen={true}
+          onClose={() => setShowMergeConfirmModal(false)}
+          title="Confirm Company Merge"
+          icon={<AlertTriangle className="h-5 w-5" style={{ color: 'var(--admin-warning)' }} />}
+          maxWidth={28}
+        >
+          <div className="space-y-4">
             <p className="text-xs text-gray-300 leading-relaxed">
               Are you sure you want to merge these companies? All contacts, JDs, and outreach history from the duplicate company will be safely reassigned to the primary company.
             </p>
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-amber-800/40">
-              <button
-                type="button"
-                onClick={() => setShowMergeConfirmModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white"
-              >
+              <AdminButton variant="ghost" onClick={() => setShowMergeConfirmModal(false)}>
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={executeMerge}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-lg transition"
-              >
-                Confirm Merge
-              </button>
+              </AdminButton>
+              <AdminButton onClick={executeMerge}>Confirm Merge</AdminButton>
             </div>
           </div>
-        </div>
+        </AdminModal>
       )}
 
-      {/* CREATE USER MODAL */}
+      {/* CREATE USER MODAL — shared admin modal */}
       {showAddUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl bg-gray-950 border border-amber-800/70 p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-amber-800/40 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Users className="h-5 w-5 text-amber-400" />
-                Add New Placemein Team Member
-              </h3>
-              <button
-                onClick={() => setShowAddUserModal(false)}
-                className="p-1 text-gray-400 hover:text-white rounded-lg"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
+        <AdminModal
+          isOpen={true}
+          onClose={() => setShowAddUserModal(false)}
+          title="Add New CRM Team Member"
+          icon={<Users className="h-5 w-5" style={{ color: 'var(--admin-primary)' }} />}
+          maxWidth={32}
+        >
+          <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
+                  <label className="admin-label">
                     Full Name *
                   </label>
                   <input
@@ -1589,12 +1542,12 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     placeholder="e.g., Aravind Reddy"
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
+                  <label className="admin-label">
                     Employee ID
                   </label>
                   <input
@@ -1602,13 +1555,13 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     placeholder="e.g., PMI-004"
                     value={newUserEmpId}
                     onChange={(e) => setNewUserEmpId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-input"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
+                <label className="admin-label">
                   Email Address *
                 </label>
                 <input
@@ -1623,7 +1576,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
+                  <label className="admin-label">
                     Specialization Domain *
                   </label>
                   <input
@@ -1632,12 +1585,12 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     placeholder="e.g. Cyber Security & IT Services"
                     value={newUserDomain}
                     onChange={(e) => setNewUserDomain(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
+                  <label className="admin-label">
                     Designation
                   </label>
                   <input
@@ -1645,13 +1598,13 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     placeholder="e.g. CRA Specialist"
                     value={newUserDesignation}
                     onChange={(e) => setNewUserDesignation(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white placeholder-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-input"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-amber-200 font-semibold mb-1">
+                <label className="admin-label">
                   Temporary Password *
                 </label>
                 <input
@@ -1666,13 +1619,13 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
+                  <label className="admin-label">
                     System Role *
                   </label>
                   <select
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-select"
                   >
                     <option value="cra">CRA (Recruitment Specialist)</option>
                     <option value="admin">System Administrator</option>
@@ -1680,7 +1633,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
+                  <label className="admin-label">
                     Monthly JD Target
                   </label>
                   <input
@@ -1688,18 +1641,18 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     min="1"
                     value={newUserTarget}
                     onChange={(e) => setNewUserTarget(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-amber-200 font-semibold mb-1">
+                  <label className="admin-label">
                     Initial Status *
                   </label>
                   <select
                     value={newUserStatus}
                     onChange={(e) => setNewUserStatus(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-amber-950/50 border border-amber-700/60 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="admin-select"
                   >
                     <option value="active">Active (Assignable)</option>
                     <option value="inactive">Inactive (Excluded)</option>
@@ -1708,35 +1661,27 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-amber-800/40">
-                <button
-                  type="button"
-                  onClick={() => setShowAddUserModal(false)}
-                  className="px-4 py-2 rounded-xl text-gray-300 hover:text-white"
-                >
+                <AdminButton variant="ghost" onClick={() => setShowAddUserModal(false)}>
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingUser}
-                  className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-lg transition"
-                >
+                </AdminButton>
+                <AdminButton type="submit" disabled={isSubmittingUser}>
                   {isSubmittingUser ? 'Creating...' : 'Create Account'}
-                </button>
+                </AdminButton>
               </div>
             </form>
-          </div>
-        </div>
+        </AdminModal>
       )}
 
-      {/* SOFT-DELETE USER CONFIRMATION MODAL */}
+      {/* SOFT-DELETE USER CONFIRMATION MODAL — shared admin modal */}
       {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-3xl bg-gray-950 border border-rose-800/80 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-400">
-              <AlertTriangle className="h-6 w-6 text-rose-400 shrink-0" />
-              <h3 className="text-base font-bold text-white">Soft-Delete Team Member</h3>
-            </div>
-
+        <AdminModal
+          isOpen={true}
+          onClose={() => setUserToDelete(null)}
+          title="Soft-Delete Team Member"
+          icon={<AlertTriangle className="h-5 w-5" style={{ color: 'var(--admin-danger)' }} />}
+          maxWidth={28}
+        >
+          <div className="space-y-4">
             <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-800/50 space-y-1 text-xs">
               <div className="font-bold text-white text-sm">{userToDelete.name}</div>
               <div className="text-rose-300/80">{userToDelete.email}</div>
@@ -1748,67 +1693,40 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-rose-800/40">
-              <button
-                type="button"
-                onClick={() => setUserToDelete(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white"
-              >
+              <AdminButton variant="ghost" onClick={() => setUserToDelete(null)}>
                 Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isDeletingUser}
-                onClick={handleSoftDeleteUser}
-                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
-              >
+              </AdminButton>
+              <AdminButton variant="danger" disabled={isDeletingUser} onClick={handleSoftDeleteUser}>
                 <Trash2 className="h-4 w-4" />
                 <span>{isDeletingUser ? 'Deleting...' : 'Confirm Soft-Delete'}</span>
-              </button>
+              </AdminButton>
             </div>
           </div>
-        </div>
+        </AdminModal>
       )}
 
-      {/* ADMIN JD REVIEW, ELIGIBILITY & INTERVIEW OVERSIGHT MODAL */}
+      {/* ADMIN JD REVIEW, ELIGIBILITY & INTERVIEW OVERSIGHT MODAL — shared admin modal */}
       {isReviewModalOpen && selectedJdForReview && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
-          onClick={() => setIsReviewModalOpen(false)}
+        <AdminModal
+          isOpen={true}
+          onClose={() => setIsReviewModalOpen(false)}
+          maxWidth={42}
+          title={selectedJdForReview.title}
+          subtitle={
+            <span className="flex items-center gap-2 flex-wrap">
+              <span className="admin-badge admin-badge-gold" style={{ fontFamily: 'monospace' }}>
+                {selectedJdForReview.jd_id || 'JD-RECORD'}
+              </span>
+              <Building2 className="h-3.5 w-3.5" style={{ color: 'var(--admin-primary)' }} />
+              <span>{selectedJdForReview.company?.name || 'Company Profile'}</span>
+              <span>·</span>
+              <span className="capitalize">
+                {selectedJdForReview.opportunity_type?.replace('_', ' ') || 'Existing Post'}
+              </span>
+            </span>
+          }
         >
-          <div
-            className="w-full max-w-2xl rounded-3xl bg-gray-900 border border-amber-500/50 shadow-2xl p-6 sm:p-7 space-y-6 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-amber-800/40 pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-mono font-black">
-                    {selectedJdForReview.jd_id || 'JD-RECORD'}
-                  </span>
-                  <span className="text-xs text-amber-200/60 font-semibold">
-                    Admin Eligibility Oversight
-                  </span>
-                </div>
-                <h3 className="text-lg font-black text-white">{selectedJdForReview.title}</h3>
-                <p className="text-xs text-purple-300 font-semibold flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5 text-purple-400" />
-                  <span>{selectedJdForReview.company?.name || 'Company Profile'}</span>
-                  <span className="text-gray-500">·</span>
-                  <span className="text-gray-400 font-normal capitalize">
-                    {selectedJdForReview.opportunity_type?.replace('_', ' ') || 'Existing Post'}
-                  </span>
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsReviewModalOpen(false)}
-                className="p-1.5 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+          <div className="space-y-6">
 
             {/* Section 1: Mandatory HR Details (Required when JD is received) */}
             <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-700/50 space-y-2.5">
@@ -1942,7 +1860,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   value={reviewEligibilityNotes}
                   onChange={(e) => setReviewEligibilityNotes(e.target.value)}
                   placeholder="e.g. Approved: Matches 2026 Batch criteria, package meets benchmark..."
-                  className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400"
+                  className="admin-input"
                 />
               </div>
             </div>
@@ -1962,7 +1880,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   <select
                     value={reviewInterviewScheduled}
                     onChange={(e: any) => setReviewInterviewScheduled(e.target.value)}
-                    className="w-full bg-gray-950 border border-indigo-700/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    className="admin-input"
                   >
                     <option value="pending">Pending HR Confirmation</option>
                     <option value="yes">Yes — Interview Scheduled</option>
@@ -1979,7 +1897,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     type="datetime-local"
                     value={reviewInterviewDate}
                     onChange={(e) => setReviewInterviewDate(e.target.value)}
-                    className="w-full bg-gray-950 border border-indigo-700/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    className="admin-input"
                   />
                 </div>
 
@@ -1992,7 +1910,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     value={reviewInterviewRound}
                     onChange={(e) => setReviewInterviewRound(e.target.value)}
                     placeholder="e.g. Technical Round 1, Managerial Round, HR Round"
-                    className="w-full bg-gray-950 border border-indigo-700/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    className="admin-input"
                   />
                 </div>
 
@@ -2005,7 +1923,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     value={reviewInterviewNotes}
                     onChange={(e) => setReviewInterviewNotes(e.target.value)}
                     placeholder="e.g. Google Meet link, Bangalore Office, Zoom"
-                    className="w-full bg-gray-950 border border-indigo-700/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                    className="admin-input"
                   />
                 </div>
               </div>
@@ -2026,7 +1944,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   <select
                     value={reviewHRFeedbackStatus}
                     onChange={(e: any) => setReviewHRFeedbackStatus(e.target.value)}
-                    className="w-full bg-gray-950 border border-amber-700/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                    className="admin-input"
                   >
                     <option value="awaiting">Awaiting Feedback from HR</option>
                     <option value="received">Feedback Received</option>
@@ -2041,7 +1959,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                     type="date"
                     value={reviewHRFeedbackDate}
                     onChange={(e) => setReviewHRFeedbackDate(e.target.value)}
-                    className="w-full bg-gray-950 border border-amber-700/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                    className="admin-input"
                   />
                 </div>
               </div>
@@ -2055,45 +1973,37 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   value={reviewHRFeedbackNotes}
                   onChange={(e) => setReviewHRFeedbackNotes(e.target.value)}
                   placeholder="e.g. HR verified JD and requested candidate resumes for 1st round shortlisting..."
-                  className="w-full bg-gray-950 border border-amber-700/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  className="admin-input"
                 />
               </div>
             </div>
 
             {/* Modal Footer */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-amber-800/40">
-              <button
-                type="button"
+              <AdminButton
+                variant="danger"
+                size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => handleDeleteJD(selectedJdForReview)}
-                className="w-full sm:w-auto px-4 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
                 title="Permanently remove JD as Administrator"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>Delete JD Record</span>
-              </button>
+              </AdminButton>
 
               <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setIsReviewModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition"
-                >
+                <AdminButton variant="ghost" onClick={() => setIsReviewModalOpen(false)}>
                   Cancel
-                </button>
+                </AdminButton>
 
-                <button
-                  type="button"
-                  disabled={isSavingReview}
-                  onClick={handleSaveJdReview}
-                  className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
-                >
+                <AdminButton disabled={isSavingReview} onClick={handleSaveJdReview}>
                   <Check className="h-4 w-4" />
                   <span>{isSavingReview ? 'Saving...' : 'Save Decision & Schedule'}</span>
-                </button>
+                </AdminButton>
               </div>
             </div>
           </div>
-        </div>
+        </AdminModal>
       )}
     </div>
   );

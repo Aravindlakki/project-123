@@ -1,5 +1,5 @@
 -- ==============================================================================
--- PLACEMEIN CRM - DAILY WORKSHEETS & PERMISSIONS MIGRATION
+-- CRM - DAILY WORKSHEETS & PERMISSIONS MIGRATION
 -- File: supabase/migrations/20260929_daily_sheets_and_permissions.sql
 -- Run this in your Supabase SQL Editor.
 -- ==============================================================================

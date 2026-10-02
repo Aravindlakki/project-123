@@ -33,20 +33,20 @@ serve(async (req) => {
     const apiKey = Deno.env.get('GEMINI_API_KEY')
     if (!apiKey) throw new Error('Missing GEMINI_API_KEY')
 
-    const promptText = `You are a Corporate Relations Associate (CRA) at Placemein, an Indian recruitment and student talent placement partnership organization. Draft a short, professional, non-spammy outreach campaign message for Contact: ${contact_name}, Company: ${company_name}, Channel: ${channel}. Focus: Campaign-based placement partnerships for pre-assessed graduating talent in Full-Stack, AI, and Cybersecurity.`;
+    const promptText = `You are a Corporate Relations Associate (CRA) at CRM, an Indian recruitment and student talent placement partnership organization. Draft a short, professional, non-spammy outreach campaign message for Contact: ${contact_name}, Company: ${company_name}, Channel: ${channel}. Focus: Campaign-based placement partnerships for pre-assessed graduating talent in Full-Stack, AI, and Cybersecurity.`;
 
     const { text } = await callGemini(promptText, apiKey);
     
     let draft_message = text;
     if (!draft_message) {
         if (channel === 'call') {
-            draft_message = `Hi ${contact_name}, I'm calling from Placemein...`;
+            draft_message = `Hi ${contact_name}, I'm calling from CRM...`;
         } else if (channel === 'linkedin') {
             draft_message = `Hi ${contact_name}, would love to connect to discuss placement partnerships...`;
         } else if (channel === 'whatsapp' || channel === 'text') {
-            draft_message = `Hi ${contact_name}, this is Placemein reaching out about hiring fresh talent...`;
+            draft_message = `Hi ${contact_name}, this is CRM reaching out about hiring fresh talent...`;
         } else {
-            draft_message = `Subject: Placement Partnership\n\nHi ${contact_name},\n\nI'm reaching out from Placemein...`;
+            draft_message = `Subject: Placement Partnership\n\nHi ${contact_name},\n\nI'm reaching out from CRM...`;
         }
     }
 

@@ -1,5 +1,5 @@
 -- ==============================================================================
--- PLACEMEIN CRA CRM - SEED DATA (seed.sql)
+-- CRM - SEED DATA (seed.sql)
 -- Run this THIRD in your Supabase SQL Editor.
 -- ==============================================================================
 

@@ -463,7 +463,7 @@ Entered by: Aravind Reddy`}
         {/* Modal Footer */}
         {!successResult && (
           <div className="p-4 border-t border-gray-800 bg-gray-900/90 flex items-center justify-between text-xs text-gray-400">
-            <span>Powered by Placemein Intelligent Document Parser</span>
+            <span>Powered by CRM Intelligent Document Parser</span>
             <button
               onClick={onClose}
               className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition"
