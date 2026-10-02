@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { CRA } from '../../types';
 import { isSupabaseConfigured } from '../../services/supabase';
+import { clientFallbackStore } from '../../services/supabaseDataService';
 
 export interface AdminNavItem {
   id: string;
@@ -61,6 +62,26 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingProofsCount, setPendingProofsCount] = useState<number>(0);
+
+  useEffect(() => {
+    const updatePendingCount = () => {
+      try {
+        const contacts = clientFallbackStore.getContacts();
+        const pending = contacts.filter((c) => Boolean(c.proof_screenshot_url) && (c.proof_verified_status || 'pending') === 'pending').length;
+        setPendingProofsCount(pending);
+      } catch (_) {}
+    };
+
+    updatePendingCount();
+    window.addEventListener('proof_verification_updated', updatePendingCount);
+    window.addEventListener('worksheet_proof_updated', updatePendingCount);
+
+    return () => {
+      window.removeEventListener('proof_verification_updated', updatePendingCount);
+      window.removeEventListener('worksheet_proof_updated', updatePendingCount);
+    };
+  }, []);
 
   const getHeading = (): string => {
     const item = ADMIN_NAV_ITEMS.find((n) => n.id === activeTab);
@@ -200,7 +221,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 {!collapsed && (
                   <span className="truncate flex-1 flex items-center justify-between">
                     <span>{item.label}</span>
-                    {item.tag && (
+                    {item.id === 'proof-review' && pendingProofsCount > 0 ? (
+                      <span
+                        className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                          isActive
+                            ? 'bg-[#070c16] text-amber-400'
+                            : 'bg-amber-500 text-gray-950 shadow-sm animate-pulse'
+                        }`}
+                      >
+                        {pendingProofsCount} New
+                      </span>
+                    ) : item.tag ? (
                       <span
                         className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-mono ${
                           isActive
@@ -210,8 +241,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                       >
                         {item.tag}
                       </span>
-                    )}
+                    ) : null}
                   </span>
+                )}
+                {collapsed && item.id === 'proof-review' && pendingProofsCount > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-2 right-2 animate-ping" />
                 )}
               </button>
             );

@@ -57,14 +57,30 @@ export const ProofReviewModal: React.FC<ProofReviewModalProps> = ({
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handleConfirmAllChecklist = () => {
+    setChecklist({
+      authentic: true,
+      detailsMatch: true,
+      timestampPlausible: true,
+      responseMatches: true,
+    });
+  };
+
   const confirmedCount = Object.values(checklist).filter(Boolean).length;
   const allConfirmed = confirmedCount === 4;
 
   const handleVerify = async () => {
-    if (!allConfirmed || isSubmitting) return;
+    if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await onDecision('verified', verifyNotes.trim() || undefined);
+      // Auto-confirm checklist when approved
+      setChecklist({
+        authentic: true,
+        detailsMatch: true,
+        timestampPlausible: true,
+        responseMatches: true,
+      });
+      await onDecision('verified', verifyNotes.trim() || 'Verified by Admin Leadership');
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -236,15 +252,26 @@ export const ProofReviewModal: React.FC<ProofReviewModalProps> = ({
               <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
                 4-Point Verification Checklist
               </span>
-              <span
-                className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-                  allConfirmed
-                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40'
-                    : 'bg-gray-800 text-amber-300 border-amber-700/40'
-                }`}
-              >
-                {confirmedCount}/4 confirmed
-              </span>
+              <div className="flex items-center gap-2">
+                {!allConfirmed && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmAllChecklist}
+                    className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition cursor-pointer"
+                  >
+                    Confirm All 4 Points
+                  </button>
+                )}
+                <span
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                    allConfirmed
+                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40'
+                      : 'bg-gray-800 text-amber-300 border-amber-700/40'
+                  }`}
+                >
+                  {confirmedCount}/4 confirmed
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -370,15 +397,15 @@ export const ProofReviewModal: React.FC<ProofReviewModalProps> = ({
               <button
                 type="button"
                 onClick={handleVerify}
-                disabled={!allConfirmed || isSubmitting}
+                disabled={isSubmitting}
                 className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg ${
-                  allConfirmed && !isSubmitting
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-emerald-900/40'
+                  !isSubmitting
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-emerald-900/40 active:scale-[0.98]'
                     : 'bg-emerald-950/60 text-emerald-500/50 border border-emerald-900/50 cursor-not-allowed'
                 }`}
               >
-                <Check className="h-4 w-4" />
-                <span>✓ Verify Lead — It Counts</span>
+                <Check className="h-4 w-4 stroke-[3]" />
+                <span>{isSubmitting ? 'Verifying...' : '✓ Verify & Approve Lead — It Counts'}</span>
               </button>
             </div>
 

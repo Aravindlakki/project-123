@@ -82,6 +82,7 @@ export interface TeamSheetsPageProps {
   initialSpoc?: string;
   currentUser?: any;
   adminMode?: boolean;
+  setActiveTab?: (tab: string) => void;
 }
 
 export interface PreparedWorksheetLead {
@@ -180,6 +181,7 @@ async function compressScreenshot(file: File): Promise<string> {
 export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   currentUser,
   adminMode = false,
+  setActiveTab,
 }) => {
   const [leads, setLeads] = useState<HRContact[]>([]);
   const allContactsRef = useRef<HRContact[]>([]);
@@ -313,6 +315,47 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
 
   useEffect(() => {
     fetchLeads();
+
+    // Listen for proof verification events from Admin Proof Review Hub
+    const handleProofVerification = (e: any) => {
+      const detail = e?.detail;
+      if (detail?.leadId && detail?.status) {
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === detail.leadId
+              ? {
+                  ...l,
+                  proof_verified_status: detail.status,
+                  ...(detail.status === 'rejected'
+                    ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any }
+                    : {}),
+                }
+              : l
+          )
+        );
+        allContactsRef.current = allContactsRef.current.map((l) =>
+          l.id === detail.leadId
+            ? {
+                ...l,
+                proof_verified_status: detail.status,
+                ...(detail.status === 'rejected'
+                  ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any }
+                  : {}),
+              }
+            : l
+        );
+      } else {
+        fetchLeads();
+      }
+    };
+
+    window.addEventListener('proof_verification_updated', handleProofVerification);
+    window.addEventListener('worksheet_proof_updated', handleProofVerification);
+
+    return () => {
+      window.removeEventListener('proof_verification_updated', handleProofVerification);
+      window.removeEventListener('worksheet_proof_updated', handleProofVerification);
+    };
   }, [currentUser?.id, adminMode]);
 
   // Response handler with mandatory proof rule
@@ -375,6 +418,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       await api.updateContact(proofModalLead.id, updates);
       setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
       allContactsRef.current = allContactsRef.current.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId: proofModalLead.id } }));
       showToast('Proof uploaded & sent to Admin for verification');
       setProofModalLead(null);
       setProofModalResponse(null);
@@ -432,6 +476,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       await api.updateContact(leadId, updates);
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updates } : l)));
       allContactsRef.current = allContactsRef.current.map((l) => (l.id === leadId ? { ...l, ...updates } : l));
+      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId, status: decision } }));
       if (decision === 'verified') {
         showToast('Proof verified — lead now counts', 'success');
       } else {
@@ -1011,21 +1056,49 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                 </span>
               </div>
               <div className="text-xs text-slate-300">
-                Outreach proofs were submitted by team members. Click on any &ldquo;Under Review&rdquo; proof thumbnail below to audit the evidence.
+                Outreach proofs were submitted by team members. Review or instantly approve them for the CRM directory.
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              const pendingLead = leads.find((l) => l.proof_verified_status === 'pending' && l.proof_screenshot_url);
-              if (pendingLead) setReviewModalLead(pendingLead);
-            }}
-            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5 shrink-0"
-          >
-            <ShieldCheck className="h-4 w-4" />
-            <span>Review Proof</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                const pendingLead = leads.find((l) => (l.proof_verified_status || 'pending') === 'pending' && l.proof_screenshot_url);
+                if (pendingLead) {
+                  await reviewLeadProof(pendingLead.id, 'verified', 'Approved from worksheet banner');
+                }
+              }}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
+            >
+              <Check className="h-4 w-4 stroke-[3]" />
+              <span>Quick Approve Next</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const pendingLead = leads.find((l) => (l.proof_verified_status || 'pending') === 'pending' && l.proof_screenshot_url);
+                if (pendingLead) setReviewModalLead(pendingLead);
+              }}
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Audit Proof</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (setActiveTab) {
+                  setActiveTab('proof-review');
+                } else {
+                  window.location.hash = '/admin/proof-review';
+                }
+              }}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-slate-700 transition cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Review Hub ({pendingVerificationCount})</span>
+            </button>
+          </div>
         </div>
       )}
 

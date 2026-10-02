@@ -10,6 +10,7 @@ import { PerformancePage } from './pages/PerformancePage';
 import { TaskManagementPage } from './pages/TaskManagementPage';
 import { AdminPortalPage } from './pages/AdminPortalPage';
 import { TeamSheetsPage } from './pages/TeamSheetsPage';
+import { ProofReviewPage } from './pages/ProofReviewPage';
 import { TeamLeadDashboardPage } from './pages/TeamLeadDashboardPage';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { SystemReportModal } from './components/SystemReportModal';
@@ -301,7 +302,7 @@ export const App: React.FC = () => {
         {activeTab === 'admin-performance' && <PerformancePage />}
         {activeTab === 'jd-bank-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
         {activeTab === 'jd-bank-non-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
-        {activeTab === 'proof-review' && <TeamSheetsPage currentUser={currentUser} adminMode={true} />}
+        {activeTab === 'proof-review' && <ProofReviewPage currentUser={currentUser} setActiveTab={navigate} />}
 
         {/* Fallback if an unmatched admin tab is encountered */}
         {!['admin-users', 'admin-companies', 'admin-settings', 'admin-jd-list', 'admin-team-lead-dashboard', 'admin-sheets', 'admin-worksheets', 'sheets', 'admin-tasks', 'admin-performance', 'jd-bank-tech', 'jd-bank-non-tech', 'proof-review'].includes(activeTab) && (
