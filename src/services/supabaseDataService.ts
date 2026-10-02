@@ -1,9 +1,10 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { clientFallbackStore } from './clientFallbackStore';
+import { proofStore } from './proofStore';
 
 // Re-exported so pages/components (e.g. admin proof review) can read local fallback data
 // through the data-service module without a second import path.
-export { clientFallbackStore };
+export { clientFallbackStore, proofStore };
 
 import { 
   Company, 
@@ -286,10 +287,10 @@ export const supabaseDataService = {
       if (error) throw error;
       if (!data || data.length === 0) {
         const fallback = clientFallbackStore.getContacts();
-        return companyId ? fallback.filter((c) => c.company_id === companyId) : fallback;
+        return companyId ? proofStore.mergeContacts(fallback.filter((c) => c.company_id === companyId)) : proofStore.mergeContacts(fallback);
       }
 
-      return data.map((c: any) => ({
+      const res = data.map((c: any) => ({
         id: c.id,
         company_id: c.company_id,
         name: c.name,
@@ -316,17 +317,20 @@ export const supabaseDataService = {
         proof_verified_at: c.proof_verified_at || undefined,
         proof_admin_notes: c.proof_admin_notes || undefined,
       }));
+      return proofStore.mergeContacts(res);
     } catch (err) {
       console.warn('[Supabase] Failed to fetch contacts, using fallback:', err);
       const contacts = clientFallbackStore.getContacts();
-      return companyId ? contacts.filter((c) => c.company_id === companyId) : contacts;
+      const filtered = companyId ? contacts.filter((c) => c.company_id === companyId) : contacts;
+      return proofStore.mergeContacts(filtered);
     }
   },
 
   async getContactById(contactId: string): Promise<HRContact | null> {
     if (!isSupabaseConfigured) {
       const contacts = clientFallbackStore.getContacts();
-      return contacts.find((c) => c.id === contactId) || null;
+      const found = contacts.find((c) => c.id === contactId) || null;
+      return found ? proofStore.mergeContact(found) : null;
     }
 
     try {
@@ -340,7 +344,7 @@ export const supabaseDataService = {
         .maybeSingle();
 
       if (error || !data) return null;
-      return {
+      return proofStore.mergeContact({
         id: data.id,
         company_id: data.company_id,
         name: data.name,
@@ -366,7 +370,7 @@ export const supabaseDataService = {
         proof_verified_by: data.proof_verified_by || undefined,
         proof_verified_at: data.proof_verified_at || undefined,
         proof_admin_notes: data.proof_admin_notes || undefined,
-      };
+      });
     } catch (_) {
       return null;
     }
@@ -602,11 +606,25 @@ export const supabaseDataService = {
       break;
     }
 
-    // Keep client fallback store in sync with all updates (preserving local proof fields even if DB schema hasn't added them yet)
+    // Keep client fallback store & persistent proofStore in sync with all updates
     try {
+      if (updates.proof_verified_status !== undefined || updates.proof_screenshot_url !== undefined) {
+        proofStore.saveDecision(id, (updates.proof_verified_status as any) || 'pending', {
+          by: updates.proof_verified_by,
+          at: updates.proof_verified_at,
+          notes: updates.proof_admin_notes,
+          channel: updates.proof_channel as any,
+          screenshotUrl: updates.proof_screenshot_url,
+          response_status: updates.response_status,
+          responded_at: updates.responded_at,
+        });
+      }
+
       const contacts = clientFallbackStore.getContacts();
       const idx = contacts.findIndex((c) => c.id === id);
       const existing = idx >= 0 ? contacts[idx] : null;
+      const record = proofStore.getRecord(id);
+
       const merged: HRContact = {
         ...(existing || ({} as any)),
         ...updates,
@@ -620,25 +638,27 @@ export const supabaseDataService = {
         response_status: updates.response_status || data?.response_status || existing?.response_status || 'no_response_yet',
         response_note: updates.response_note !== undefined ? updates.response_note : (data?.response_note !== undefined ? data?.response_note : existing?.response_note),
         responded_at: updates.responded_at !== undefined ? updates.responded_at : (data?.responded_at !== undefined ? data?.responded_at : existing?.responded_at),
-        proof_channel: updates.proof_channel !== undefined ? updates.proof_channel : (data?.proof_channel !== undefined ? data?.proof_channel : existing?.proof_channel),
-        proof_screenshot_url: updates.proof_screenshot_url !== undefined ? updates.proof_screenshot_url : (data?.proof_screenshot_url !== undefined ? data?.proof_screenshot_url : existing?.proof_screenshot_url),
+        proof_channel: updates.proof_channel !== undefined ? updates.proof_channel : (data?.proof_channel !== undefined ? data?.proof_channel : (existing?.proof_channel || record?.proof_channel)),
+        proof_screenshot_url: updates.proof_screenshot_url !== undefined ? updates.proof_screenshot_url : (data?.proof_screenshot_url !== undefined ? data?.proof_screenshot_url : (existing?.proof_screenshot_url || record?.proof_screenshot_url)),
         proof_screenshot_uploaded_at: updates.proof_screenshot_uploaded_at !== undefined ? updates.proof_screenshot_uploaded_at : (data?.proof_screenshot_uploaded_at !== undefined ? data?.proof_screenshot_uploaded_at : existing?.proof_screenshot_uploaded_at),
-        proof_verified_status: updates.proof_verified_status !== undefined ? updates.proof_verified_status : (data?.proof_verified_status !== undefined ? data?.proof_verified_status : existing?.proof_verified_status),
-        proof_verified_by: updates.proof_verified_by !== undefined ? updates.proof_verified_by : (data?.proof_verified_by !== undefined ? data?.proof_verified_by : existing?.proof_verified_by),
-        proof_verified_at: updates.proof_verified_at !== undefined ? updates.proof_verified_at : (data?.proof_verified_at !== undefined ? data?.proof_verified_at : existing?.proof_verified_at),
-        proof_admin_notes: updates.proof_admin_notes !== undefined ? updates.proof_admin_notes : (data?.proof_admin_notes !== undefined ? data?.proof_admin_notes : existing?.proof_admin_notes),
+        proof_verified_status: updates.proof_verified_status !== undefined ? updates.proof_verified_status : (data?.proof_verified_status !== undefined ? data?.proof_verified_status : (existing?.proof_verified_status || record?.proof_verified_status)),
+        proof_verified_by: updates.proof_verified_by !== undefined ? updates.proof_verified_by : (data?.proof_verified_by !== undefined ? data?.proof_verified_by : (existing?.proof_verified_by || record?.proof_verified_by)),
+        proof_verified_at: updates.proof_verified_at !== undefined ? updates.proof_verified_at : (data?.proof_verified_at !== undefined ? data?.proof_verified_at : (existing?.proof_verified_at || record?.proof_verified_at)),
+        proof_admin_notes: updates.proof_admin_notes !== undefined ? updates.proof_admin_notes : (data?.proof_admin_notes !== undefined ? data?.proof_admin_notes : (existing?.proof_admin_notes || record?.proof_admin_notes)),
       };
 
+      const finalMerged = proofStore.mergeContact(merged);
+
       if (idx >= 0) {
-        contacts[idx] = merged;
+        contacts[idx] = finalMerged;
       } else {
-        contacts.unshift(merged);
+        contacts.unshift(finalMerged);
       }
       clientFallbackStore.saveContacts(contacts);
-      return merged;
+      return finalMerged;
     } catch (_) {}
 
-    return {
+    const fallbackReturn = {
       ...(data || {}),
       id,
       company: data?.company || undefined,
@@ -657,6 +677,7 @@ export const supabaseDataService = {
       proof_verified_at: data?.proof_verified_at !== undefined ? data?.proof_verified_at : updates.proof_verified_at,
       proof_admin_notes: data?.proof_admin_notes !== undefined ? data?.proof_admin_notes : updates.proof_admin_notes,
     } as HRContact;
+    return proofStore.mergeContact(fallbackReturn);
   },
 
   async deleteContact(id: string): Promise<boolean> {
@@ -737,10 +758,11 @@ export const supabaseDataService = {
         );
       }
 
-      return result.length > 0 ? result : clientFallbackStore.getContacts();
+      const finalLeads = result.length > 0 ? result : clientFallbackStore.getContacts();
+      return proofStore.mergeContacts(finalLeads);
     } catch (err) {
       console.warn('[Supabase] Failed worksheet query, using fallback:', err);
-      return clientFallbackStore.getContacts();
+      return proofStore.mergeContacts(clientFallbackStore.getContacts());
     }
   },
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { HRContact, CRA, Company, LeadResponseStatus } from '../types';
 import { api } from '../services/api';
 import { clientFallbackStore } from '../services/supabaseDataService';
+import { proofStore } from '../services/proofStore';
 import { formatIndianDateTime } from '../utils/formatters';
 import { cleanUploaderName } from '../utils/leadOwnership';
 import { responseLabel, responseShortLabel } from '../constants/worksheet';
@@ -79,7 +80,8 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
         api.getCRAs().catch(() => []),
       ]);
 
-      setLeads(fetchedLeads);
+      const mergedLeads = proofStore.mergeContacts(fetchedLeads);
+      setLeads(mergedLeads);
       setUsers(fetchedUsers);
 
       const mapping: Record<string, string> = {};
@@ -90,7 +92,8 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
     } catch (err) {
       console.error('Failed to fetch leads for proof review', err);
       const fallback = clientFallbackStore.getContacts();
-      setLeads(fallback);
+      const mergedFallback = proofStore.mergeContacts(fallback);
+      setLeads(mergedFallback);
     } finally {
       setIsLoading(false);
     }
@@ -100,8 +103,25 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
     fetchData();
 
     // Listen for custom events triggered elsewhere when proofs are updated or uploaded
-    const handleProofUpdate = () => {
-      fetchData();
+    const handleProofUpdate = (e: any) => {
+      const detail = e?.detail;
+      if (detail?.leadId && detail?.status) {
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === detail.leadId
+              ? {
+                  ...l,
+                  proof_verified_status: detail.status,
+                  ...(detail.status === 'rejected'
+                    ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any }
+                    : {}),
+                }
+              : l
+          )
+        );
+      } else {
+        fetchData();
+      }
     };
     window.addEventListener('proof_verification_updated', handleProofUpdate);
     window.addEventListener('worksheet_proof_updated', handleProofUpdate);
@@ -232,6 +252,17 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
         : {}),
     };
 
+    // Store immediately into persistent proof registry so it stays as it is permanently
+    proofStore.saveDecision(lead.id, targetStatus, {
+      by: adminName,
+      at: updates.proof_verified_at,
+      notes: updates.proof_admin_notes,
+      channel: lead.proof_channel as any,
+      screenshotUrl: lead.proof_screenshot_url,
+      response_status: updates.response_status || lead.response_status,
+      responded_at: updates.responded_at || lead.responded_at,
+    });
+
     try {
       await api.updateContact(lead.id, updates);
 
@@ -297,6 +328,15 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
       responded_at: null as any,
     };
 
+    proofStore.saveDecision(lead.id, 'rejected', {
+      by: adminName,
+      at: updates.proof_verified_at,
+      notes: combinedNotes,
+      channel: lead.proof_channel as any,
+      screenshotUrl: lead.proof_screenshot_url,
+      response_status: 'no_response_yet',
+    });
+
     try {
       await api.updateContact(lead.id, updates);
 
@@ -352,6 +392,16 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
         proof_admin_notes: 'Batch approved via Admin Proof Review Hub',
       };
 
+      proofStore.saveDecision(lead.id, 'approved', {
+        by: adminName,
+        at: updates.proof_verified_at,
+        notes: updates.proof_admin_notes,
+        channel: lead.proof_channel as any,
+        screenshotUrl: lead.proof_screenshot_url,
+        response_status: lead.response_status,
+        responded_at: lead.responded_at,
+      });
+
       try {
         await api.updateContact(lead.id, updates);
         successCount++;
@@ -381,6 +431,16 @@ export const ProofReviewPage: React.FC<ProofReviewPageProps> = ({
       proof_admin_notes: notes,
       ...(targetStatus === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any } : {}),
     };
+
+    proofStore.saveDecision(reviewModalLead.id, targetStatus, {
+      by: adminName,
+      at: updates.proof_verified_at,
+      notes,
+      channel: reviewModalLead.proof_channel as any,
+      screenshotUrl: reviewModalLead.proof_screenshot_url,
+      response_status: updates.response_status || reviewModalLead.response_status,
+      responded_at: updates.responded_at || reviewModalLead.responded_at,
+    });
 
     try {
       await api.updateContact(reviewModalLead.id, updates);

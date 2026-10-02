@@ -421,10 +421,24 @@ export const clientFallbackStore = {
     try {
       const contacts: HRContact[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONTACTS) || '[]');
       const companies = this.getCompanies();
-      return contacts.map((c) => ({
-        ...c,
-        company: c.company || companies.find((comp) => comp.id === c.company_id),
-      }));
+      let proofReg: Record<string, any> = {};
+      try {
+        proofReg = JSON.parse(localStorage.getItem('placemein_verified_proofs_v1') || '{}');
+      } catch (_) {}
+
+      return contacts.map((c) => {
+        const record = proofReg[c.id];
+        return {
+          ...c,
+          company: c.company || companies.find((comp) => comp.id === c.company_id),
+          proof_verified_status: record?.proof_verified_status || c.proof_verified_status,
+          proof_verified_by: record?.proof_verified_by || c.proof_verified_by,
+          proof_verified_at: record?.proof_verified_at || c.proof_verified_at,
+          proof_admin_notes: record?.proof_admin_notes !== undefined ? record.proof_admin_notes : c.proof_admin_notes,
+          proof_screenshot_url: c.proof_screenshot_url || record?.proof_screenshot_url,
+          proof_channel: c.proof_channel || record?.proof_channel,
+        };
+      });
     } catch {
       return [];
     }

@@ -56,6 +56,7 @@ import { getShortCompanyName } from './HowToFindHRRowHelper';
 import { HRContact, Company, CRA, LeadResponseStatus } from '../types';
 import { api } from '../services/api';
 import { clientFallbackStore } from '../services/clientFallbackStore';
+import { proofStore } from '../services/proofStore';
 import { CompanyDetailsModal } from './CompanyDetailsModal';
 import { ExcelWorksheetImportModal } from './ExcelWorksheetImportModal';
 import { SystemReportModal } from './SystemReportModal';
@@ -288,10 +289,11 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
         api.getCRAs().catch(() => []),
       ]);
 
-      allContactsRef.current = fetchedLeads;
+      const mergedLeads = proofStore.mergeContacts(fetchedLeads);
+      allContactsRef.current = mergedLeads;
       const myLeads = adminMode
-        ? fetchedLeads
-        : fetchedLeads.filter((l) => isLeadOwnedByUser(l, currentUser));
+        ? mergedLeads
+        : mergedLeads.filter((l) => isLeadOwnedByUser(l, currentUser));
       setLeads(myLeads);
       setAllUsersList(fetchedUsers);
 
@@ -303,10 +305,11 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     } catch (err) {
       console.error('Failed to fetch worksheet leads', err);
       const fallback = clientFallbackStore.getContacts();
-      allContactsRef.current = fallback;
+      const mergedFallback = proofStore.mergeContacts(fallback);
+      allContactsRef.current = mergedFallback;
       const myLeads = adminMode
-        ? fallback
-        : fallback.filter((l) => isLeadOwnedByUser(l, currentUser));
+        ? mergedFallback
+        : mergedFallback.filter((l) => isLeadOwnedByUser(l, currentUser));
       setLeads(myLeads);
     } finally {
       setIsLoading(false);
@@ -414,6 +417,13 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
       responded_at: new Date().toISOString(),
     };
 
+    proofStore.saveDecision(proofModalLead.id, 'pending', {
+      channel: proofChannel,
+      screenshotUrl: proofPreview,
+      response_status: finalResponse,
+      responded_at: updates.responded_at,
+    });
+
     try {
       await api.updateContact(proofModalLead.id, updates);
       setLeads((prev) => prev.map((l) => (l.id === proofModalLead.id ? { ...l, ...updates } : l)));
@@ -469,20 +479,28 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     adminNotes?: string,
     reviewerName?: string
   ) => {
+    const targetStatus = decision === 'verified' ? 'approved' : 'rejected';
     const updates: Partial<HRContact> = {
-      proof_verified_status: decision,
+      proof_verified_status: targetStatus,
       proof_verified_by: reviewerName || currentUser?.name || 'Admin',
       proof_verified_at: new Date().toISOString(),
       proof_admin_notes: adminNotes,
-      ...(decision === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any } : {}),
+      ...(targetStatus === 'rejected' ? { response_status: 'no_response_yet' as LeadResponseStatus, responded_at: null as any } : {}),
     };
+
+    proofStore.saveDecision(leadId, targetStatus, {
+      by: updates.proof_verified_by,
+      at: updates.proof_verified_at,
+      notes: adminNotes,
+    });
+
     try {
       await api.updateContact(leadId, updates);
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updates } : l)));
       allContactsRef.current = allContactsRef.current.map((l) => (l.id === leadId ? { ...l, ...updates } : l));
-      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId, status: decision } }));
-      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId, status: decision } }));
-      if (decision === 'verified') {
+      window.dispatchEvent(new CustomEvent('proof_verification_updated', { detail: { leadId, status: targetStatus } }));
+      window.dispatchEvent(new CustomEvent('worksheet_proof_updated', { detail: { leadId, status: targetStatus } }));
+      if (targetStatus === 'approved') {
         showToast('Proof approved — lead is now marked as Approved Lead!', 'success');
       } else {
         showToast('Proof rejected — response reset to No response yet', 'error');
