@@ -16,7 +16,7 @@ import {
   Briefcase,
   Trash2,
 } from 'lucide-react';
-import { SPOC_MEMBERS } from '../data/pdfLeadsData';
+import { SPOC_MEMBERS, getDynamicSpocMembers } from '../data/pdfLeadsData';
 import { PreparedWorksheetLead } from './TeamSheetsPage';
 import { api } from '../services/api';
 
@@ -33,14 +33,16 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
   defaultMember = 'Aravind',
   onSaveLeads,
 }) => {
+  const spocList = getDynamicSpocMembers();
   const [selectedMember, setSelectedMember] = useState<string>(() => {
     if (defaultMember && defaultMember !== 'all') {
-      const match = SPOC_MEMBERS.find(
-        (m) => m.id.toLowerCase() === defaultMember.toLowerCase()
+      const match = spocList.find(
+        (m) => m.id.toLowerCase() === defaultMember.toLowerCase() || m.name.toLowerCase().includes(defaultMember.toLowerCase())
       );
       if (match) return match.id;
+      return defaultMember;
     }
-    return 'Aravind';
+    return spocList[0]?.id || 'Aravind';
   });
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -54,8 +56,8 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
   if (!isOpen) return null;
 
   const targetMemberObj =
-    SPOC_MEMBERS.find((m) => m.id.toLowerCase() === selectedMember.toLowerCase()) ||
-    SPOC_MEMBERS[0];
+    spocList.find((m) => m.id.toLowerCase() === selectedMember.toLowerCase()) ||
+    spocList[0] || { id: selectedMember, name: selectedMember };
 
   const handleFilePicked = (file: File) => {
     if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
@@ -293,7 +295,7 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {SPOC_MEMBERS.map((member) => {
+              {spocList.map((member) => {
                 const isSelected = selectedMember.toLowerCase() === member.id.toLowerCase();
                 return (
                   <button
@@ -565,7 +567,7 @@ export const PdfLeadImportModal: React.FC<PdfLeadImportModalProps> = ({
                           onChange={(e) => handleUpdateParsedField(idx, 'spoc', e.target.value)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-indigo-300 focus:outline-none focus:border-indigo-500"
                         >
-                          {SPOC_MEMBERS.map((m) => (
+                          {spocList.map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.name} ({m.id}'s Sheet)
                             </option>

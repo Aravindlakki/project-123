@@ -138,7 +138,7 @@ export async function detectFileCategory(
       category: 'LEAD_LIST',
       confidence: leadScore >= 4 ? 'high' : 'medium',
       reason: `File matches Lead List signature (${leadScore} indicators: contact fields, emails, or roster structure)`,
-      suggestedAction: 'Route to HR Sourcing (triggers HR contact sourcing flow)',
+      suggestedAction: 'Route to Team Worksheet (contacts and outreach flow)',
       leadIndicatorsCount: leadScore,
       jdIndicatorsCount: jdScore,
     };
@@ -148,7 +148,7 @@ export async function detectFileCategory(
     category: 'JD',
     confidence: jdScore >= 3 ? 'high' : 'medium',
     reason: `File matches Job Description signature (${jdScore} indicators: job requirements, skills, or single role mandate)`,
-    suggestedAction: 'Route to JD List & Database (JD-only, no HR sourcing triggered)',
+    suggestedAction: 'Route to JD List & Database (JD-only flow)',
     leadIndicatorsCount: leadScore,
     jdIndicatorsCount: jdScore,
   };

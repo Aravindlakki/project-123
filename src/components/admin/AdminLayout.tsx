@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { CRA } from '../../types';
 import { isSupabaseConfigured } from '../../services/supabase';
-import { clientFallbackStore } from '../../services/supabaseDataService';
+import { clientFallbackStore } from '../../services/clientFallbackStore';
 
 export interface AdminNavItem {
   id: string;
@@ -118,10 +118,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     setActiveTab(id);
     setMobileOpen(false);
   };
-
-  const isAravind =
-    currentUser?.email?.toLowerCase().includes('aravind') ||
-    currentUser?.name?.toLowerCase().includes('aravind');
 
   return (
     <div data-portal="admin" className="admin-shell flex flex-row min-h-screen w-full bg-[#070c16] text-slate-100">
@@ -279,10 +275,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               {!collapsed && (
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-white truncate">
-                    {isAravind ? 'Aravind Reddy' : currentUser?.name || 'Administrator'}
+                    {currentUser?.name || 'Administrator'}
                   </p>
                   <p className="text-[10px] text-[#e8b339] truncate font-medium">
-                    {isAravind ? 'Founder & CEO' : 'Admin'}
+                    {currentUser?.designation || (currentUser?.role === 'admin' ? 'Administrator' : 'Admin')}
                   </p>
                 </div>
               )}
@@ -371,11 +367,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             >
               <span className="hidden md:block">
                 <b className="text-white">
-                  {isAravind ? 'Aravind Reddy' : currentUser?.name || 'Administrator'}
+                  {currentUser?.name || 'Administrator'}
                 </b>
                 <br />
                 <span className="text-[#e8b339] font-medium text-[11px]">
-                  {isAravind ? 'Founder & CEO' : 'Admin Portal'}
+                  {currentUser?.designation || (currentUser?.role === 'admin' ? 'Super Admin' : 'Admin Portal')}
                 </span>
               </span>
               <span className="p-2 rounded-xl shrink-0 bg-gradient-to-br from-[#e8b339] to-[#d69e26] text-[#070c16] shadow-sm font-black">

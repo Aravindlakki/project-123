@@ -1,6 +1,7 @@
 import { formatIndianPhone } from '../utils/formatters';
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { clientFallbackStore } from '../services/clientFallbackStore';
 import { Company, HRContact, JD, OutreachOutcome, OutcomeStatus, CRA } from '../types';
 import {
   Building2,
@@ -42,6 +43,8 @@ interface OutcomeModalState {
 
 interface CRMListPageProps {
   onAddRole?: (companyName: string) => void;
+  currentUser?: CRA | null;
+  adminMode?: boolean;
 }
 
 interface TeamMemberMeta {
@@ -52,8 +55,22 @@ interface TeamMemberMeta {
   badge: string;
 }
 
-const TEAM_MEMBERS: TeamMemberMeta[] = [
-  { name: 'Aravind Reddy', role: 'CEO Admin', id: 'usr_admin_aravind', avatarBg: 'bg-amber-600', badge: 'CEO ADMIN' },
+const AVATAR_COLORS = [
+  'bg-amber-600',
+  'bg-purple-700',
+  'bg-indigo-700',
+  'bg-purple-600',
+  'bg-blue-600',
+  'bg-teal-600',
+  'bg-pink-600',
+  'bg-emerald-600',
+  'bg-cyan-600',
+  'bg-rose-600',
+  'bg-violet-600',
+];
+
+const DEFAULT_TEAM_MEMBERS: TeamMemberMeta[] = [
+  { name: 'Aravind Reddy', role: 'CRA Specialist', id: 'usr_admin_aravind', avatarBg: 'bg-amber-600', badge: 'EMP & ADMIN' },
   { name: 'Mansi Ramesh Peddi', role: 'Team Lead & Admin', id: 'usr_admin_mansi', avatarBg: 'bg-purple-700', badge: 'ADMIN' },
   { name: 'Vineela Bathula', role: 'Manager & Admin', id: 'usr_admin_vineela', avatarBg: 'bg-indigo-700', badge: 'ADMIN' },
   { name: 'Harish Reddy', role: 'CRA Specialist', id: 'usr_cra_harish', avatarBg: 'bg-purple-600', badge: 'EMP' },
@@ -63,10 +80,11 @@ const TEAM_MEMBERS: TeamMemberMeta[] = [
   { name: 'Namitha K', role: 'CRA Specialist', id: 'usr_cra_namitha', avatarBg: 'bg-emerald-600', badge: 'EMP' },
 ];
 
-export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
+export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole, currentUser: propCurrentUser, adminMode = false }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [contacts, setContacts] = useState<HRContact[]>([]);
   const [jds, setJds] = useState<JD[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberMeta[]>(DEFAULT_TEAM_MEMBERS);
   const [outcomes, setOutcomes] = useState<Record<string, OutreachOutcome>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'companies' | 'contacts'>('companies');
@@ -84,7 +102,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
   const [addCompLinkedin, setAddCompLinkedin] = useState('');
   const [addCompIndustry, setAddCompIndustry] = useState('Information Technology');
   const [addCompWebsite, setAddCompWebsite] = useState('');
-  const [addCompUploadedBy, setAddCompUploadedBy] = useState('Aravind Reddy');
+  const [addCompUploadedBy, setAddCompUploadedBy] = useState(propCurrentUser?.name || 'Team Member');
   const [addCompModalError, setAddCompModalError] = useState<string | null>(null);
   const [isAddingComp, setIsAddingComp] = useState(false);
 
@@ -93,15 +111,52 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
   const [isCompanyDetailsOpen, setIsCompanyDetailsOpen] = useState(false);
   const [isDocumentIntakeOpen, setIsDocumentIntakeOpen] = useState(false);
   const [isCSVBulkImportOpen, setIsCSVBulkImportOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<CRA | null>(null);
+  const [currentUser, setCurrentUser] = useState<CRA | null>(propCurrentUser || null);
 
   const loadData = () => {
-    Promise.all([api.getCompanies(), api.getContacts(), api.getJDs(), api.getCurrentCRA().catch(() => null)])
-      .then(([compData, contactData, jdData, user]) => {
+    Promise.all([
+      api.getCompanies(),
+      api.getContacts(),
+      api.getJDs(),
+      propCurrentUser ? Promise.resolve(propCurrentUser) : api.getCurrentCRA().catch(() => null),
+      api.getCRAs().catch(() => clientFallbackStore.getUsers(true)),
+    ])
+      .then(([compData, contactData, jdData, user, cras]) => {
         setCompanies(compData);
         setContacts(contactData);
         setJds(jdData);
-        if (user) setCurrentUser(user);
+        const effectiveUser = propCurrentUser || user;
+        if (effectiveUser) {
+          setCurrentUser(effectiveUser);
+          setAddCompUploadedBy(effectiveUser.name || 'Team Member');
+        }
+
+        const localList = clientFallbackStore.getUsers(true);
+        const combinedList = [...((cras && cras.length > 0 ? cras : localList) as CRA[])];
+        if (effectiveUser && !combinedList.some((u) => u.email.toLowerCase() === effectiveUser.email.toLowerCase())) {
+          combinedList.push(effectiveUser);
+        }
+        localList.forEach((lu) => {
+          if (!combinedList.some((u) => u.email.toLowerCase() === lu.email.toLowerCase())) {
+            combinedList.push(lu);
+          }
+        });
+
+        if (combinedList.length > 0) {
+          const dynamicMembers: TeamMemberMeta[] = combinedList.map((u, idx) => {
+            const avatarBg = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+            const roleDisplay = u.designation || (u.role === 'admin' ? (u.isDualRole || u.id === 'usr_admin_aravind' ? 'CRA Specialist (Admin)' : 'Admin') : 'CRA Specialist');
+            const badge = u.role === 'admin' ? (u.isDualRole || u.id === 'usr_admin_aravind' ? 'EMP & ADMIN' : 'ADMIN') : 'EMP';
+            return {
+              name: u.name,
+              role: roleDisplay,
+              id: u.id,
+              avatarBg,
+              badge,
+            };
+          });
+          setTeamMembers(dynamicMembers);
+        }
       })
       .catch(console.error);
   };
@@ -394,9 +449,20 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
       {/* Top Header & Action Controls */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">CRA CRM Directory</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              {adminMode ? 'Admin CRM Directory' : 'CRA CRM Directory'}
+            </h1>
+            {adminMode && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Admin Directory
+              </span>
+            )}
+          </div>
           <p className="text-gray-400 text-sm">
-            Audited employer network, company employee counts, LinkedIn profiles, and verified HR numbers
+            {adminMode
+              ? 'Complete administrator directory of employer accounts, employee counts, LinkedIn profiles, and verified HR contacts'
+              : 'Audited employer network, company employee counts, LinkedIn profiles, and verified HR numbers'}
           </p>
         </div>
 
@@ -526,7 +592,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
 
         {/* Member Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
-          {TEAM_MEMBERS.map((member) => {
+          {teamMembers.map((member) => {
             const count = getMemberCompanyCount(member.name);
             const isSelected = selectedMemberFilter === member.name;
 
@@ -638,7 +704,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
               {filteredCompanies.map((comp) => {
                 const compContacts = contacts.filter((c) => c.company_id === comp.id);
                 const compJds = jds.filter((j) => j.company_id === comp.id);
-                const uploaderName = comp.entered_by_name || (comp.creator ? comp.creator.name : 'Aravind Reddy');
+                const uploaderName = comp.entered_by_name || (comp.creator ? comp.creator.name : (currentUser?.name || 'Team Member'));
 
                 return (
                   <div
@@ -842,7 +908,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
                         <td className="px-6 py-4">
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
                             <UserCheck className="h-3 w-3" />
-                            <span>{c.entered_by_name || comp?.entered_by_name || (c.creator ? c.creator.name : 'Aravind Reddy')}</span>
+                            <span>{c.entered_by_name || comp?.entered_by_name || (c.creator ? c.creator.name : (currentUser?.name || 'Team Member'))}</span>
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -919,7 +985,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
                   onChange={(e) => setAddCompUploadedBy(e.target.value)}
                   className="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 >
-                  {TEAM_MEMBERS.map((m) => (
+                  {teamMembers.map((m) => (
                     <option key={m.id} value={m.name}>
                       👤 {m.name} ({m.role})
                     </option>
@@ -1198,7 +1264,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole }) => {
         onClose={() => setIsCSVBulkImportOpen(false)}
         existingCompanies={companies}
         existingContacts={contacts}
-        currentUserName={currentUser?.name || 'Aravind Reddy'}
+        currentUserName={currentUser?.name || 'Team Member'}
         onImportComplete={(summary) => {
           loadData();
           setFeedback({

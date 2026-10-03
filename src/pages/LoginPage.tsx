@@ -205,7 +205,7 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
               label="Full Name"
               type="text"
               required
-              placeholder="e.g. Aravind Reddy"
+              placeholder="e.g. Charan Kumar"
               value={name}
               onChange={(e) => setName(e.target.value)}
               leftIcon={<UserCheck className="h-4 w-4" />}
@@ -214,10 +214,11 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
 
           <Input
             label={loginRole === 'ADMIN' ? 'Admin Email Address' : 'Employee Email Address'}
-            type="email"
+            type="text"
             required
-            autoComplete="email"
-            placeholder={loginRole === 'ADMIN' ? 'aravind@placemein.com' : 'employee@placemein.com'}
+            autoCapitalize="none"
+            autoCorrect="off"
+            placeholder={loginRole === 'ADMIN' ? 'admin@placemein.com' : 'charankumar.n@placemein.com'}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             leftIcon={<Mail className="h-4 w-4" />}

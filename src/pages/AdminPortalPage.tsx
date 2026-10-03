@@ -565,7 +565,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   </h3>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  1 CEO Admin • 2 Administrators • 5 CRA Specialists • 0 Duplicates • Complete Employee IDs & Specialization Domains
+                  3 Administrators (including Dual Access) • 5 CRA Specialists • 0 Duplicates • Complete Employee IDs & Specialization Domains
                 </p>
               </div>
 
@@ -585,7 +585,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
             {/* Quick Metrics Badges using AdminStatCard */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <AdminStatCard label="Total Members" value={`${users.length} Unique`} />
-              <AdminStatCard label="CEO Admin" value="1" subtext="Aravind Reddy" gold />
+              <AdminStatCard label="Dual Access" value="1" subtext="Aravind (Admin & Emp)" gold />
               <AdminStatCard label="Admins" value="2" subtext="Mansi, Vineela" />
               <AdminStatCard label="CRA Specialists" value="5" subtext="Employees" />
               <AdminStatCard label="Duplicates" value="0" subtext="Deduped" />
@@ -670,7 +670,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                   const isEditing = editingUserId === user.id;
                   const isDeleted = !!user.deleted_at;
                   const isActive = user.is_active !== false && !isDeleted;
-                  const isCeo = user.emp_id === 'PM-CEO' || user.email.toLowerCase().includes('aravind');
+                  const isDual = user.isDualRole || user.id === 'usr_admin_aravind';
 
                       return (
                         <tr key={user.id} className={`hover:bg-amber-900/20 transition ${!isActive ? 'opacity-70 bg-amber-950/10' : ''}`}>
@@ -699,7 +699,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                               <div className="flex items-center gap-2.5">
                                 <div
                                   className={`w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm ${
-                                    isCeo
+                                    isDual
                                       ? 'bg-amber-600 border border-amber-400'
                                       : user.role === 'admin'
                                       ? 'bg-purple-700 border border-purple-400'
@@ -718,7 +718,7 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                                     )}
                                   </div>
                                   <div className="text-[10px] text-amber-300/70 font-medium">
-                                    {user.designation || (isCeo ? 'Founder & CEO (CEO Admin)' : user.role === 'admin' ? 'Administrator' : 'CRA Specialist')}
+                                    {user.designation || (isDual ? 'CRA Specialist (Admin & Emp Access)' : user.role === 'admin' ? 'Administrator' : 'CRA Specialist')}
                                   </div>
                                 </div>
                               </div>
@@ -808,8 +808,8 @@ export const AdminPortalPage: React.FC<AdminPortalPageProps> = ({
                                 <option value="admin">Admin</option>
                               </select>
                             ) : (
-                              <AdminBadge variant={isCeo ? 'gold' : user.role === 'admin' ? 'info' : 'neutral'}>
-                                {isCeo ? 'CEO Admin' : user.role === 'admin' ? 'Admin' : 'CRA Employee'}
+                              <AdminBadge variant={isDual ? 'gold' : user.role === 'admin' ? 'info' : 'neutral'}>
+                                {isDual ? 'Admin & Emp' : user.role === 'admin' ? 'Admin' : 'CRA Employee'}
                               </AdminBadge>
                             )}
                           </td>

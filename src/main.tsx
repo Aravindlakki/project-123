@@ -3,6 +3,24 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 
+// Automatic client storage purge: ensures clean slate for fresh upload in 2 days
+try {
+  const PURGE_FLAG = 'placemein_data_purged_for_2_days_v16';
+  if (localStorage.getItem(PURGE_FLAG) !== 'true') {
+    localStorage.removeItem('placemein_mock_companies');
+    localStorage.removeItem('placemein_mock_contacts');
+    localStorage.removeItem('placemein_mock_jds');
+    localStorage.removeItem('placemein_mock_tasks');
+    localStorage.removeItem('placemein_mock_leaves');
+    localStorage.setItem('placemein_mock_companies', JSON.stringify([]));
+    localStorage.setItem('placemein_mock_contacts', JSON.stringify([]));
+    localStorage.setItem('placemein_mock_jds', JSON.stringify([]));
+    localStorage.setItem('placemein_mock_tasks', JSON.stringify([]));
+    localStorage.setItem('placemein_mock_leaves', JSON.stringify([]));
+    localStorage.setItem(PURGE_FLAG, 'true');
+  }
+} catch (_) {}
+
 interface ErrorBoundaryProps {
   children: ReactNode;
 }

@@ -447,7 +447,7 @@ Requirements:
       const forcedCategory = uploadRouteTag === 'auto' ? undefined : (uploadRouteTag as UploadCategory);
       const detection = await detectFileCategory(file, forcedCategory);
 
-      // If LEAD LIST: route it into HR Sourcing flow
+      // If LEAD LIST: route it into Team Worksheet flow
       if (detection.category === 'LEAD_LIST') {
         try {
           const hrRes = await api.parseDocumentHR({ file });
@@ -455,12 +455,12 @@ Requirements:
             routedToHrSourcingCount++;
             setMessage({
               type: 'success',
-              text: `Routed '${file.name}' into HR Sourcing flow (${detection.reason}). Successfully extracted ${hrRes.contacts?.length || 0} HR contact(s) for '${hrRes.company?.name || 'Company'}'. JDs follow JD-only flow.`,
+              text: `Routed '${file.name}' into Team Worksheet (${detection.reason}). Successfully extracted ${hrRes.contacts?.length || 0} contact(s) for '${hrRes.company?.name || 'Company'}'. JDs follow JD-only flow.`,
             });
             continue; // Bypasses JD intake queue!
           }
         } catch (err: any) {
-          console.warn('Failed to parse lead list into HR Sourcing:', err);
+          console.warn('Failed to parse lead list into Team Worksheet:', err);
         }
       }
 
@@ -832,7 +832,7 @@ Requirements:
           </div>
           {message.type === 'success' && lastLoggedCompany && (
             <div className="pt-2 border-t border-emerald-500/20 text-xs text-emerald-300/80">
-              Opportunity recorded. Next step: Head to <strong>HR Sourcing</strong> to find recruiters and source contacts for this company.
+              Opportunity recorded. Next step: Head to <strong>Team Worksheet</strong> to track outreach and verified contacts for this company.
             </div>
           )}
         </div>
@@ -926,7 +926,7 @@ Requirements:
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-gray-400 hover:text-white'
                   }`}
-                  title="Lead List - routes directly into HR Sourcing flow"
+                  title="Lead List - routes directly into Team Worksheet"
                 >
                   <Users className="h-3 w-3" />
                   Lead List

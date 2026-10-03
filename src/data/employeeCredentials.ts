@@ -16,22 +16,22 @@ export interface EmployeeCredential {
 export const DEFAULT_EMPLOYEE_PASSWORD = 'Password123!';
 
 // THE CANONICAL 8-MEMBER TEAM ROSTER (EXACTLY 8, NO DUPLICATES)
-// 1 CEO Admin + 2 Admins + 5 CRA Employees
+// 3 Administrators with Dual Access + 5 CRA Employees
 export const ALL_EMPLOYEE_CREDENTIALS: EmployeeCredential[] = [
-  // 1. CEO ADMIN
+  // 1. CRA SPECIALIST (ADMIN & EMP ACCESS)
   {
     id: 'usr_admin_aravind',
     name: 'Aravind Reddy',
     email: 'aravindreddy.l@placemein.com',
     role: 'admin',
-    roleDisplay: 'CEO Admin',
+    roleDisplay: 'CRA Specialist (Admin & Emp Access)',
     isDualRole: true,
-    empId: 'PM-CEO',
-    designation: 'Founder & CEO (CEO Admin)',
-    spocDomain: 'Executive Strategy & Corporate Outreach',
+    empId: 'PM-100',
+    designation: 'CRA Specialist',
+    spocDomain: 'Corporate Outreach & IT Sourcing',
     avatarBg: 'bg-amber-600',
     passwordDefault: DEFAULT_EMPLOYEE_PASSWORD,
-    notes: 'Founder & CEO with full administrative authority and strategic corporate outreach'
+    notes: 'CRA Specialist with access to both Admin Portal and Employee Workspace'
   },
   // 2. ADMIN (TEAM LEAD)
   {
@@ -140,24 +140,30 @@ export function resolveEmployeeCredential(inputEmail: string): EmployeeCredentia
   const direct = ALL_EMPLOYEE_CREDENTIALS.find(e => e.email.toLowerCase() === clean);
   if (direct) return direct;
 
-  // Seamless alias resolution for historical email variants
-  if (clean === 'aravindaravind3953@gmail.com') {
+  // Seamless alias resolution for login variants
+  if (clean === 'aravindaravind3953@gmail.com' || clean.startsWith('aravind')) {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_admin_aravind');
   }
-  if (clean === 'harish.r@placemein.com' || clean === 'harish.m@placemein.com') {
+  if (clean === 'harish.r@placemein.com' || clean === 'harish.m@placemein.com' || clean.startsWith('harish')) {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_harish');
   }
-  if (clean === 'solomon.r@placemein.com') {
+  if (clean === 'solomon.r@placemein.com' || clean === 'solomon.raju@placemein.com' || clean.startsWith('solomon')) {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_solomon');
   }
-  if (clean === 'charankumar.n@placemein.com') {
+  if (clean === 'charankumar.n@placemein.com' || clean.startsWith('charan')) {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_charan');
   }
-  if (clean === 'mrudula.k@placemein.com' || clean === 'mrudula@placemein.com') {
+  if (clean === 'mrudula.k@placemein.com' || clean === 'mrudula@placemein.com' || clean.startsWith('mrudula')) {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_mrudula');
   }
-  if (clean === 'namitha.s@placemein.com') {
+  if (clean === 'namitha.s@placemein.com' || clean === 'namitha.k@placemein.com' || clean.startsWith('namitha')) {
     return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_cra_namitha');
+  }
+  if (clean === 'vineela.b@placemein.com' || clean.includes('vineela') || clean.includes('vinella')) {
+    return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_admin_vineela');
+  }
+  if (clean.includes('mansi')) {
+    return ALL_EMPLOYEE_CREDENTIALS.find(e => e.id === 'usr_admin_mansi');
   }
 
   return undefined;
@@ -167,7 +173,7 @@ export function getFormattedCredentialsText(): string {
   let output = '=== CRM OFFICIAL TEAM ROSTER & LOGIN CREDENTIALS ===\n';
   output += `Universal Default Password: ${DEFAULT_EMPLOYEE_PASSWORD}\n\n`;
 
-  output += '--- 1. CEO ADMIN ---\n';
+  output += '--- 1. CRA SPECIALIST (ADMIN & EMP ACCESS) ---\n';
   ALL_EMPLOYEE_CREDENTIALS.filter(e => e.id === 'usr_admin_aravind').forEach(e => {
     output += `• ${e.name} (${e.empId}) | Designation: ${e.designation}\n`;
     output += `  Email: ${e.email}\n`;

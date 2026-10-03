@@ -23,40 +23,59 @@ export function verifyToken(token: string): string | null {
 
     if (cleanToken.startsWith('client_token_')) {
       const rest = cleanToken.replace('client_token_', '');
-      const matched = users.find((u) => u.id === rest || rest.includes(u.id));
+      // Match by exact ID or if rest starts with / contains ID
+      const matched = users.find((u) => u.id === rest || rest.startsWith(u.id) || rest.includes(u.id));
       if (matched) return matched.id;
-      const admin = users.find((u) => u.role === 'admin');
-      if (admin) return admin.id;
-      return users[0]?.id || 'usr_admin';
+      // Match by email substring in token
+      const emailMatch = users.find((u) => u.email && rest.toLowerCase().includes(u.email.toLowerCase()));
+      if (emailMatch) return emailMatch.id;
+      return null;
     }
 
     const parts = cleanToken.split('.');
     if (parts.length >= 2) {
-      const payloadB64 = parts[1] || parts[0];
-      try {
-        const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
-        if (payload) {
-          if (payload.sub) {
-            const user = users.find((u) => u.id === payload.sub);
-            if (user) return user.id;
+      // If 3 parts (standard JWT header.payload.signature), payload is parts[1]. If 2 parts (payload.signature), payload is parts[0].
+      const candidates = parts.length === 3 ? [parts[1], parts[0]] : [parts[0], parts[1]];
+      for (const candidate of candidates) {
+        try {
+          const payload = JSON.parse(Buffer.from(candidate, 'base64url').toString('utf-8'));
+          if (payload) {
+            if (payload.sub) {
+              const user = users.find((u) => u.id === payload.sub);
+              if (user) return user.id;
+            }
+            if (payload.email) {
+              const cleanEmail = String(payload.email).toLowerCase();
+              const user = users.find((u) => u.email.toLowerCase() === cleanEmail);
+              if (user) return user.id;
+
+              // Dynamically register the authenticated user profile so /auth/me returns their correct identity
+              const nameParts = cleanEmail.split('@')[0].split('.');
+              const formattedName = nameParts.map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+              const newUser: CRA = {
+                id: payload.sub || `usr_${cleanEmail.replace(/[^a-z0-9]/gi, '_')}`,
+                name: payload.user_metadata?.name || formattedName || 'Team Member',
+                email: cleanEmail,
+                passwordHash: hashPassword('Password123!'),
+                role: cleanEmail.includes('admin') ? 'admin' : 'cra',
+                emp_id: `PM-${Math.floor(100 + Math.random() * 900)}`,
+                domain: 'Candidate Outreach & IT Sourcing',
+                designation: cleanEmail.includes('admin') ? 'Administrator' : 'CRA Specialist',
+                monthly_jd_target: 20,
+                is_active: true,
+                created_at: new Date().toISOString(),
+              };
+              users.push(newUser);
+              return newUser.id;
+            }
           }
-          if (payload.email) {
-            const user = users.find((u) => u.email.toLowerCase() === String(payload.email).toLowerCase());
-            if (user) return user.id;
-          }
-          // If valid JSON payload from Supabase or Auth session, assign to admin/first user
-          const admin = users.find((u) => u.role === 'admin') || users[0];
-          if (admin) return admin.id;
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
     }
 
-    // Fallback: match any active admin user
-    const defaultUser = users.find((u) => u.role === 'admin') || users[0];
-    return defaultUser?.id || 'usr_admin';
+    return null;
   } catch {
-    const defaultUser = users.find((u) => u.role === 'admin') || users[0];
-    return defaultUser?.id || 'usr_admin';
+    return null;
   }
 }
 

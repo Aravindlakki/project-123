@@ -4,6 +4,7 @@ export interface CRA {
   email: string;
   passwordHash: string;
   role: 'admin' | 'cra';
+  isDualRole?: boolean;
   emp_id?: string;
   domain?: string;
   designation?: string;

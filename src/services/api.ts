@@ -65,7 +65,7 @@ export const api = {
     const matchedEmployee = resolveEmployeeCredential(cleanEmail) || ALL_EMPLOYEE_CREDENTIALS.find(
       (e) => e.email.toLowerCase() === cleanEmail
     );
-    const isCeo = cleanEmail === 'aravindaravind3953@gmail.com' || cleanEmail === 'aravindreddy.l@placemein.com';
+    const isAravind = cleanEmail === 'aravindaravind3953@gmail.com' || cleanEmail === 'aravindreddy.l@placemein.com' || cleanEmail.startsWith('aravind');
 
     // 1. Supabase Auth (with fast timeout so it never stalls the UI)
     if (isSupabaseConfigured) {
@@ -120,8 +120,26 @@ export const api = {
       if (res.ok && isJson(res)) {
         const data = await res.json();
         setAuthToken(data.access_token);
-        if (data.user) {
-          clientFallbackStore.setCurrentUser(data.user);
+        const resolved = data.user || existingRosterUser || (matchedEmployee ? {
+          id: matchedEmployee.id,
+          name: matchedEmployee.name,
+          email: matchedEmployee.email,
+          role: matchedEmployee.role,
+          emp_id: matchedEmployee.empId,
+          domain: matchedEmployee.spocDomain,
+          designation: matchedEmployee.designation,
+          monthly_jd_target: 20,
+          is_active: true,
+          created_at: '2026-08-01T08:00:00Z',
+        } : null);
+
+        if (resolved) {
+          clientFallbackStore.setCurrentUser(resolved);
+          data.user = resolved;
+          try {
+            localStorage.setItem('placemein_current_user', JSON.stringify(resolved));
+            localStorage.setItem('placemein:last_logged_user', JSON.stringify(resolved));
+          } catch (_) {}
         }
         return data;
       }
@@ -136,34 +154,70 @@ export const api = {
       cleanPass === (matchedEmployee?.passwordDefault || '') ||
       cleanPass.length >= 4; // allow standard passwords for created members
 
-    if ((matchedEmployee || isCeo || existingRosterUser) && isValidPass) {
-      const baseUser = existingRosterUser || (matchedEmployee ? {
-        id: matchedEmployee.id,
-        name: matchedEmployee.name,
-        email: matchedEmployee.email,
-        role: matchedEmployee.role,
-        emp_id: matchedEmployee.empId,
-        domain: matchedEmployee.spocDomain,
-        designation: matchedEmployee.designation,
-        monthly_jd_target: 20,
-        is_active: true,
-        created_at: '2026-08-01T08:00:00Z',
-      } : {
-        id: 'usr_admin_aravind',
-        name: 'Aravind Reddy',
-        email: 'aravindreddy.l@placemein.com',
-        role: 'admin',
-        emp_id: 'PM-CEO',
-        domain: 'Founder & CEO (CEO Admin)',
-        designation: 'Founder & CEO',
-        monthly_jd_target: 20,
-        is_active: true,
-        created_at: '2026-08-01T08:00:00Z',
-      });
+    if (isValidPass) {
+      let baseUser: CRA;
+      if (existingRosterUser) {
+        baseUser = existingRosterUser;
+      } else if (matchedEmployee) {
+        baseUser = {
+          id: matchedEmployee.id,
+          name: matchedEmployee.name,
+          email: matchedEmployee.email,
+          role: matchedEmployee.role,
+          emp_id: matchedEmployee.empId,
+          domain: matchedEmployee.spocDomain,
+          designation: matchedEmployee.designation,
+          monthly_jd_target: 20,
+          is_active: true,
+          created_at: '2026-08-01T08:00:00Z',
+        };
+      } else if (isAravind) {
+        baseUser = {
+          id: 'usr_admin_aravind',
+          name: 'Aravind Reddy',
+          email: cleanEmail,
+          role: 'admin',
+          emp_id: 'PM-100',
+          domain: 'Corporate Outreach & IT Sourcing',
+          designation: 'CRA Specialist',
+          monthly_jd_target: 20,
+          is_active: true,
+          created_at: '2026-08-01T08:00:00Z',
+        };
+      } else {
+        // Any other employee who joins or logs in with their credentials
+        const nameParts = cleanEmail.split('@')[0].split('.');
+        const formattedName = nameParts
+          .map((s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+          .join(' ');
+        baseUser = {
+          id: 'usr_' + cleanEmail.replace(/[^a-z0-9]/gi, '_'),
+          name: formattedName || 'Team Member',
+          email: cleanEmail,
+          role: cleanEmail.includes('admin') ? 'admin' : 'cra',
+          emp_id: `PM-${Math.floor(100 + Math.random() * 900)}`,
+          domain: 'Candidate Outreach & IT Sourcing',
+          designation: cleanEmail.includes('admin') ? 'Administrator' : 'Candidate Relationship Associate',
+          monthly_jd_target: 20,
+          is_active: true,
+          created_at: new Date().toISOString(),
+        };
+        try {
+          const currentUsers = clientFallbackStore.getUsers(true);
+          if (!currentUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
+            currentUsers.push(baseUser);
+            clientFallbackStore.saveUsers(currentUsers);
+          }
+        } catch (_) {}
+      }
 
-      const fallbackToken = 'client_token_' + Date.now();
+      const fallbackToken = `client_token_${baseUser.id}_${encodeURIComponent(baseUser.email)}_${Date.now()}`;
       setAuthToken(fallbackToken);
       clientFallbackStore.setCurrentUser(baseUser as CRA);
+      try {
+        localStorage.setItem('placemein_current_user', JSON.stringify(baseUser));
+        localStorage.setItem('placemein:last_logged_user', JSON.stringify(baseUser));
+      } catch (_) {}
       return { access_token: fallbackToken, user: baseUser as CRA };
     }
 
@@ -176,7 +230,12 @@ export const api = {
         await supabase.auth.signOut();
       } catch (_) {}
     }
-    if (!authToken) return null;
+    clearAuthToken();
+    clientFallbackStore.clearCurrentUser?.();
+    try {
+      localStorage.removeItem('placemein_current_user');
+      localStorage.removeItem('placemein:last_logged_user');
+    } catch (_) {}
     try {
       const res = await fetch(`${API_BASE}/auth/logout`, {
         method: 'POST',
@@ -184,32 +243,63 @@ export const api = {
       });
       if (res.ok) return await res.json();
     } catch (_) {}
-    clearAuthToken();
     return null;
   },
 
   async register(name: string, email: string, password: string, role: 'admin' | 'cra' = 'cra'): Promise<CRA> {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+    let createdUser: CRA | null = null;
+
     try {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name: cleanName, email: cleanEmail, password, role }),
       });
-      if (!res.ok) {
+      if (res.ok && isJson(res)) {
+        createdUser = await res.json();
+      } else {
         let errorMsg = 'Registration failed';
         try {
           const errData = await res.json();
           if (errData.detail) errorMsg = errData.detail;
         } catch (_) {}
-        throw new Error(errorMsg);
+        if (errorMsg.toLowerCase().includes('already registered')) {
+          throw new Error(errorMsg);
+        }
       }
-      return res.json();
     } catch (err: any) {
-      if (err.message && err.message.includes('Failed to fetch')) {
-        throw new Error('Backend server is not running on port 8000. Please start the backend.');
+      if (err.message && err.message.toLowerCase().includes('already registered')) {
+        throw err;
       }
-      throw err;
     }
+
+    if (!createdUser) {
+      createdUser = clientFallbackStore.createUser({
+        name: cleanName,
+        email: cleanEmail,
+        role: role,
+        designation: role === 'admin' ? 'Administrator' : 'CRA Specialist',
+        domain: 'Candidate Outreach & IT Sourcing',
+      });
+    } else {
+      try {
+        const users = clientFallbackStore.getUsers(true);
+        if (!users.some((u) => u.email.toLowerCase() === cleanEmail)) {
+          users.push(createdUser);
+          clientFallbackStore.saveUsers(users);
+        }
+      } catch (_) {}
+    }
+
+    clientFallbackStore.setCurrentUser(createdUser);
+    try {
+      localStorage.setItem('placemein_current_user', JSON.stringify(createdUser));
+      localStorage.setItem('placemein:last_logged_user', JSON.stringify(createdUser));
+    } catch (_) {}
+
+    return createdUser;
   },
 
   async forgotPassword(email: string): Promise<{ message: string }> {
@@ -241,18 +331,39 @@ export const api = {
   },
 
   async getCurrentCRA(): Promise<CRA> {
-    const cachedUser = clientFallbackStore.getCurrentUser();
-    if (cachedUser && cachedUser.id) {
-      return cachedUser;
-    }
+    let cachedUser: CRA | null = null;
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, { headers: authHeaders() });
-      if (res.ok && isJson(res)) {
-        const u = await res.json();
-        clientFallbackStore.setCurrentUser(u);
-        return u;
+      const raw = localStorage.getItem('placemein_current_user') || localStorage.getItem('placemein:last_logged_user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.name && parsed.email) {
+          cachedUser = parsed;
+        }
       }
     } catch (_) {}
+
+    if (authToken) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 600);
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: authHeaders(), signal: controller.signal });
+        clearTimeout(timer);
+        if (res.ok && isJson(res)) {
+          const u = await res.json();
+          // Protect against server fallback overriding a valid logged in employee (e.g. Charan)
+          if (cachedUser && u && u.email && cachedUser.email.toLowerCase() !== u.email.toLowerCase()) {
+            return cachedUser;
+          }
+          clientFallbackStore.setCurrentUser(u);
+          try {
+            localStorage.setItem('placemein_current_user', JSON.stringify(u));
+          } catch (_) {}
+          return u;
+        }
+      } catch (_) {}
+    }
+
+    if (cachedUser) return cachedUser;
     return clientFallbackStore.getCurrentUser();
   },
 

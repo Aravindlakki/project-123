@@ -9,6 +9,9 @@ import { authenticate } from '../middlewares/authMiddleware';
 export const worksheetRouter = Router();
 
 worksheetRouter.get('/worksheet/leads', authenticate, getWorksheetLeads);
+worksheetRouter.get('/worksheets/leads', authenticate, getWorksheetLeads);
 worksheetRouter.post('/worksheet/lead', authenticate, createWorksheetLead);
+worksheetRouter.post('/worksheets/lead', authenticate, createWorksheetLead);
 worksheetRouter.post('/worksheet/bulk-leads', authenticate, bulkCreateWorksheetLeads);
 worksheetRouter.post('/worksheets/leads/bulk', authenticate, bulkCreateWorksheetLeads);
+worksheetRouter.post('/worksheets/bulk-leads', authenticate, bulkCreateWorksheetLeads);

@@ -28,6 +28,7 @@ export interface CRA {
   name: string;
   email: string;
   role: UserRole;
+  isDualRole?: boolean;
   emp_id?: string;
   designation?: string;
   domain?: string;

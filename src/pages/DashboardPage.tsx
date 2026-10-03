@@ -28,10 +28,11 @@ import { TaskNotificationModal } from '../components/TaskNotificationModal';
 
 interface Props {
   setActiveTab: (tab: string) => void;
+  currentUser?: CRA | null;
 }
 
-export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
-  const [currentUser, setCurrentUser] = useState<CRA | null>(null);
+export const DashboardPage: React.FC<Props> = ({ setActiveTab, currentUser: propCurrentUser }) => {
+  const [currentUser, setCurrentUser] = useState<CRA | null>(propCurrentUser || null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [myLeaves, setMyLeaves] = useState<LeaveRequest[]>([]);
@@ -40,6 +41,12 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [dismissedTaskIds, setDismissedTaskIds] = useState<string[]>([]);
   const [snoozedTaskIds, setSnoozedTaskIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (propCurrentUser) {
+      setCurrentUser(propCurrentUser);
+    }
+  }, [propCurrentUser]);
 
   useEffect(() => {
     // Read login timestamp from localStorage or default to current IST time
@@ -63,23 +70,26 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
     } catch (_) {}
 
     Promise.all([
-      api.getCurrentCRA().catch(() => null),
+      propCurrentUser ? Promise.resolve(propCurrentUser) : api.getCurrentCRA().catch(() => null),
       api.getDashboardStats().catch(() => null),
       api.getTasks().catch(() => []),
       api.getLeaves().catch(() => []),
     ]).then(([userRes, statsRes, tasksRes, leavesRes]) => {
-      setCurrentUser(userRes);
+      const effectiveUser = propCurrentUser || userRes;
+      if (effectiveUser) {
+        setCurrentUser(effectiveUser);
+      }
       setStats(statsRes);
       
       // Filter tasks assigned to me or created by me
-      if (userRes) {
+      if (effectiveUser) {
         const filteredTasks = tasksRes.filter(
-          (t: Task) => t.assignee_id === userRes.id || t.assigned_by_id === userRes.id
+          (t: Task) => t.assignee_id === effectiveUser.id || t.assigned_by_id === effectiveUser.id
         );
         setMyTasks(filteredTasks);
 
         const filteredLeaves = leavesRes.filter(
-          (l: LeaveRequest) => l.cra_id === userRes.id
+          (l: LeaveRequest) => l.cra_id === effectiveUser.id
         );
         setMyLeaves(filteredLeaves);
       } else {
@@ -89,7 +99,7 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
 
       setLoading(false);
     });
-  }, []);
+  }, [propCurrentUser]);
 
   const handleDismissNotification = (taskId: string) => {
     api.dismissTaskNotification(taskId);
@@ -112,18 +122,41 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
     return true;
   });
 
-  const getDetailedRoleTitle = (email?: string, name?: string, role?: string) => {
+  const getDetailedRoleTitle = (email?: string, name?: string, role?: string, designation?: string) => {
+    if (designation && designation.trim() && !designation.toLowerCase().includes('founder') && !designation.toLowerCase().includes('ceo')) {
+      const isExecutive = role === 'admin';
+      return {
+        title: designation,
+        access: isExecutive ? 'Admin & Employee Access' : 'Candidate Outreach & IT Sourcing Portal',
+        badgeColor: isExecutive ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-purple-500/20 text-purple-200 border-purple-400/40',
+      };
+    }
     const e = email?.toLowerCase() || '';
     const n = name?.toLowerCase() || '';
 
-    if (e.includes('aravindreddy') || n.includes('aravind') || e.includes('aravind')) {
-      return { title: 'Founder & CEO (CEO Admin)', access: 'Super Admin & Executive Authority', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
+    if (e.includes('aravindreddy') || n.includes('aravind')) {
+      return { title: 'CRA Specialist', access: 'Admin & Employee Access', badgeColor: 'bg-purple-500/20 text-purple-200 border-purple-400/40' };
     }
     if (e.includes('mansi') || n.includes('mansi')) {
       return { title: 'Team Leader & Operations Manager', access: 'Admin Portal Access', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
     }
     if (e.includes('vineela') || e.includes('vinella') || n.includes('vineela')) {
       return { title: 'HR Lead & Talent Recruiter', access: 'Admin Portal Access', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
+    }
+    if (e.includes('namitha') || n.includes('namitha')) {
+      return { title: 'Cyber Security & AI Enterprise Leads', access: 'CRA Sourcing Portal', badgeColor: 'bg-purple-500/20 text-purple-200 border-purple-400/40' };
+    }
+    if (e.includes('solomon') || n.includes('solomon')) {
+      return { title: 'Senior CRA & Technical Recruiter', access: 'CRA Sourcing Portal', badgeColor: 'bg-purple-500/20 text-purple-200 border-purple-400/40' };
+    }
+    if (e.includes('charan') || n.includes('charan')) {
+      return { title: 'CRA Specialist & Sourcing Associate', access: 'CRA Sourcing Portal', badgeColor: 'bg-purple-500/20 text-purple-200 border-purple-400/40' };
+    }
+    if (e.includes('harish') || n.includes('harish')) {
+      return { title: 'Enterprise Sourcing Specialist', access: 'CRA Sourcing Portal', badgeColor: 'bg-purple-500/20 text-purple-200 border-purple-400/40' };
+    }
+    if (e.includes('mrudula') || n.includes('mrudula')) {
+      return { title: 'Talent Acquisition & CRA Associate', access: 'CRA Sourcing Portal', badgeColor: 'bg-purple-500/20 text-purple-200 border-purple-400/40' };
     }
     if (role === 'admin') {
       return { title: 'Executive Admin', access: 'Admin Portal Access', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
@@ -149,9 +182,24 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
     outreach_by_status: [],
   };
 
-  const userName = currentUser?.name || 'Team Member';
-  const isUserAdmin = currentUser?.role === 'admin';
-  const roleInfo = getDetailedRoleTitle(currentUser?.email, currentUser?.name, currentUser?.role);
+  const resolveActiveUser = (): CRA | null => {
+    if (propCurrentUser?.name) return propCurrentUser;
+    if (currentUser?.name) return currentUser;
+    try {
+      const raw = localStorage.getItem('placemein_current_user') || localStorage.getItem('placemein:last_logged_user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.name && parsed?.email) return parsed;
+      }
+    } catch (_) {}
+    return null;
+  };
+
+  const activeUser = resolveActiveUser();
+  const userName = activeUser?.name || 'Team Member';
+  const isUserAdmin = activeUser?.role === 'admin';
+  const roleInfo = getDetailedRoleTitle(activeUser?.email, activeUser?.name, activeUser?.role, activeUser?.designation);
+  const displayTitle = activeUser?.designation || roleInfo.title;
   const pendingLeaves = myLeaves.filter(l => l.status === 'pending').length;
   const approvedLeaves = myLeaves.filter(l => l.status === 'approved').length;
   const pendingTasks = myTasks.filter(t => t.status !== 'completed').length;
@@ -175,14 +223,14 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
             </div>
             
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
-              {userName.toLowerCase().includes('aravind') ? 'Aravind Reddy' : userName}{' '}
+              Welcome, {userName}!{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-purple-300 to-indigo-200">
-                · {roleInfo.title}
+                · {displayTitle}
               </span>
             </h1>
             
             <p className="text-xs sm:text-sm text-purple-200/90 font-medium max-w-xl leading-relaxed">
-              Active Session: Logged in at <strong className="text-white font-bold">{loginTime}</strong> as <strong className="text-purple-200 font-bold">{roleInfo.title}</strong>.
+              Active Session: Logged in at <strong className="text-white font-bold">{loginTime}</strong> as <strong className="text-purple-200 font-bold">{displayTitle}</strong>.
             </p>
           </div>
 
@@ -193,9 +241,9 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
             </div>
             <div className="min-w-0">
               <p className="font-extrabold text-white text-xs sm:text-sm leading-tight truncate">{userName}</p>
-              <p className="text-[11px] sm:text-xs font-semibold text-purple-300/90 mt-0.5 truncate">{roleInfo.title}</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-purple-300/90 mt-0.5 truncate">{displayTitle}</p>
               <span className={`inline-block mt-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${roleInfo.badgeColor}`}>
-                {roleInfo.access}
+                {isUserAdmin ? 'ADMIN & EMPLOYEE ACCESS' : 'ACTIVE EMPLOYEE · CRA SOURCING'}
               </span>
             </div>
           </div>
@@ -226,8 +274,8 @@ export const DashboardPage: React.FC<Props> = ({ setActiveTab }) => {
               <Briefcase className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
-          <h3 className="text-xs sm:text-sm font-black text-white truncate">{roleInfo.title}</h3>
-          <p className="text-[11px] text-purple-300/80 font-semibold truncate">{currentUser?.email}</p>
+          <h3 className="text-xs sm:text-sm font-black text-white truncate">{displayTitle}</h3>
+          <p className="text-[11px] text-purple-300/80 font-semibold truncate">{activeUser?.email || 'Employee Session'}</p>
         </div>
 
         {/* Box 3: Access Level & Privileges */}

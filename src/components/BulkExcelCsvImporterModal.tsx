@@ -248,7 +248,7 @@ export const BulkExcelCsvImporterModal: React.FC<BulkExcelCsvImporterModalProps>
   onImportComplete,
   existingCompanies: propCompanies,
   existingContacts: propContacts,
-  currentUserName = 'Aravind Reddy',
+  currentUserName = 'Team Member',
 }) => {
   // Local cache of companies & contacts if not passed in
   const [dbCompanies, setDbCompanies] = useState<Company[]>(propCompanies || []);
@@ -872,7 +872,7 @@ export const BulkExcelCsvImporterModal: React.FC<BulkExcelCsvImporterModalProps>
             domain: targetCompany?.industry || 'Information Technology',
             location: targetCompany?.location || 'Hyderabad',
             remarks: 'Imported via Bulk Excel/CSV Importer',
-            spoc: 'Namitha',
+            spoc: currentUserName.split(' ')[0] || 'Aravind',
             entered_by_name: currentUserName,
             source: 'import',
             created_at: row.date ? new Date(row.date).toISOString() : new Date().toISOString(),
@@ -895,7 +895,7 @@ export const BulkExcelCsvImporterModal: React.FC<BulkExcelCsvImporterModalProps>
               domain: 'Information Technology',
               location: 'Hyderabad',
               remarks: 'Imported via Bulk Excel/CSV Importer',
-              spoc: 'Namitha',
+              spoc: currentUserName.split(' ')[0] || 'Aravind',
               entered_by_name: currentUserName,
               source: 'import',
               company: targetCompany,

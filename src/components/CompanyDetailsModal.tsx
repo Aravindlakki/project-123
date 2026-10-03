@@ -88,7 +88,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
       setIndustry(company.industry || '');
       setWebsite(company.website || '');
       setLocation(company.location || '');
-      setEnteredByName(company.entered_by_name || (company.creator ? company.creator.name : 'Aravind Reddy'));
+      setEnteredByName(company.entered_by_name || (company.creator ? company.creator.name : (currentUser?.name || 'Team Member')));
       setIsEditing(false);
       setShowAddContact(false);
       setShowAddRole(false);
@@ -145,7 +145,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
         phone: newHRPhone.trim() || undefined,
         email: newHREmail.trim() || undefined,
         linkedin_url: newHRLinkedin.trim() || undefined,
-        entered_by_name: enteredByName || 'Aravind Reddy',
+        entered_by_name: enteredByName || (currentUser?.name || 'Team Member'),
         source: 'manual',
       });
       onContactAdded?.(newContact);
@@ -246,7 +246,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
               <p className="text-xs text-gray-400 mt-1 flex items-center gap-2">
                 <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
                 <span>
-                  Entered by: <strong className="text-white font-semibold">{company.entered_by_name || (company.creator ? company.creator.name : 'Aravind Reddy')}</strong>
+                  Entered by: <strong className="text-white font-semibold">{company.entered_by_name || (company.creator ? company.creator.name : 'Team Member')}</strong>
                 </span>
                 <span className="text-gray-600">•</span>
                 <Calendar className="h-3.5 w-3.5 text-gray-500" />
@@ -406,7 +406,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                 />
               ) : (
                 <p className="text-base font-bold text-emerald-300">
-                  {company.entered_by_name || (company.creator ? company.creator.name : 'Aravind Reddy')}
+                  {company.entered_by_name || (company.creator ? company.creator.name : 'Team Member')}
                 </p>
               )}
               <span className="text-[11px] text-gray-500 mt-1">Audited data contributor</span>
@@ -652,7 +652,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                     {/* Creator footer */}
                     <div className="mt-3 pt-2.5 border-t border-gray-700/40 text-[11px] text-gray-500 flex items-center justify-between">
                       <span>
-                        Entered by: <strong className="text-gray-300 font-medium">{contact.entered_by_name || (contact.creator ? contact.creator.name : 'Aravind Reddy')}</strong>
+                        Entered by: <strong className="text-gray-300 font-medium">{contact.entered_by_name || (contact.creator ? contact.creator.name : 'Team Member')}</strong>
                       </span>
                       <span className="capitalize">{contact.source}</span>
                     </div>

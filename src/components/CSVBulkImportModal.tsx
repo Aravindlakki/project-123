@@ -1,5 +1,6 @@
 import React from 'react';
 import { BulkExcelCsvImporterModal } from './BulkExcelCsvImporterModal';
+import { clientFallbackStore } from '../services/clientFallbackStore';
 
 interface CSVBulkImportModalProps {
   isOpen: boolean;
@@ -14,12 +15,14 @@ export const CSVBulkImportModal: React.FC<CSVBulkImportModalProps> = ({
   onImportComplete,
   teamMembers,
 }) => {
+  const activeUserName = clientFallbackStore.getCurrentUser()?.name || teamMembers?.[0]?.name || 'Team Member';
+
   return (
     <BulkExcelCsvImporterModal
       isOpen={isOpen}
       onClose={onClose}
       onImportComplete={() => onImportComplete()}
-      currentUserName={teamMembers?.[0]?.name || 'Aravind Reddy'}
+      currentUserName={activeUserName}
     />
   );
 };

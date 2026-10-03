@@ -57,7 +57,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
   onClose,
   onImportSuccess,
   currentUser,
-  defaultSpoc = 'Namitha',
+  defaultSpoc = 'Aravind',
   adminMode = false,
   initialFile,
 }) => {
@@ -65,10 +65,19 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
   const [sheets, setSheets] = useState<ParsedSheetData[]>([]);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [importAllSheets, setImportAllSheets] = useState(false);
-  const [enteredByName, setEnteredByName] = useState(currentUser?.name || 'Aravind Reddy');
+  const [enteredByName, setEnteredByName] = useState(currentUser?.name || 'Team Member');
   const [selectedDefaultSpoc, setSelectedDefaultSpoc] = useState(
-    defaultSpoc !== 'all' ? defaultSpoc : 'Namitha'
+    defaultSpoc !== 'all' ? defaultSpoc : (currentUser?.name?.split(' ')[0] || 'Member')
   );
+
+  useEffect(() => {
+    if (currentUser?.name) {
+      setEnteredByName(currentUser.name);
+      if (!defaultSpoc || defaultSpoc === 'all') {
+        setSelectedDefaultSpoc(currentUser.name.split(' ')[0]);
+      }
+    }
+  }, [currentUser, defaultSpoc]);
 
   useEffect(() => {
     if (initialFile && isOpen) {
@@ -525,7 +534,7 @@ export const ExcelWorksheetImportModal: React.FC<ExcelWorksheetImportModalProps>
           location: columnMap.location ? String(row[columnMap.location] || '').trim() : '',
           remarks: columnMap.remarks ? String(row[columnMap.remarks] || '').trim() : 'Imported via Excel',
           spoc: spocVal || selectedDefaultSpoc,
-          entered_by_name: enteredByName.trim() || 'Aravind Reddy',
+          entered_by_name: enteredByName.trim() || currentUser?.name || 'Team Member',
         });
       });
     });

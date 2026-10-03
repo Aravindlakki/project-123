@@ -38,7 +38,6 @@ const employeeItems = [
   { id: 'dashboard', label: 'My Dashboard', icon: LayoutDashboard },
   { id: 'team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'team-sheets', label: 'Team Worksheet', icon: FileSpreadsheet },
-  { id: 'hr-sourcing', label: 'HR Sourcing', icon: Search },
   { id: 'jd-intake', label: 'JD Intake', icon: FileText },
   { id: 'jd-list', label: 'JD List', icon: Briefcase },
   { id: 'crm', label: 'CRM Directory', icon: Users },
@@ -49,6 +48,7 @@ const employeeItems = [
 const adminItems = [
   { id: 'admin-team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
+  { id: 'admin-crm', label: 'CRM Directory', icon: Users },
   { id: 'admin-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
   { id: 'admin-jd-bank-tech', label: 'JD Bank — Tech', icon: Cpu },
   { id: 'admin-jd-bank-non-tech', label: 'JD Bank — Non-Tech', icon: Layers },
@@ -168,10 +168,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={handlePortalSwitchClick}
               title={collapsed ? 'Exit to Employee View' : undefined}
-              className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-extrabold border transition shadow-lg bg-purple-900/40 hover:bg-purple-800/60 border-purple-600/50 text-purple-200"
+              className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-extrabold border transition shadow-lg bg-purple-900/40 hover:bg-purple-800/60 border-purple-600/50 text-purple-200 cursor-pointer"
             >
               <User className="h-3.5 w-3.5 shrink-0 text-purple-300" />
               {!collapsed && <span>Exit to Employee View</span>}
+            </button>
+          </div>
+        )}
+
+        {/* In Employee Mode for Admin Users, allow 1-click switch to Admin Portal */}
+        {!isAdmin && currentUser?.role === 'admin' && (
+          <div className="px-3 pt-3">
+            <button
+              onClick={() => {
+                onCloseMobile?.();
+                setActiveTab('admin-users');
+              }}
+              title={collapsed ? 'Switch to Admin Portal' : undefined}
+              className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-extrabold border transition shadow-lg bg-amber-600/30 hover:bg-amber-600/50 border-amber-500/50 text-amber-200 cursor-pointer"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+              {!collapsed && <span>Switch to Admin Portal</span>}
             </button>
           </div>
         )}
@@ -222,12 +239,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {currentUser && !collapsed && (
             <div className="mb-2 px-3 text-xs">
               <p className="font-bold text-white truncate">
-                {currentUser.email?.toLowerCase().includes('aravind') || currentUser.name?.toLowerCase().includes('aravind') ? 'Aravind Reddy' : currentUser.name}
+                {currentUser.name}
               </p>
               <p className={isAdmin ? 'text-amber-300 font-medium' : 'text-purple-300 font-medium'}>
-                {currentUser.email?.toLowerCase().includes('aravind') || currentUser.name?.toLowerCase().includes('aravind')
-                  ? 'Founder & CEO (CEO Admin)'
-                  : (currentUser.designation || (currentUser.role === 'admin' ? (isAdmin ? 'Admin Portal Active' : 'Admin (Employee Mode)') : 'CRA Employee'))}
+                {currentUser.designation || (currentUser.role === 'admin' ? (isAdmin ? 'Admin Portal Active' : 'Admin (Employee Mode)') : 'CRA Specialist')}
               </p>
             </div>
           )}

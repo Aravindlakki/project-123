@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TeamLeadStats, JD, Task, CRA, Company } from '../types';
 import { api } from '../services/api';
+import { clientFallbackStore } from '../services/clientFallbackStore';
 import { formatIndianDate, formatIndianNumber } from '../utils/formatters';
 import {
   LayoutDashboard,
@@ -66,10 +67,16 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
         api.getWorksheetLeads().catch(() => []),
       ]);
 
+      const localUsers = clientFallbackStore.getUsers(true);
+      const combinedUsersMap = new Map<string, CRA>();
+      localUsers.forEach((u) => combinedUsersMap.set(u.email.toLowerCase(), u));
+      (fetchedUsers || []).forEach((u: CRA) => combinedUsersMap.set(u.email.toLowerCase(), u));
+      const resolvedUsers = Array.from(combinedUsersMap.values());
+
       setStats(fetchedStats);
       setJds(fetchedJDs);
       setTasks(fetchedTasks);
-      setUsers(fetchedUsers);
+      setUsers(resolvedUsers);
 
       const pendingProofs = fetchedLeads.filter(
         (l: any) => Boolean(l.proof_screenshot_url) && (l.proof_verified_status || 'pending') === 'pending'
@@ -103,7 +110,7 @@ export const TeamLeadDashboardPage: React.FC<TeamLeadDashboardPageProps> = ({ se
 
   const jdsToday = jds.filter((j) => isToday(j.date_found || j.created_at));
 
-  const activeCras = users.filter((u) => u.is_active !== false && !u.deleted_at && u.role === 'cra');
+  const activeCras = users.filter((u) => u.is_active !== false && !u.deleted_at);
 
   const drivesThisMonth = tasks.filter(
     (t) =>

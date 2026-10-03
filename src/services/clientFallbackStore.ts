@@ -18,28 +18,21 @@ const STORAGE_KEYS = {
   LEAVES: 'placemein_mock_leaves',
   CURRENT_USER: 'placemein_current_user',
   JDS: 'placemein_mock_jds',
-  ROSTER_VERSION: 'placemein_roster_version_v6',
-  WORKSHEET_VERSION: 'placemein_worksheet_version_v9',
+  ROSTER_VERSION: 'placemein_roster_version_v7',
+  WORKSHEET_VERSION: 'placemein_worksheet_version_v15',
 };
 
 // Target Roster Version: triggers automatic cleanup of any old cached duplicates in browser localStorage
-const CURRENT_ROSTER_VERSION = 'v7_canonical_8_team_roster_reverted_4';
-const CURRENT_WORKSHEET_VERSION = 'v9_manual_phones_and_hr_sourcing_sync';
+const CURRENT_ROSTER_VERSION = 'v11_canonical_8_team_roster_clean';
+const CURRENT_WORKSHEET_VERSION = 'v15_all_companies_leads_cleared';
 
-// Obsolete or legacy duplicate emails that must be pruned from cache
+// Obsolete or legacy duplicate emails that must be pruned from cache (only non-canonical variants)
 const OBSOLETE_EMAILS = [
-  'solomon.raju@placemein.com',
-  'charankumar.n@placemein.com',
-  'mrudula.t@placemein.com',
-  'harish.reddy@placemein.com',
-  'harish.m@placemein.com',
-  'namitha.s@placemein.com',
-  'mrudula@placemein.com',
   'aliya.s@placemein.com',
   'varshith.r@placemein.com',
   'aasritha.k@placemein.com',
   'cra_lead@placemein.com',
-  'aravindaravind3953@gmail.com', // canonical is aravindreddy.l@placemein.com
+  'aravindaravind3953@gmail.com',
 ];
 
 // Initial setup from seed data
@@ -118,21 +111,16 @@ function initializeMockData(forceResetRoster: boolean = false) {
   const shouldResetContacts = storedWorksheetVersion !== CURRENT_WORKSHEET_VERSION;
 
   if (!localStorage.getItem(STORAGE_KEYS.COMPANIES) || !localStorage.getItem(STORAGE_KEYS.CONTACTS) || shouldResetContacts) {
-    const existingCompanies: Company[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]');
-    const existingContacts: HRContact[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONTACTS) || '[]');
-    // Preserve custom user-added contacts and sanitize any previously generated dummy phone numbers
-    const customContacts = existingContacts
-      .filter((c) => !c.id.startsWith('lead_'))
-      .map((c) => {
-        if (c.phone === '+91 9876543210' || c.phone === '+91 98765 43210') {
-          return { ...c, phone: undefined };
-        }
-        return c;
-      });
-    const customCompanies = existingCompanies.filter((comp) => !comp.id.startsWith('comp_lead_'));
+    try {
+      localStorage.removeItem(STORAGE_KEYS.COMPANIES);
+      localStorage.removeItem(STORAGE_KEYS.CONTACTS);
+      localStorage.removeItem(STORAGE_KEYS.TASKS);
+      localStorage.removeItem(STORAGE_KEYS.LEAVES);
+      localStorage.removeItem(STORAGE_KEYS.JDS);
+    } catch (_) {}
 
-    const companies: Company[] = [...customCompanies];
-    const contacts: HRContact[] = [...customContacts];
+    const companies: Company[] = [];
+    const contacts: HRContact[] = [];
 
     INITIAL_PDF_LEADS.forEach((lead) => {
       let company = companies.find((c) => c.name.toLowerCase() === lead.company_name.toLowerCase());
@@ -146,7 +134,8 @@ function initializeMockData(forceResetRoster: boolean = false) {
           industry: lead.industry,
           source: 'import',
           location: lead.location,
-          created_at: new Date().toISOString(),
+          entered_by_name: lead.entered_by_name || 'Aravind Reddy',
+          created_at: lead.proof_screenshot_uploaded_at || new Date('2026-10-01T08:00:00Z').toISOString(),
         };
         companies.push(company);
       }
@@ -165,141 +154,32 @@ function initializeMockData(forceResetRoster: boolean = false) {
         spoc: lead.spoc,
         domain: lead.domain,
         location: lead.location,
-        entered_by_name: lead.entered_by_name,
+        entered_by_name: lead.entered_by_name || 'Aravind Reddy',
         source: 'import',
         response_status: 'no_response_yet',
         company,
-        created_at: new Date().toISOString(),
+        created_at: lead.proof_screenshot_uploaded_at || new Date('2026-10-01T08:00:00Z').toISOString(),
       });
     });
 
     localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
     localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
+    localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.WORKSHEET_VERSION, CURRENT_WORKSHEET_VERSION);
   }
 
-  if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
-    const initialTasks: Task[] = [
-      {
-        id: 'task-1',
-        title: 'Source 15 Cyber Security Lead Profiles',
-        description: 'Target Mid to Senior Talent Acquisition Specialists in Bengaluru & Hyderabad.',
-        assignee_id: 'usr_cra_1',
-        assigned_by_id: 'usr_admin_aravind',
-        due_date: new Date(Date.now() + 86400000 * 2).toISOString(),
-        priority: 'high',
-        status: 'in_progress',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 'task-2',
-        title: 'Verify 10 FinTech HR Phone Numbers',
-        description: 'Direct dial outreach verification for upcoming Q3 placement drive.',
-        assignee_id: 'usr_cra_2',
-        assigned_by_id: 'usr_admin_aravind',
-        due_date: new Date(Date.now() + 86400000 * 3).toISOString(),
-        priority: 'medium',
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(initialTasks));
+  if (!localStorage.getItem(STORAGE_KEYS.TASKS) || shouldResetContacts) {
+    localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify([]));
   }
 
-  if (!localStorage.getItem(STORAGE_KEYS.LEAVES)) {
-    const initialLeaves: LeaveRequest[] = [
-      {
-        id: 'leave-1',
-        cra_id: 'usr_cra_1',
-        leave_type: 'casual',
-        start_date: new Date(Date.now() + 86400000 * 5).toISOString().slice(0, 10),
-        end_date: new Date(Date.now() + 86400000 * 6).toISOString().slice(0, 10),
-        days_count: 2,
-        reason: 'Personal travel',
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify(initialLeaves));
+  if (!localStorage.getItem(STORAGE_KEYS.LEAVES) || shouldResetContacts) {
+    localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify([]));
   }
 
-  // Self-healing check for JDs storage to prevent quota overflow
-  try {
-    const existingJDsRaw = localStorage.getItem(STORAGE_KEYS.JDS);
-    if (!existingJDsRaw) {
-      const initialJDs: JD[] = [
-        {
-          id: 'jd-seed-1',
-          jd_id: 'JD-2026-0001',
-          title: 'Data Engineer',
-          company_id: 'comp_1',
-          raw_text: 'Responsibilities include designing, building, and maintaining robust data pipelines and analytics systems.',
-          is_verified: true,
-          eligibility_status: 'eligible',
-          interview_scheduled: 'yes',
-          interview_date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 16),
-          interview_round: 'Technical Screening',
-          interview_notes: 'Google Meet link shared with candidate',
-          hr_name: 'Rohit Verma',
-          hr_email: 'rohit.verma@techcorp.com',
-          hr_phone: '',
-          hr_designation: 'Senior Talent Acquisition Lead',
-          hr_feedback_status: 'received',
-          hr_feedback: 'Candidate profile matched expectations. Proceed with Round 2.',
-          hr_feedback_date: new Date().toISOString().slice(0, 10),
-          verification_source: 'file_ai_extract',
-          opportunity_type: 'existing_post',
-          date_found: new Date().toISOString().slice(0, 10),
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'jd-seed-2',
-          jd_id: 'JD-2026-0002',
-          title: 'Senior Fullstack Engineer',
-          company_id: 'comp_2',
-          raw_text: 'Seeking a fullstack developer proficient in React, Node.js, and TypeScript with 3+ years experience.',
-          is_verified: false,
-          eligibility_status: 'pending_admin_review',
-          interview_scheduled: 'no',
-          hr_name: 'Priyanka Sharma',
-          hr_email: 'priyanka.s@innovatex.io',
-          hr_phone: '',
-          hr_designation: 'HR Lead',
-          hr_feedback_status: 'awaiting',
-          verification_source: 'file_ai_extract',
-          opportunity_type: 'existing_post',
-          date_found: new Date().toISOString().slice(0, 10),
-          created_at: new Date().toISOString(),
-        },
-      ];
-      localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(initialJDs));
-    } else {
-      // Existing data check: if oversized (e.g. from previously pasted raw HTML), compact immediately
-      try {
-        const parsed = JSON.parse(existingJDsRaw);
-        if (Array.isArray(parsed)) {
-          let modified = false;
-          const cleaned = parsed.slice(0, 80).map((j: any) => {
-            if (typeof j?.raw_text === 'string' && j.raw_text.length > 4000) {
-              modified = true;
-              return { ...j, raw_text: j.raw_text.slice(0, 4000) };
-            }
-            return j;
-          });
-          if (modified || existingJDsRaw.length > 250000) {
-            localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(cleaned));
-          }
-        }
-      } catch {
-        // If unparseable or corrupted, clear and re-initialize
-        localStorage.removeItem(STORAGE_KEYS.JDS);
-      }
-    }
-  } catch (e) {
-    console.warn('[Storage] Quota check/initialization error:', e);
+  if (!localStorage.getItem(STORAGE_KEYS.JDS) || shouldResetContacts) {
+    localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify([]));
   }
 }
 
@@ -393,24 +273,38 @@ export const clientFallbackStore = {
 
   getCurrentUser(): CRA {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || localStorage.getItem('placemein_current_user') || localStorage.getItem('placemein:last_logged_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (!OBSOLETE_EMAILS.includes(parsed?.email?.toLowerCase())) {
+        if (parsed?.name && parsed?.email) {
           return parsed;
         }
       }
     } catch {}
     const users = this.getUsers();
-    return users.find((u) => u.id === 'usr_admin_aravind') || users[0];
+    return users[0];
   },
 
   setCurrentUser(user: CRA) {
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
   },
 
+  clearCurrentUser() {
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  },
+
   getCompanies(): Company[] {
     try {
+      const PURGE_FLAG = 'placemein_data_purged_for_2_days_v16';
+      if (localStorage.getItem(PURGE_FLAG) !== 'true') {
+        localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify([]));
+        localStorage.setItem(PURGE_FLAG, 'true');
+        return [];
+      }
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]');
     } catch {
       return [];
@@ -419,6 +313,16 @@ export const clientFallbackStore = {
 
   getContacts(): HRContact[] {
     try {
+      const PURGE_FLAG = 'placemein_data_purged_for_2_days_v16';
+      if (localStorage.getItem(PURGE_FLAG) !== 'true') {
+        localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.LEAVES, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify([]));
+        localStorage.setItem(PURGE_FLAG, 'true');
+        return [];
+      }
       const contacts: HRContact[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONTACTS) || '[]');
       const companies = this.getCompanies();
       let proofReg: Record<string, any> = {};
@@ -540,7 +444,7 @@ export const clientFallbackStore = {
           domain: item.domain?.trim() || company.industry || 'Technology',
           location: item.location?.trim() || company.location || '',
           remarks: item.remarks?.trim() || 'Imported via Excel',
-          spoc: item.spoc?.trim() || 'Namitha',
+          spoc: item.spoc?.trim() || 'Aravind',
           entered_by_name: item.entered_by_name?.trim() || 'Aravind Reddy',
           source: 'import',
           response_status: 'no_response_yet',
@@ -564,6 +468,8 @@ export const clientFallbackStore = {
 
   getTasks(): Task[] {
     try {
+      const PURGE_FLAG = 'placemein_data_purged_for_2_days_v16';
+      if (localStorage.getItem(PURGE_FLAG) !== 'true') return [];
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || '[]');
     } catch {
       return [];
@@ -576,6 +482,8 @@ export const clientFallbackStore = {
 
   getLeaves(): LeaveRequest[] {
     try {
+      const PURGE_FLAG = 'placemein_data_purged_for_2_days_v16';
+      if (localStorage.getItem(PURGE_FLAG) !== 'true') return [];
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.LEAVES) || '[]');
     } catch {
       return [];
@@ -588,6 +496,8 @@ export const clientFallbackStore = {
 
   getJDs(isVerified?: boolean, opportunityType?: string): JD[] {
     try {
+      const PURGE_FLAG = 'placemein_data_purged_for_2_days_v16';
+      if (localStorage.getItem(PURGE_FLAG) !== 'true') return [];
       let jds: JD[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.JDS) || '[]');
       if (jds.length === 0 && inMemoryJDs.length > 0) {
         jds = inMemoryJDs;
@@ -824,7 +734,7 @@ export const clientFallbackStore = {
     const cleanEmail = (userData.email || '').trim().toLowerCase();
     const existing = users.find((u) => u.email.toLowerCase() === cleanEmail);
     if (existing) {
-      throw new Error(`A user with email "${cleanEmail}" already exists.`);
+      return existing;
     }
 
     const newUser: CRA = {

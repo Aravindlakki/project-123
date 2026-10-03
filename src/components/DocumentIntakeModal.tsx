@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   UploadCloud,
@@ -37,7 +37,13 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [rawText, setRawText] = useState('');
-  const [enteredByName, setEnteredByName] = useState(currentUser?.name || 'Aravind Reddy');
+  const [enteredByName, setEnteredByName] = useState(currentUser?.name || 'Team Member');
+
+  useEffect(() => {
+    if (currentUser?.name) {
+      setEnteredByName(currentUser.name);
+    }
+  }, [currentUser?.name]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<{
@@ -61,7 +67,7 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
       const f = e.target.files[0];
       const detection = await detectFileCategory(f);
       if (detection.category === 'JD') {
-        setError(`Routing Alert: '${f.name}' was detected as a Job Description (${detection.reason}). Job Descriptions follow the JD-only flow and cannot be uploaded into HR Sourcing. Please submit this file under the 'JD Intake' / 'JD List' module.`);
+        setError(`Routing Alert: '${f.name}' was detected as a Job Description (${detection.reason}). Job Descriptions follow the JD-only flow and cannot be uploaded as a Lead List. Please submit this file under the 'JD Intake' / 'JD List' module.`);
         setFile(null);
         return;
       }
@@ -77,7 +83,7 @@ export const DocumentIntakeModal: React.FC<DocumentIntakeModalProps> = ({
       const f = e.dataTransfer.files[0];
       const detection = await detectFileCategory(f);
       if (detection.category === 'JD') {
-        setError(`Routing Alert: '${f.name}' was detected as a Job Description (${detection.reason}). Job Descriptions follow the JD-only flow and cannot be uploaded into HR Sourcing. Please submit this file under the 'JD Intake' / 'JD List' module.`);
+        setError(`Routing Alert: '${f.name}' was detected as a Job Description (${detection.reason}). Job Descriptions follow the JD-only flow and cannot be uploaded as a Lead List. Please submit this file under the 'JD Intake' / 'JD List' module.`);
         setFile(null);
         return;
       }
