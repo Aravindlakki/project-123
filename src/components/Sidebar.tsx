@@ -49,14 +49,14 @@ const employeeItems = [
 const adminItems = [
   { id: 'admin-team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
-  { id: 'admin-crm', label: 'CRM Directory', icon: Users },
-  { id: 'admin-templates', label: 'Message Templates', icon: MessageSquareQuote },
   { id: 'admin-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
   { id: 'admin-jd-bank-tech', label: 'JD Bank — Tech', icon: Cpu },
   { id: 'admin-jd-bank-non-tech', label: 'JD Bank — Non-Tech', icon: Layers },
   { id: 'admin-jd-list', label: 'JD List & Tracking', icon: Briefcase },
   { id: 'admin-tasks', label: 'Task Management', icon: CheckSquare },
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
+  { id: 'admin-crm', label: 'CRM Directory', icon: Users },
+  { id: 'admin-templates', label: 'Message Templates', icon: MessageSquareQuote },
   { id: 'admin-performance', label: 'Team Performance', icon: Award },
   { id: 'admin-settings', label: 'System Settings', icon: Settings },
 ];
@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 pb-6">
           {!collapsed && (
             <p className={`px-3 mb-2 text-[10px] font-black uppercase tracking-widest ${isAdmin ? 'text-amber-400' : 'text-purple-400'}`}>
               {isAdmin ? 'Administration Oversight' : 'Employee Workspace'}
@@ -237,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </nav>
 
-        <div className={`p-3 border-t ${isAdmin ? 'border-amber-800/40 bg-amber-950/40' : 'border-purple-800/40 bg-purple-950/40'}`}>
+        <div className={`p-3 border-t shrink-0 z-10 ${isAdmin ? 'border-amber-800/40 bg-amber-950/40' : 'border-purple-800/40 bg-purple-950/40'}`}>
           {currentUser && !collapsed && (
             <div className="mb-2 px-3 text-xs">
               <p className="font-bold text-white truncate">

@@ -928,13 +928,23 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole, currentUser
                           {getStatusBadge(out ? out.outcome_status : 'pending')}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => handleOpenOutcomeModal(c)}
-                            className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-medium transition inline-flex items-center gap-1"
-                          >
-                            <Award className="h-3.5 w-3.5" />
-                            <span>Evaluate</span>
-                          </button>
+                          {(adminMode || currentUser?.role === 'admin') ? (
+                            <button
+                              onClick={() => handleOpenOutcomeModal(c)}
+                              className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-medium transition inline-flex items-center gap-1 cursor-pointer"
+                              title="Evaluate and update lead status (Admin only)"
+                            >
+                              <Award className="h-3.5 w-3.5" />
+                              <span>Evaluate</span>
+                            </button>
+                          ) : (
+                            <span
+                              className="px-2.5 py-1 text-xs text-gray-500 italic"
+                              title="Outcome evaluation is managed by Administrators"
+                            >
+                              Admin Reviewed
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );

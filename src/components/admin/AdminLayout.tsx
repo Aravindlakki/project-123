@@ -10,6 +10,8 @@ import {
   Settings,
   Cpu,
   Layers,
+  Users,
+  MessageSquareQuote,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -37,6 +39,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'admin-jd-list', label: 'JD List & Tracking', icon: Briefcase },
   { id: 'admin-tasks', label: 'Task Management', icon: CheckSquare },
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
+  { id: 'admin-crm', label: 'CRM Directory', icon: Users },
+  { id: 'admin-templates', label: 'Message Templates', icon: MessageSquareQuote },
   { id: 'admin-performance', label: 'Team Performance', icon: Award },
   { id: 'admin-settings', label: 'System Settings', icon: Settings },
   { id: 'jd-bank-tech', label: 'JD Bank — Tech', icon: Cpu, tag: 'Bank' },
@@ -101,6 +105,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         return 'Task Management';
       case 'admin-companies':
         return 'Company & JD Oversight';
+      case 'admin-crm':
+        return 'CRM Directory';
+      case 'admin-templates':
+        return 'Message Templates';
       case 'admin-performance':
         return 'Team Performance';
       case 'admin-settings':
@@ -190,7 +198,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin pb-6">
           {ADMIN_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -249,7 +257,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </nav>
 
         {/* Sidebar Footer Controls */}
-        <div className="p-3 border-t border-slate-700/30 space-y-2 bg-[#070c16]/60">
+        <div className="p-3 border-t border-slate-700/30 space-y-2 bg-[#070c16]/90 shrink-0 z-10">
           {/* Switch to Employee Portal */}
           <button
             onClick={onSwitchToEmployee}

@@ -148,6 +148,11 @@ export function getJDById(req: Request, res: Response) {
 }
 
 export function updateJD(req: Request, res: Response) {
+  const user = (req as any).user as CRA | undefined;
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ detail: 'Permission denied: Only administrators can edit job descriptions and roles.' });
+  }
+
   const jd = jds.find((j) => j.id === req.params.id);
   if (!jd) return res.status(404).json({ detail: 'JD not found' });
   Object.assign(jd, req.body);
@@ -155,6 +160,11 @@ export function updateJD(req: Request, res: Response) {
 }
 
 export function deleteJD(req: Request, res: Response) {
+  const user = (req as any).user as CRA | undefined;
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ detail: 'Permission denied: Only administrators can delete job descriptions and roles.' });
+  }
+
   const idx = jds.findIndex((j) => j.id === req.params.id);
   if (idx === -1) return res.status(404).json({ detail: 'JD not found' });
   jds.splice(idx, 1);

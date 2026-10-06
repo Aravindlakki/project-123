@@ -138,6 +138,28 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
       setFeedback({ type: 'error', text: 'HR Name is required' });
       return;
     }
+
+    const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    const newNormName = norm(newHRName);
+    const cleanPhone = (newHRPhone || '').replace(/[^0-9]/g, '');
+    const cleanEmail = (newHREmail || '').trim().toLowerCase();
+
+    const existingContacts = company.contacts || [];
+    const duplicate = existingContacts.find((c) => {
+      if (norm(c.name) === newNormName) return true;
+      if (cleanPhone && c.phone && c.phone.replace(/[^0-9]/g, '') === cleanPhone) return true;
+      if (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail) return true;
+      return false;
+    });
+
+    if (duplicate) {
+      setFeedback({
+        type: 'error',
+        text: `⚠️ Duplicate HR Contact: "${newHRName.trim()}" already exists for ${company.name}. Duplicate HR contacts are not allowed.`,
+      });
+      return;
+    }
+
     setIsAddingContact(true);
     setFeedback(null);
     try {
@@ -291,13 +313,28 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                 </button>
               </>
             ) : (
-              <span
-                className="px-2.5 py-1 bg-gray-800/80 text-gray-400 border border-gray-700/60 rounded-lg text-xs font-medium flex items-center gap-1.5"
-                title="Company profile fields are locked. Only Admins can modify existing company details."
-              >
-                <Lock className="h-3 w-3 text-amber-400" />
-                <span>View-Only</span>
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="px-2.5 py-1 bg-gray-800/80 text-gray-400 border border-gray-700/60 rounded-lg text-xs font-medium flex items-center gap-1.5"
+                  title="Company profile fields are locked. Only Admins can modify existing company details."
+                >
+                  <Lock className="h-3 w-3 text-amber-400" />
+                  <span>View-Only</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFeedback({
+                      type: 'success',
+                      text: `Edit request noted for "${company.name}". Please submit update details to an Administrator or team lead for review.`,
+                    });
+                  }}
+                  className="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-medium transition cursor-pointer"
+                  title="Request changes via Admin Leadership"
+                >
+                  Request Edit
+                </button>
+              </div>
             )}
             <button
               onClick={onClose}

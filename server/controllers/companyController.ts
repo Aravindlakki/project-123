@@ -483,9 +483,9 @@ export function updateCompany(req: Request, res: Response) {
   if (!comp) return res.status(404).json({ detail: 'Company not found' });
 
   const actingUser = (req as any).user;
-  // Only Admins (or the original creator) may edit existing company profile fields
-  if (actingUser && actingUser.role !== 'admin' && comp.created_by && comp.created_by !== actingUser.id) {
-    return res.status(403).json({ detail: 'Permission denied: Once created, only Admins may edit company profile fields.' });
+  // Strictly Admins only: employees cannot edit any company profile fields
+  if (!actingUser || actingUser.role !== 'admin') {
+    return res.status(403).json({ detail: 'Permission denied: Only administrators can edit companies.' });
   }
 
   if (req.body.name !== undefined) comp.name = req.body.name;

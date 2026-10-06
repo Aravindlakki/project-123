@@ -18,6 +18,29 @@ export function createContact(req: Request, res: Response) {
   if (!name || !company_id) {
     return res.status(400).json({ detail: 'Contact name and company are required' });
   }
+
+  const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normName = norm(name);
+  const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+  const cleanEmail = (email || '').trim().toLowerCase();
+
+  // Block duplicate HR contact for this company
+  const existingDuplicate = hrContacts.find((c) => {
+    if (c.company_id !== company_id) return false;
+    if (norm(c.name) === normName) return true;
+    if (cleanPhone && c.phone && c.phone.replace(/[^0-9]/g, '') === cleanPhone) return true;
+    if (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail) return true;
+    return false;
+  });
+
+  if (existingDuplicate) {
+    return res.status(409).json({
+      detail: `HR Contact "${name.trim()}" already exists for this company. Duplicate HR contacts are not allowed.`,
+      duplicate: true,
+      existing_id: existingDuplicate.id,
+    });
+  }
+
   const newContact: HRContact = {
     id: `cont_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     name: name.trim(),
@@ -232,15 +255,19 @@ export function getContactById(req: Request, res: Response) {
 }
 
 export function updateContact(req: Request, res: Response) {
+  const user = (req as any).user as CRA | undefined;
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ detail: 'Permission denied: Only administrators can edit HR contacts and leads.' });
+  }
+
   let c = hrContacts.find((item) => item.id === req.params.id);
   if (!c) {
-    const user = (req as any).user as CRA | undefined;
     c = {
       id: req.params.id,
       name: req.body.name || 'Lead Contact',
       company_id: req.body.company_id || 'comp_1',
       source: 'manual',
-      created_by: user?.id || 'usr_admin_aravind',
+      created_by: user.id || 'usr_admin_aravind',
       created_at: new Date().toISOString(),
       ...req.body,
     };
@@ -252,6 +279,11 @@ export function updateContact(req: Request, res: Response) {
 }
 
 export function deleteContact(req: Request, res: Response) {
+  const user = (req as any).user as CRA | undefined;
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ detail: 'Permission denied: Only administrators can delete HR contacts and leads.' });
+  }
+
   const idx = hrContacts.findIndex((item) => item.id === req.params.id);
   if (idx === -1) return res.status(404).json({ detail: 'Contact not found' });
   hrContacts.splice(idx, 1);

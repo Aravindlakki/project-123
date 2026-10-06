@@ -11,7 +11,7 @@ import {
   updateContact,
   deleteContact,
 } from '../controllers/contactController';
-import { authenticate } from '../middlewares/authMiddleware';
+import { authenticate, requireAdmin } from '../middlewares/authMiddleware';
 
 export const contactRouter = Router();
 
@@ -23,6 +23,6 @@ contactRouter.all('/contacts/search-hr-google', authenticate, searchHRGoogle);
 contactRouter.post('/contacts/autofill-from-google', authenticate, autofillFromGoogle);
 contactRouter.post('/contacts/bulk', authenticate, bulkContacts);
 contactRouter.get('/contacts/:id', authenticate, getContactById);
-contactRouter.patch('/contacts/:id', authenticate, updateContact);
-contactRouter.put('/contacts/:id', authenticate, updateContact);
-contactRouter.delete('/contacts/:id', authenticate, deleteContact);
+contactRouter.patch('/contacts/:id', authenticate, requireAdmin, updateContact);
+contactRouter.put('/contacts/:id', authenticate, requireAdmin, updateContact);
+contactRouter.delete('/contacts/:id', authenticate, requireAdmin, deleteContact);

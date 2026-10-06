@@ -439,9 +439,6 @@ export const api = {
   },
 
   async updateCompany(id: string, updates: Partial<Company>): Promise<Company> {
-    if (isSupabaseConfigured) {
-      return supabaseDataService.updateCompany(id, updates);
-    }
     try {
       const res = await fetch(`${API_BASE}/companies/${id}`, {
         method: 'PUT',
@@ -449,8 +446,16 @@ export const api = {
         body: JSON.stringify(updates),
       });
       checkAuthResponse(res);
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can edit companies.');
+      }
       if (res.ok && isJson(res)) return await res.json();
-    } catch (_) {}
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
+    if (isSupabaseConfigured) {
+      return supabaseDataService.updateCompany(id, updates);
+    }
     return supabaseDataService.updateCompany(id, updates);
   },
 
@@ -1019,15 +1024,16 @@ export const api = {
   },
 
   async updateContact(id: string, updates: Partial<HRContact>): Promise<HRContact> {
-    if (isSupabaseConfigured) {
-      return supabaseDataService.updateContact(id, updates);
-    }
     try {
       const res = await fetch(`${API_BASE}/contacts/${id}`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify(updates),
       });
+      checkAuthResponse(res);
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can edit HR contacts and leads.');
+      }
       if (res.ok && isJson(res)) {
         const data = await res.json();
         try {
@@ -1043,7 +1049,12 @@ export const api = {
         } catch (_) {}
         return data;
       }
-    } catch (_) {}
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
+    if (isSupabaseConfigured) {
+      return supabaseDataService.updateContact(id, updates);
+    }
     return supabaseDataService.updateContact(id, updates);
   },
 
@@ -1089,16 +1100,22 @@ export const api = {
   },
 
   async deleteContact(id: string): Promise<boolean> {
-    if (isSupabaseConfigured) {
-      return supabaseDataService.deleteContact(id);
-    }
     try {
       const res = await fetch(`${API_BASE}/contacts/${id}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });
+      checkAuthResponse(res);
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can delete HR contacts and leads.');
+      }
       if (res.ok) return true;
-    } catch (_) {}
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
+    if (isSupabaseConfigured) {
+      return supabaseDataService.deleteContact(id);
+    }
     return supabaseDataService.deleteContact(id);
   },
 
@@ -1503,8 +1520,14 @@ export const api = {
         headers: authHeaders(),
         body: JSON.stringify(updates),
       });
-      if (res.ok) return await res.json();
-    } catch (_) {}
+      checkAuthResponse(res);
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can edit job descriptions.');
+      }
+      if (res.ok && isJson(res)) return await res.json();
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
     return clientFallbackStore.updateJD(jdId, updates);
   },
 
@@ -1544,8 +1567,14 @@ export const api = {
         method: 'DELETE',
         headers: authHeaders(),
       });
+      checkAuthResponse(res);
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can delete job descriptions.');
+      }
       if (res.ok) return true;
-    } catch (_) {}
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
     return clientFallbackStore.deleteJD(jdId);
   },
 

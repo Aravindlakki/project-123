@@ -15,6 +15,7 @@ import { PerformancePage } from './pages/PerformancePage';
 import { TaskManagementPage } from './pages/TaskManagementPage';
 import { AdminPortalPage } from './pages/AdminPortalPage';
 import { TeamSheetsPage } from './pages/TeamSheetsPage';
+import { MessageTemplatesPage } from './pages/MessageTemplatesPage';
 import { ProofReviewPage } from './pages/ProofReviewPage';
 import { TeamLeadDashboardPage } from './pages/TeamLeadDashboardPage';
 import { AdminLoginModal } from './components/AdminLoginModal';
@@ -66,6 +67,10 @@ const routeToTab = (rawPath: string) => {
     '/tasks': 'tasks',
     '/performance': 'performance',
     '/admin/users': 'admin-users',
+    '/admin/crm': 'admin-crm',
+    '/admin/crm-directory': 'admin-crm',
+    '/admin/templates': 'admin-templates',
+    '/admin/message-templates': 'admin-templates',
     '/admin/worksheets': 'admin-sheets',
     '/admin/team-sheets': 'admin-sheets',
     '/admin/sheets': 'admin-sheets',
@@ -110,6 +115,8 @@ const tabToRoute: Record<string, string> = {
   tasks: '/tasks',
   performance: '/performance',
   'admin-users': '/admin/users',
+  'admin-crm': '/admin/crm',
+  'admin-templates': '/admin/templates',
   'admin-sheets': '/admin/worksheets',
   'admin-jd-list': '/admin/jd-list',
   'admin-jd-bank-tech': '/admin/jd-bank/tech',
@@ -309,6 +316,19 @@ export const App: React.FC = () => {
       >
         {activeTab === 'admin-users' && <AdminPortalPage initialTab="users" />}
         {activeTab === 'admin-companies' && <AdminPortalPage initialTab="companies" />}
+        {activeTab === 'admin-crm' && (
+          <CRMListPage
+            currentUser={currentUser}
+            adminMode={true}
+            onAddRole={(companyName) => {
+              localStorage.setItem('placemein:hr-sourcing-prefill', JSON.stringify({ company: companyName, title: '' }));
+              navigate('jd-intake');
+            }}
+          />
+        )}
+        {activeTab === 'admin-templates' && (
+          <MessageTemplatesPage currentUser={currentUser} />
+        )}
         {activeTab === 'admin-settings' && <AdminPortalPage initialTab="settings" />}
         {activeTab === 'admin-jd-list' && <JDListPage currentUser={currentUser} adminMode={true} />}
         {activeTab === 'admin-team-lead-dashboard' && (
@@ -327,7 +347,7 @@ export const App: React.FC = () => {
         {activeTab === 'admin-proof-review' && <ProofOfResponsePage currentUser={currentUser} adminReviewMode />}
 
         {/* Fallback if an unmatched admin tab is encountered */}
-        {!['admin-users', 'admin-companies', 'admin-settings', 'admin-jd-list', 'admin-team-lead-dashboard', 'admin-sheets', 'admin-worksheets', 'sheets', 'admin-tasks', 'admin-performance', 'jd-bank-tech', 'jd-bank-non-tech', 'proof-review', 'admin-jd-bank-tech', 'admin-jd-bank-non-tech', 'admin-proof-review'].includes(activeTab) && (
+        {!['admin-users', 'admin-companies', 'admin-crm', 'admin-templates', 'admin-settings', 'admin-jd-list', 'admin-team-lead-dashboard', 'admin-sheets', 'admin-worksheets', 'sheets', 'admin-tasks', 'admin-performance', 'jd-bank-tech', 'jd-bank-non-tech', 'proof-review', 'admin-jd-bank-tech', 'admin-jd-bank-non-tech', 'admin-proof-review'].includes(activeTab) && (
           <TeamSheetsPage currentUser={currentUser} adminMode={true} />
         )}
 
@@ -397,6 +417,10 @@ export const App: React.FC = () => {
         return 'Proof Review Queue';
       case 'crm':
         return 'CRM Directory';
+      case 'admin-crm':
+        return 'CRM Directory & Employer Oversight';
+      case 'admin-templates':
+        return 'Outreach Message Templates';
       case 'tasks':
         return 'My Tasks';
       case 'performance':
@@ -519,11 +543,26 @@ export const App: React.FC = () => {
           {activeTab === 'jd-bank-non-tech' && <JDBankPage currentUser={currentUser} defaultCategory="non_tech" standalone />}
           {activeTab === 'crm' && (
             <CRMListPage
+              currentUser={currentUser}
+              adminMode={false}
               onAddRole={(companyName) => {
                 localStorage.setItem('placemein:hr-sourcing-prefill', JSON.stringify({ company: companyName, title: '' }));
                 navigate('jd-intake');
               }}
             />
+          )}
+          {activeTab === 'admin-crm' && (
+            <CRMListPage
+              currentUser={currentUser}
+              adminMode={true}
+              onAddRole={(companyName) => {
+                localStorage.setItem('placemein:hr-sourcing-prefill', JSON.stringify({ company: companyName, title: '' }));
+                navigate('jd-intake');
+              }}
+            />
+          )}
+          {activeTab === 'admin-templates' && (
+            <MessageTemplatesPage currentUser={currentUser} />
           )}
           {activeTab === 'admin-jd-list' && (
             <JDListPage currentUser={currentUser} adminMode={true} />

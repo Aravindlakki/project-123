@@ -545,14 +545,9 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
     return missing;
   };
 
-  // Edit Permissions: Admin edits everything; CRAs edit HR fields on leads they added
-  const canUserEditLead = (lead: HRContact): boolean => {
-    if (adminMode || currentUser?.role === 'admin') return true;
-    if (!currentUser) return false;
-    if (lead.created_by && lead.created_by === currentUser.id) return true;
-    if (lead.entered_by_name && currentUser.name && lead.entered_by_name.toLowerCase().includes(currentUser.name.toLowerCase())) return true;
-    if (lead.spoc && currentUser.name && lead.spoc.toLowerCase() === currentUser.name.split(' ')[0].toLowerCase()) return true;
-    return false;
+  // Edit Permissions: Strictly Admin can edit or delete leads. Employees have read-only access to existing leads.
+  const canUserEditLead = (_lead: HRContact): boolean => {
+    return Boolean(adminMode || currentUser?.role === 'admin');
   };
 
   // Uploaded-By Filter helper: checks if lead belongs to the logged-in user
@@ -1839,35 +1834,37 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                             </button>
                           )}
 
-                          {/* "Draft Message" button (copy-paste outreach for employee's own leads) */}
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={() => setDraftModalLead(lead)}
-                              className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold rounded-lg shadow transition flex items-center gap-1 cursor-pointer border border-blue-500/30"
-                              title="Generate ready-to-send outreach message draft (Email, WhatsApp, LinkedIn)"
-                            >
-                              <Send className="h-3 w-3" />
-                              <span>Draft Msg</span>
-                            </button>
-                          )}
+                          {/* "Draft Message" button (copy-paste outreach for employee's leads) */}
+                          <button
+                            type="button"
+                            onClick={() => setDraftModalLead(lead)}
+                            className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold rounded-lg shadow transition flex items-center gap-1 cursor-pointer border border-blue-500/30"
+                            title="Generate ready-to-send outreach message draft (Email, WhatsApp, LinkedIn)"
+                          >
+                            <Send className="h-3 w-3" />
+                            <span>Draft Msg</span>
+                          </button>
 
-                          {/* General Edit button for Admin or Creator */}
+                          {/* General Edit button for Admin only */}
                           {canEdit ? (
                             <button
                               onClick={() => handleOpenEditModal(lead)}
                               className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition cursor-pointer"
-                              title="Edit lead details"
+                              title="Edit lead details (Admin only)"
                             >
                               <Edit2 className="h-3.5 w-3.5 text-purple-400" />
                             </button>
                           ) : (
-                            <span
-                              className="p-1 text-gray-600 cursor-not-allowed opacity-40"
-                              title="Read-only lead"
+                            <button
+                              type="button"
+                              onClick={() => {
+                                showToast(`Edit request noted for lead "${lead.name}". Admin will review.`, 'success');
+                              }}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-medium text-indigo-300 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-700/50 transition cursor-pointer"
+                              title="Request edit via Admin Leadership"
                             >
-                              <Lock className="h-3.5 w-3.5" />
-                            </span>
+                              Request Edit
+                            </button>
                           )}
 
                           {/* Delete (Admin only) */}
