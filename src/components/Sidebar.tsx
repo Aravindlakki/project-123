@@ -19,6 +19,7 @@ import {
   FileSpreadsheet,
   Cpu,
   Layers,
+  MessageSquareQuote,
 } from 'lucide-react';
 import { CRA } from '../types';
 
@@ -49,6 +50,7 @@ const adminItems = [
   { id: 'admin-team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
   { id: 'admin-crm', label: 'CRM Directory', icon: Users },
+  { id: 'admin-templates', label: 'Message Templates', icon: MessageSquareQuote },
   { id: 'admin-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
   { id: 'admin-jd-bank-tech', label: 'JD Bank — Tech', icon: Cpu },
   { id: 'admin-jd-bank-non-tech', label: 'JD Bank — Non-Tech', icon: Layers },

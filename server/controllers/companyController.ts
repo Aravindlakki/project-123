@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import * as XLSX from 'xlsx';
 import { PDFParse } from 'pdf-parse';
-import { companies, hrContacts, jds, enrichCompany, enrichContact, enrichJD } from '../models/db';
-import { Company, HRContact, CRA, JD } from '../models/types';
+import { companies, hrContacts, jds, tasks, companyAuditLogs, enrichCompany, enrichContact, enrichJD } from '../models/db';
+import { Company, HRContact, CRA, JD, CompanyAuditLog } from '../models/types';
 import { generateWithGeminiRetry } from '../services/geminiService';
 
 export function getCompanies(req: Request, res: Response) {
   const search = ((req.query.search as string) || '').toLowerCase();
-  let list = companies.map(enrichCompany);
+  const includeDeleted = req.query.include_deleted === 'true';
+  let list = companies.filter((c) => includeDeleted || !c.deleted_at).map(enrichCompany);
   if (search) {
     list = list.filter(
       (c) => c.name.toLowerCase().includes(search) || (c.industry && c.industry.toLowerCase().includes(search))
@@ -498,11 +499,73 @@ export function updateCompany(req: Request, res: Response) {
   return res.json(enrichCompany(comp));
 }
 
+export function getCompanyLinkedRecords(req: Request, res: Response) {
+  const comp = companies.find((c) => c.id === req.params.id && !c.deleted_at);
+  if (!comp) return res.status(404).json({ detail: 'Company not found' });
+  const linkedContacts = hrContacts.filter((c) => c.company_id === comp.id && !c.deleted_at);
+  const linkedJds = jds.filter((j) => j.company_id === comp.id && !(j as any).deleted_at);
+  const linkedTasks = tasks.filter((t) => t.company_id === comp.id);
+  return res.json({
+    company_id: comp.id,
+    company_name: comp.name,
+    leads_count: linkedContacts.length,
+    jds_count: linkedJds.length,
+    tasks_count: linkedTasks.length,
+  });
+}
+
 export function deleteCompany(req: Request, res: Response) {
-  const idx = companies.findIndex((c) => c.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ detail: 'Company not found' });
-  companies.splice(idx, 1);
-  return res.status(204).send();
+  const user = (req as any).user as CRA;
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ detail: 'Permission denied: Only administrators can delete companies.' });
+  }
+
+  const comp = companies.find((c) => c.id === req.params.id);
+  if (!comp || comp.deleted_at) {
+    return res.status(404).json({ detail: 'Company not found or already deleted' });
+  }
+
+  // Count linked records
+  const linkedContacts = hrContacts.filter((c) => c.company_id === comp.id && !c.deleted_at);
+  const linkedJds = jds.filter((j) => j.company_id === comp.id && !(j as any).deleted_at);
+  const linkedTasks = tasks.filter((t) => t.company_id === comp.id);
+
+  const nowIso = new Date().toISOString();
+
+  // Soft delete company
+  comp.deleted_at = nowIso;
+  comp.deleted_by = user.id;
+
+  // Cascade soft-delete linked contacts/leads and JDs so no orphaned records remain active
+  linkedContacts.forEach((c) => {
+    c.deleted_at = nowIso;
+  });
+  linkedJds.forEach((j) => {
+    (j as any).deleted_at = nowIso;
+  });
+
+  // Audit log entry
+  const auditEntry: CompanyAuditLog = {
+    id: `audit_comp_del_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    company_id: comp.id,
+    company_name: comp.name,
+    action: 'delete',
+    performed_by: user.id,
+    performed_by_name: user.name || 'Admin',
+    linked_records_affected: {
+      leads: linkedContacts.length,
+      jds: linkedJds.length,
+      tasks: linkedTasks.length,
+    },
+    created_at: nowIso,
+  };
+  companyAuditLogs.unshift(auditEntry);
+
+  return res.json({
+    success: true,
+    message: `Company "${comp.name}" deleted successfully.`,
+    audit: auditEntry,
+  });
 }
 
 /**

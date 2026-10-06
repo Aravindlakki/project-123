@@ -11,6 +11,7 @@ import { attendanceRouter } from './attendanceRoutes';
 import { taskRouter } from './taskRoutes';
 import { leaveRouter } from './leaveRoutes';
 import { adminRouter } from './adminRoutes';
+import { templateRouter } from './templateRoutes';
 
 export const apiRouter = Router();
 
@@ -26,3 +27,4 @@ apiRouter.use(attendanceRouter);
 apiRouter.use(taskRouter);
 apiRouter.use(leaveRouter);
 apiRouter.use(adminRouter);
+apiRouter.use(templateRouter);

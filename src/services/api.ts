@@ -1,4 +1,4 @@
-import { Company, HRContact, JD, OutreachChannel, OutreachChannelType, Campaign, DashboardStats, CRA, OutreachChannelStatus, OutreachOutcome, CRAPerformanceResponse, Attendance, Task, TaskPriority, TaskStatus, LeaveRequest, LeaveType, LeaveStatus } from '../types';
+import { Company, HRContact, JD, OutreachChannel, OutreachChannelType, Campaign, DashboardStats, CRA, OutreachChannelStatus, OutreachOutcome, CRAPerformanceResponse, Attendance, Task, TaskPriority, TaskStatus, LeaveRequest, LeaveType, LeaveStatus, MessageTemplate, CompanyAuditLog } from '../types';
 import { clientFallbackStore } from './clientFallbackStore';
 import { ALL_EMPLOYEE_CREDENTIALS, resolveEmployeeCredential } from '../data/employeeCredentials';
 import { isSupabaseConfigured, supabase } from './supabase';
@@ -452,6 +452,186 @@ export const api = {
       if (res.ok && isJson(res)) return await res.json();
     } catch (_) {}
     return supabaseDataService.updateCompany(id, updates);
+  },
+
+  async deleteCompany(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/companies/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      checkAuthResponse(res);
+      if (res.ok) {
+        clientFallbackStore.deleteCompany(id);
+        return true;
+      }
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can delete companies.');
+      }
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
+    return supabaseDataService.deleteCompany(id);
+  },
+
+  async getCompanyLinkedRecords(id: string): Promise<{ leads_count: number; jds_count: number; tasks_count: number }> {
+    try {
+      const res = await fetch(`${API_BASE}/companies/${id}/linked-records`, {
+        headers: authHeaders(),
+      });
+      if (res.ok && isJson(res)) return await res.json();
+    } catch (_) {}
+    return supabaseDataService.getCompanyLinkedRecords(id);
+  },
+
+  async getMessageTemplates(params?: { channel?: string; template_type?: string }): Promise<MessageTemplate[]> {
+    try {
+      const qs = new URLSearchParams();
+      if (params?.channel) qs.set('channel', params.channel);
+      if (params?.template_type) qs.set('template_type', params.template_type);
+      const url = `${API_BASE}/message-templates${qs.toString() ? `?${qs.toString()}` : ''}`;
+      const res = await fetch(url, { headers: authHeaders() });
+      if (res.ok && isJson(res)) return await res.json();
+    } catch (_) {}
+    return supabaseDataService.getMessageTemplates();
+  },
+
+  async createMessageTemplate(template: Partial<MessageTemplate>): Promise<MessageTemplate> {
+    try {
+      const res = await fetch(`${API_BASE}/message-templates`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(template),
+      });
+      checkAuthResponse(res);
+      if (res.ok && isJson(res)) return await res.json();
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can create message templates.');
+      }
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
+    return supabaseDataService.createMessageTemplate(template);
+  },
+
+  async updateMessageTemplate(id: string, updates: Partial<MessageTemplate>): Promise<MessageTemplate> {
+    try {
+      const res = await fetch(`${API_BASE}/message-templates/${id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(updates),
+      });
+      checkAuthResponse(res);
+      if (res.ok && isJson(res)) return await res.json();
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can update message templates.');
+      }
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
+    return supabaseDataService.updateMessageTemplate(id, updates);
+  },
+
+  async deleteMessageTemplate(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/message-templates/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      checkAuthResponse(res);
+      if (res.ok) return true;
+      if (res.status === 403) {
+        throw new Error('Permission denied: Only administrators can delete message templates.');
+      }
+    } catch (err: any) {
+      if (err.message?.includes('Permission denied')) throw err;
+    }
+    return supabaseDataService.deleteMessageTemplate(id);
+  },
+
+  async generateOutreachDraft(params: {
+    contact_id: string;
+    channel: string;
+    template_type?: string;
+    template_id?: string;
+    use_ai?: boolean;
+  }): Promise<{
+    subject?: string;
+    body: string;
+    channel: string;
+    template_type: string;
+    template_name?: string;
+    placeholders?: any;
+  }> {
+    try {
+      const res = await fetch(`${API_BASE}/message-templates/generate`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(params),
+      });
+      if (res.ok && isJson(res)) return await res.json();
+    } catch (_) {}
+
+    // Client fallback generation
+    const contacts = clientFallbackStore.getContacts();
+    const contact = contacts.find((c) => c.id === params.contact_id);
+    const companies = clientFallbackStore.getCompanies();
+    const comp = contact ? companies.find((co) => co.id === contact.company_id) : undefined;
+    const currentUser = clientFallbackStore.getCurrentUser();
+
+    const hrName = contact?.hr_name || contact?.name || '';
+    const companyName = comp?.name || 'your company';
+    const jobRole = contact?.role_title || contact?.title || 'engineering opportunities';
+    const jobDomain = contact?.domain || 'Technology & Engineering';
+    const employeeName = currentUser?.name || 'Aravind Reddy';
+
+    const templates = clientFallbackStore.getMessageTemplates().filter(
+      (t) => t.is_active && t.channel === params.channel && t.template_type === (params.template_type || 'first_contact')
+    );
+    const selected = (params.template_id ? templates.find((t) => t.id === params.template_id) : null) || templates[0];
+
+    const fallbackBody =
+      params.channel === 'whatsapp'
+        ? `Hello ${hrName ? hrName : 'there'} 👋\n\nThis is ${employeeName} from Placemein Career Solutions.\n\nWe partner with tech organizations like ${companyName} to provide pre-screened graduates in ${jobDomain} (${jobRole}).\n\nMay I share a 1-page summary of available candidates? Thank you!`
+        : params.channel === 'linkedin'
+        ? `Hi ${hrName ? hrName : 'there'}, saw your hiring focus at ${companyName}. At Placemein, we support tech teams with pre-vetted graduate talent in ${jobDomain}. Would love to connect and share profiles whenever helpful! – ${employeeName}`
+        : `Hi ${hrName ? hrName : 'there'},\n\nHope this finds you well. Reaching out from Placemein regarding ${companyName}'s hiring plans in ${jobDomain} (${jobRole}). We provide pre-screened graduates ready for interviews at zero sourcing fee.\n\nOpen to a quick 10-minute chat this week?\n\nWarm regards,\n${employeeName}\nPlacemein Career Solutions`;
+
+    const rawBody = selected?.body || fallbackBody;
+    const rawSubject = selected?.subject || `Pre-screened Fresher Talent for ${companyName} — Placemein`;
+
+    const replacer = (str: string) => {
+      let res = str;
+      if (!hrName) {
+        res = res.replace(/Hi\s*\{HR_Name\},?/gi, 'Hi,').replace(/Hello\s*\{HR_Name\},?/gi, 'Hello,').replace(/\{HR_Name\}/gi, 'there');
+      } else {
+        res = res.replace(/\{HR_Name\}/g, hrName).replace(/\{First_Name\}/g, hrName.split(' ')[0]);
+      }
+      return res
+        .replace(/\{Company_Name\}/g, companyName)
+        .replace(/\{Job_Role\}/g, jobRole)
+        .replace(/\{Job_Domain\}/g, jobDomain)
+        .replace(/\{Employee_Name\}/g, employeeName);
+    };
+
+    return {
+      channel: params.channel,
+      template_type: params.template_type || 'first_contact',
+      template_name: selected?.name,
+      subject: params.channel === 'email' ? replacer(rawSubject) : undefined,
+      body: replacer(rawBody),
+    };
+  },
+
+  async trackLeadOutreach(contactId: string, data: { channel: string; was_edited?: boolean; draft_type?: string }): Promise<void> {
+    try {
+      await fetch(`${API_BASE}/message-templates/track-outreach`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ contact_id: contactId, ...data }),
+      });
+    } catch (_) {}
+    await supabaseDataService.trackOutreachContact(contactId, data);
   },
 
   async parseDocumentHR(options: { file?: File; raw_text?: string; entered_by_name?: string }): Promise<{
@@ -1484,7 +1664,7 @@ export const api = {
     return URL.createObjectURL(blob);
   },
 
-  async generateOutreachDraft(contactId: string, channel: string): Promise<{ draft_text: string }> {
+  async generateLegacyOutreachDraft(contactId: string, channel: string): Promise<{ draft_text: string }> {
     if (isSupabaseConfigured) {
       try {
         const contact = await supabaseDataService.getContactById(contactId);

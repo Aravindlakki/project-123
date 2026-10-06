@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Calendar,
   Lock,
+  Trash2,
 } from 'lucide-react';
 import { Company, HRContact, JD, CRA } from '../types';
 import { api } from '../services/api';
@@ -30,6 +31,7 @@ interface CompanyDetailsModalProps {
   onCompanyUpdated?: () => void;
   onAddRole?: (companyName: string) => void;
   onContactAdded?: (newContact: HRContact) => void;
+  onDeleteCompany?: (company: Company) => void;
   currentUser?: CRA | null;
 }
 
@@ -41,6 +43,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
   onCompanyUpdated,
   onAddRole,
   onContactAdded,
+  onDeleteCompany,
   currentUser: propUser,
 }) => {
   const [currentUser, setCurrentUser] = useState<CRA | null>(propUser || null);
@@ -257,25 +260,36 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
 
           <div className="flex items-center gap-2">
             {canEditCompany ? (
-              !isEditing ? (
+              <>
+                {!isEditing ? (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
+                    title="Edit company information"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                    <span>Edit</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSaveCompanyEdits}
+                    disabled={isSaving}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                  </button>
+                )}
                 <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
-                  title="Edit company information"
+                  type="button"
+                  onClick={() => onDeleteCompany?.(company)}
+                  className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg text-xs font-medium transition flex items-center gap-1.5 cursor-pointer"
+                  title="Delete company (Admin only)"
                 >
-                  <Edit2 className="h-3.5 w-3.5" />
-                  <span>Edit</span>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete</span>
                 </button>
-              ) : (
-                <button
-                  onClick={handleSaveCompanyEdits}
-                  disabled={isSaving}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30"
-                >
-                  <Check className="h-3.5 w-3.5" />
-                  <span>{isSaving ? 'Saving...' : 'Save'}</span>
-                </button>
-              )
+              </>
             ) : (
               <span
                 className="px-2.5 py-1 bg-gray-800/80 text-gray-400 border border-gray-700/60 rounded-lg text-xs font-medium flex items-center gap-1.5"

@@ -55,6 +55,8 @@ export interface Company {
   contacts?: HRContact[];
   contacts_count?: number;
   jds?: JD[];
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export interface HRContact {
@@ -96,6 +98,44 @@ export interface HRContact {
   proof_verified_by?: string;
   proof_verified_at?: string;
   proof_admin_notes?: string;
+  // Outreach Message Drafts & Channel Tracking
+  last_outreach_channel?: 'email' | 'whatsapp' | 'linkedin' | string;
+  last_outreach_at?: string;
+  last_draft_type?: 'first_contact' | 'follow_up';
+  draft_was_edited?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
+}
+
+export type MessageChannel = 'email' | 'whatsapp' | 'linkedin';
+export type MessageTemplateType = 'first_contact' | 'follow_up';
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  channel: MessageChannel;
+  template_type: MessageTemplateType;
+  subject?: string; // used for email
+  body: string;
+  is_active: boolean;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompanyAuditLog {
+  id: string;
+  company_id: string;
+  company_name: string;
+  action: 'create' | 'update' | 'delete' | 'restore';
+  performed_by: string;
+  performed_by_name: string;
+  linked_records_affected?: {
+    leads?: number;
+    jds?: number;
+    tasks?: number;
+  };
+  created_at: string;
 }
 
 export interface JD {

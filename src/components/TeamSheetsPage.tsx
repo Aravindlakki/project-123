@@ -51,6 +51,8 @@ import {
   XCircle,
   Camera,
   Image,
+  Send,
+  MessageSquareText,
 } from 'lucide-react';
 import { getShortCompanyName } from './HowToFindHRRowHelper';
 import { HRContact, Company, CRA, LeadResponseStatus } from '../types';
@@ -63,6 +65,7 @@ import { SystemReportModal } from './SystemReportModal';
 import { HtmlLeadImportModal } from './HtmlLeadImportModal';
 import { PdfLeadImportModal } from './PdfLeadImportModal';
 import { ProofReviewModal } from './ProofReviewModal';
+import { OutreachDraftModal } from './OutreachDraftModal';
 import { validateIndianMobile } from '../utils/phoneValidator';
 import { isLeadOwnedByUser } from '../utils/leadOwnership';
 import { findDuplicateLead, duplicateWarningMessage } from '../utils/leadDuplicates';
@@ -254,6 +257,7 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
+  const [draftModalLead, setDraftModalLead] = useState<HRContact | null>(null);
 
   // Add Lead Form State
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -1835,6 +1839,19 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
                             </button>
                           )}
 
+                          {/* "Draft Message" button (copy-paste outreach for employee's own leads) */}
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => setDraftModalLead(lead)}
+                              className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-bold rounded-lg shadow transition flex items-center gap-1 cursor-pointer border border-blue-500/30"
+                              title="Generate ready-to-send outreach message draft (Email, WhatsApp, LinkedIn)"
+                            >
+                              <Send className="h-3 w-3" />
+                              <span>Draft Msg</span>
+                            </button>
+                          )}
+
                           {/* General Edit button for Admin or Creator */}
                           {canEdit ? (
                             <button
@@ -2938,6 +2955,28 @@ export const TeamSheetsPage: React.FC<TeamSheetsPageProps> = ({
             setReviewModalLead(null);
           }}
           onOpenFull={(url) => setProofPreviewFull(url)}
+        />
+      )}
+
+      {/* Outreach Message Drafts Modal (Employee Copy-Paste Assistant) */}
+      {draftModalLead && (
+        <OutreachDraftModal
+          isOpen={Boolean(draftModalLead)}
+          lead={draftModalLead}
+          currentUser={currentUser}
+          onClose={() => setDraftModalLead(null)}
+          onMarkContactedAndUploadProof={(lead, channel) => {
+            setProofModalLead(lead);
+            setProofModalResponse(
+              lead.response_status && lead.response_status !== 'no_response_yet'
+                ? lead.response_status
+                : 'replied_interested'
+            );
+            setProofChannel(channel);
+            setProofFile(null);
+            setProofPreview(null);
+            fetchLeads();
+          }}
         />
       )}
 

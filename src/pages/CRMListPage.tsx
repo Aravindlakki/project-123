@@ -26,8 +26,10 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   Lock,
+  Trash2,
 } from 'lucide-react';
 import { CompanyDetailsModal } from '../components/CompanyDetailsModal';
+import { DeleteCompanyModal } from '../components/DeleteCompanyModal';
 import { DocumentIntakeModal } from '../components/DocumentIntakeModal';
 import { CSVBulkImportModal } from '../components/CSVBulkImportModal';
 import { BulkExcelCsvImporterModal } from '../components/BulkExcelCsvImporterModal';
@@ -108,6 +110,7 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole, currentUser
 
   // Modals
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
   const [isCompanyDetailsOpen, setIsCompanyDetailsOpen] = useState(false);
   const [isDocumentIntakeOpen, setIsDocumentIntakeOpen] = useState(false);
   const [isCSVBulkImportOpen, setIsCSVBulkImportOpen] = useState(false);
@@ -803,6 +806,16 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole, currentUser
                           <Plus className="h-3.5 w-3.5" />
                           <span>Add Role</span>
                         </button>
+                        {(adminMode || currentUser?.role === 'admin') && (
+                          <button
+                            onClick={() => setCompanyToDelete(comp)}
+                            className="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg text-xs font-medium transition flex items-center gap-1 cursor-pointer"
+                            title="Delete Company (Admin Only)"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1243,7 +1256,34 @@ export const CRMListPage: React.FC<CRMListPageProps> = ({ onAddRole, currentUser
           setIsCompanyDetailsOpen(false);
           onAddRole?.(name);
         }}
+        onDeleteCompany={(comp) => {
+          setIsCompanyDetailsOpen(false);
+          setCompanyToDelete(comp);
+        }}
         currentUser={currentUser}
+      />
+
+      <DeleteCompanyModal
+        isOpen={Boolean(companyToDelete)}
+        company={companyToDelete}
+        onClose={() => setCompanyToDelete(null)}
+        onSuccess={(deleted) => {
+          setFeedback({
+            type: 'success',
+            text: `Company "${deleted.name}" deleted successfully.`,
+          });
+          if (selectedCompany?.id === deleted.id) {
+            setIsCompanyDetailsOpen(false);
+            setSelectedCompany(null);
+          }
+          loadData();
+        }}
+        onError={(errMsg) => {
+          setFeedback({
+            type: 'error',
+            text: errMsg,
+          });
+        }}
       />
 
       <DocumentIntakeModal

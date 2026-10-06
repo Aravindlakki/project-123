@@ -8,8 +8,9 @@ import {
   getCompanyById,
   updateCompany,
   deleteCompany,
+  getCompanyLinkedRecords,
 } from '../controllers/companyController';
-import { authenticate } from '../middlewares/authMiddleware';
+import { authenticate, requireAdmin } from '../middlewares/authMiddleware';
 import { uploadFile } from '../middlewares/uploadMiddleware';
 
 export const companyRouter = Router();
@@ -20,5 +21,6 @@ companyRouter.post('/companies/bulk', authenticate, bulkCompanies);
 companyRouter.post('/companies/upload-csv', authenticate, uploadFile, uploadCSVCompanies);
 companyRouter.post('/companies/parse-document-hr', authenticate, uploadFile, parseDocumentHR);
 companyRouter.get('/companies/:id', authenticate, getCompanyById);
+companyRouter.get('/companies/:id/linked-records', authenticate, requireAdmin, getCompanyLinkedRecords);
 companyRouter.patch('/companies/:id', authenticate, updateCompany);
-companyRouter.delete('/companies/:id', authenticate, deleteCompany);
+companyRouter.delete('/companies/:id', authenticate, requireAdmin, deleteCompany);

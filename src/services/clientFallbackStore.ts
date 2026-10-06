@@ -7,7 +7,9 @@ import {
   Task, 
   LeaveRequest, 
   DashboardStats,
-  JD
+  JD,
+  MessageTemplate,
+  CompanyAuditLog
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -18,6 +20,8 @@ const STORAGE_KEYS = {
   LEAVES: 'placemein_mock_leaves',
   CURRENT_USER: 'placemein_current_user',
   JDS: 'placemein_mock_jds',
+  TEMPLATES: 'placemein_message_templates_v1',
+  COMPANY_AUDIT_LOGS: 'placemein_company_audit_logs_v1',
   ROSTER_VERSION: 'placemein_roster_version_v7',
   WORKSHEET_VERSION: 'placemein_worksheet_version_v15',
 };
@@ -305,7 +309,8 @@ export const clientFallbackStore = {
         localStorage.setItem(PURGE_FLAG, 'true');
         return [];
       }
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]');
+      const all: Company[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]');
+      return all.filter((c) => !c.deleted_at);
     } catch {
       return [];
     }
@@ -354,6 +359,247 @@ export const clientFallbackStore = {
 
   saveCompanies(companies: Company[]) {
     localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
+  },
+
+  deleteCompany(id: string, deletedBy?: string): boolean {
+    try {
+      const all: Company[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]');
+      const target = all.find((c) => c.id === id);
+      if (!target) return false;
+
+      const nowIso = new Date().toISOString();
+      target.deleted_at = nowIso;
+      target.deleted_by = deletedBy || 'usr_admin_aravind';
+      localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(all));
+
+      // Cascade soft delete linked contacts
+      const contacts: HRContact[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONTACTS) || '[]');
+      let linkedContactsCount = 0;
+      contacts.forEach((c) => {
+        if (c.company_id === id && !c.deleted_at) {
+          c.deleted_at = nowIso;
+          linkedContactsCount++;
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
+
+      // Cascade soft delete linked JDs
+      const jds: JD[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.JDS) || '[]');
+      let linkedJdsCount = 0;
+      jds.forEach((j) => {
+        if (j.company_id === id && !(j as any).deleted_at) {
+          (j as any).deleted_at = nowIso;
+          linkedJdsCount++;
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(jds));
+
+      // Record audit log
+      const auditLogs: any[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANY_AUDIT_LOGS) || '[]');
+      auditLogs.unshift({
+        id: `audit_comp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        company_id: id,
+        company_name: target.name,
+        action: 'delete',
+        performed_by: target.deleted_by,
+        performed_by_name: 'Administrator',
+        linked_records_affected: {
+          leads: linkedContactsCount,
+          jds: linkedJdsCount,
+        },
+        created_at: nowIso,
+      });
+      localStorage.setItem(STORAGE_KEYS.COMPANY_AUDIT_LOGS, JSON.stringify(auditLogs));
+
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  getCompanyLinkedRecords(id: string): { leads_count: number; jds_count: number; tasks_count: number } {
+    try {
+      const contacts = this.getContacts().filter((c) => c.company_id === id && !c.deleted_at);
+      const jds = this.getJDs().filter((j) => j.company_id === id && !(j as any).deleted_at);
+      const tasks = this.getTasks().filter((t) => t.company_id === id);
+      return {
+        leads_count: contacts.length,
+        jds_count: jds.length,
+        tasks_count: tasks.length,
+      };
+    } catch {
+      return { leads_count: 0, jds_count: 0, tasks_count: 0 };
+    }
+  },
+
+  getMessageTemplates(): MessageTemplate[] {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.TEMPLATES);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (_) {}
+    const defaults: MessageTemplate[] = [
+      {
+        id: 'tmpl_email_intro',
+        name: 'Graduate Talent Partnership Intro',
+        channel: 'email',
+        template_type: 'first_contact',
+        subject: 'Pre-screened Fresher & Engineering Talent for {Company_Name} — Placemein Partnership',
+        body: `Hi {HR_Name},
+
+I hope this email finds you well.
+
+I am reaching out from Placemein, an early-career recruitment and campus placement partnership organization. We support technology companies like {Company_Name} by providing pre-assessed, interview-ready graduates across {Job_Domain} and software engineering roles — with zero upfront sourcing effort.
+
+Given your active focus on hiring for {Job_Role}, we would love to share a curated shortlist of 2–3 pre-screened candidate profiles that match your stack.
+
+Would you be open to a brief 10-minute introductory call this week?
+
+Warm regards,
+{Employee_Name}
+Corporate Relations Associate
+Placemein Career Solutions`,
+        is_active: true,
+        created_at: '2026-08-01T00:00:00.000Z',
+        updated_at: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'tmpl_email_followup',
+        name: 'Day-2 Gentle Follow-up (No Response)',
+        channel: 'email',
+        template_type: 'follow_up',
+        subject: 'Following up: Pre-screened Fresher Talent for {Company_Name} — Placemein',
+        body: `Hi {HR_Name},
+
+I wanted to follow up briefly on my earlier note regarding hiring support for {Company_Name}.
+
+We currently have a freshly evaluated cohort of candidates specializing in {Job_Domain} available for immediate technical evaluations and interviews.
+
+If you have 5 minutes this week, I would be glad to share sample candidate profiles or coordinate an exploratory conversation.
+
+Best regards,
+{Employee_Name}
+Corporate Relations Associate
+Placemein Career Solutions`,
+        is_active: true,
+        created_at: '2026-08-01T00:00:00.000Z',
+        updated_at: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'tmpl_whatsapp_intro',
+        name: 'Direct WhatsApp Intro',
+        channel: 'whatsapp',
+        template_type: 'first_contact',
+        body: `Hello {HR_Name} 👋
+
+This is {Employee_Name} from Placemein Career Solutions.
+
+We partner with tech organizations like {Company_Name} to provide pre-screened, job-ready fresh graduates in {Job_Domain} and engineering roles (including {Job_Role}).
+
+Can I share a 1-page summary of our available candidates for your review? Thank you!`,
+        is_active: true,
+        created_at: '2026-08-01T00:00:00.000Z',
+        updated_at: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'tmpl_whatsapp_followup',
+        name: 'WhatsApp Gentle Reminder (Day 2+)',
+        channel: 'whatsapp',
+        template_type: 'follow_up',
+        body: `Hi {HR_Name} 👋
+
+Gentle reminder regarding hiring support for {Company_Name}. We have vetted candidates ready for immediate interviews in {Job_Domain}.
+
+May I send across 2–3 matching profiles for your current openings? – {Employee_Name}, Placemein`,
+        is_active: true,
+        created_at: '2026-08-01T00:00:00.000Z',
+        updated_at: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'tmpl_linkedin_intro',
+        name: 'LinkedIn Connection Note (< 300 chars)',
+        channel: 'linkedin',
+        template_type: 'first_contact',
+        body: `Hi {HR_Name}, saw your hiring focus at {Company_Name}. At Placemein, we support tech teams with pre-vetted graduate talent in {Job_Domain}. Would love to connect and share a candidate shortlist whenever helpful! – {Employee_Name}`,
+        is_active: true,
+        created_at: '2026-08-01T00:00:00.000Z',
+        updated_at: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'tmpl_linkedin_followup',
+        name: 'LinkedIn Follow-up Note',
+        channel: 'linkedin',
+        template_type: 'follow_up',
+        body: `Hi {HR_Name}, floating this back to your inbox regarding {Job_Role} at {Company_Name}. We have pre-screened graduates ready for immediate interviews. Open to a quick connect? – {Employee_Name}, Placemein`,
+        is_active: true,
+        created_at: '2026-08-01T00:00:00.000Z',
+        updated_at: '2026-08-01T00:00:00.000Z',
+      },
+    ];
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(defaults));
+    } catch (_) {}
+    return defaults;
+  },
+
+  saveMessageTemplates(templates: MessageTemplate[]) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
+    } catch (_) {}
+  },
+
+  createMessageTemplate(template: Partial<MessageTemplate>): MessageTemplate {
+    const all = this.getMessageTemplates();
+    const created: MessageTemplate = {
+      id: `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: template.name || 'New Template',
+      channel: template.channel || 'email',
+      template_type: template.template_type || 'first_contact',
+      subject: template.subject,
+      body: template.body || '',
+      is_active: template.is_active !== undefined ? template.is_active : true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    all.unshift(created);
+    this.saveMessageTemplates(all);
+    return created;
+  },
+
+  updateMessageTemplate(id: string, updates: Partial<MessageTemplate>): MessageTemplate {
+    const all = this.getMessageTemplates();
+    const idx = all.findIndex((t) => t.id === id);
+    if (idx !== -1) {
+      all[idx] = { ...all[idx], ...updates, updated_at: new Date().toISOString() };
+      this.saveMessageTemplates(all);
+      return all[idx];
+    }
+    throw new Error('Template not found');
+  },
+
+  deleteMessageTemplate(id: string): boolean {
+    const all = this.getMessageTemplates();
+    const filtered = all.filter((t) => t.id !== id);
+    if (filtered.length !== all.length) {
+      this.saveMessageTemplates(filtered);
+      return true;
+    }
+    return false;
+  },
+
+  trackContactOutreach(contactId: string, data: { channel: string; was_edited?: boolean; draft_type?: string }) {
+    try {
+      const contacts = this.getContacts();
+      const contact = contacts.find((c) => c.id === contactId);
+      if (contact) {
+        contact.last_outreach_channel = data.channel;
+        contact.last_outreach_at = new Date().toISOString();
+        contact.last_draft_type = (data.draft_type as any) || 'first_contact';
+        contact.draft_was_edited = Boolean(data.was_edited);
+        this.saveContacts(contacts);
+      }
+    } catch (_) {}
   },
 
   bulkImportWorksheetLeads(rawLeads: Array<{

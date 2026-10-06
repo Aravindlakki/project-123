@@ -19,7 +19,9 @@ import {
   Task, 
   LeaveRequest, 
   LeaveStatus, 
-  LeaveType 
+  LeaveType,
+  MessageTemplate,
+  CompanyAuditLog
 } from '../types';
 
 /**
@@ -168,15 +170,148 @@ export const supabaseDataService = {
   },
 
   async deleteCompany(id: string): Promise<boolean> {
-    if (!isSupabaseConfigured) {
-      const companies = clientFallbackStore.getCompanies().filter((c) => c.id !== id);
-      clientFallbackStore.saveCompanies(companies);
-      return true;
+    const currentUser = clientFallbackStore.getCurrentUser();
+    if (currentUser && currentUser.role !== 'admin') {
+      throw new Error('Permission denied: Only administrators can delete companies.');
     }
 
-    const { error } = await supabase.from('companies').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (!isSupabaseConfigured) {
+      return clientFallbackStore.deleteCompany(id, currentUser?.id);
+    }
+
+    const nowIso = new Date().toISOString();
+    // Soft delete company first (if schema supports deleted_at)
+    const { error: softErr } = await supabase
+      .from('companies')
+      .update({ deleted_at: nowIso, deleted_by: currentUser?.id })
+      .eq('id', id);
+
+    if (softErr) {
+      // Fallback to hard delete if soft-delete columns not yet run
+      const { error: delErr } = await supabase.from('companies').delete().eq('id', id);
+      if (delErr) throw new Error(delErr.message);
+    } else {
+      // Cascade soft-delete linked contacts and JDs
+      await supabase.from('contacts').update({ deleted_at: nowIso }).eq('company_id', id);
+      await supabase.from('jds').update({ deleted_at: nowIso }).eq('company_id', id);
+    }
+
+    // Also update client store
+    clientFallbackStore.deleteCompany(id, currentUser?.id);
     return true;
+  },
+
+  async getCompanyLinkedRecords(id: string): Promise<{ leads_count: number; jds_count: number; tasks_count: number }> {
+    if (!isSupabaseConfigured) {
+      return clientFallbackStore.getCompanyLinkedRecords(id);
+    }
+
+    try {
+      const [{ count: contactsCount }, { count: jdsCount }] = await Promise.all([
+        supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('company_id', id),
+        supabase.from('jds').select('*', { count: 'exact', head: true }).eq('company_id', id),
+      ]);
+      return {
+        leads_count: contactsCount || 0,
+        jds_count: jdsCount || 0,
+        tasks_count: 0,
+      };
+    } catch {
+      return clientFallbackStore.getCompanyLinkedRecords(id);
+    }
+  },
+
+  async getMessageTemplates(): Promise<MessageTemplate[]> {
+    if (!isSupabaseConfigured) {
+      return clientFallbackStore.getMessageTemplates();
+    }
+    const { data, error } = await supabase
+      .from('message_templates')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error || !data) {
+      return clientFallbackStore.getMessageTemplates();
+    }
+    return data;
+  },
+
+  async createMessageTemplate(template: Partial<MessageTemplate>): Promise<MessageTemplate> {
+    const currentUser = clientFallbackStore.getCurrentUser();
+    if (currentUser?.role !== 'admin') {
+      throw new Error('Only administrators can create message templates.');
+    }
+    if (!isSupabaseConfigured) {
+      return clientFallbackStore.createMessageTemplate(template);
+    }
+    const { data, error } = await supabase
+      .from('message_templates')
+      .insert({
+        name: template.name,
+        channel: template.channel,
+        template_type: template.template_type || 'first_contact',
+        subject: template.subject,
+        body: template.body,
+        is_active: template.is_active !== undefined ? template.is_active : true,
+        created_by: currentUser?.id,
+      })
+      .select()
+      .single();
+    if (error) {
+      return clientFallbackStore.createMessageTemplate(template);
+    }
+    return data;
+  },
+
+  async updateMessageTemplate(id: string, updates: Partial<MessageTemplate>): Promise<MessageTemplate> {
+    const currentUser = clientFallbackStore.getCurrentUser();
+    if (currentUser?.role !== 'admin') {
+      throw new Error('Only administrators can update message templates.');
+    }
+    if (!isSupabaseConfigured) {
+      return clientFallbackStore.updateMessageTemplate(id, updates);
+    }
+    const { data, error } = await supabase
+      .from('message_templates')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) {
+      return clientFallbackStore.updateMessageTemplate(id, updates);
+    }
+    return data;
+  },
+
+  async deleteMessageTemplate(id: string): Promise<boolean> {
+    const currentUser = clientFallbackStore.getCurrentUser();
+    if (currentUser?.role !== 'admin') {
+      throw new Error('Only administrators can delete message templates.');
+    }
+    if (!isSupabaseConfigured) {
+      return clientFallbackStore.deleteMessageTemplate(id);
+    }
+    const { error } = await supabase.from('message_templates').delete().eq('id', id);
+    if (error) {
+      return clientFallbackStore.deleteMessageTemplate(id);
+    }
+    return true;
+  },
+
+  async trackOutreachContact(contactId: string, data: { channel: string; was_edited?: boolean; draft_type?: string }): Promise<void> {
+    clientFallbackStore.trackContactOutreach(contactId, data);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('contacts').update({
+          last_outreach_channel: data.channel,
+          last_outreach_at: new Date().toISOString(),
+          last_draft_type: data.draft_type,
+          draft_was_edited: data.was_edited,
+        }).eq('id', contactId);
+      } catch (_) {}
+    }
   },
 
   async bulkCreateCompanies(items: Array<{ name: string; industry?: string; website?: string; linkedin_url?: string; notes?: string }>): Promise<{
