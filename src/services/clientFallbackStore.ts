@@ -9,7 +9,10 @@ import {
   DashboardStats,
   JD,
   MessageTemplate,
-  CompanyAuditLog
+  CompanyAuditLog,
+  AttendanceLog,
+  AttendanceSettings,
+  LeaveBalance
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -22,6 +25,9 @@ const STORAGE_KEYS = {
   JDS: 'placemein_mock_jds',
   TEMPLATES: 'placemein_message_templates_v1',
   COMPANY_AUDIT_LOGS: 'placemein_company_audit_logs_v1',
+  ATTENDANCE_LOGS: 'placemein_attendance_logs_v1',
+  ATTENDANCE_SETTINGS: 'placemein_attendance_settings_v1',
+  LEAVE_BALANCES: 'placemein_leave_balances_v1',
   ROSTER_VERSION: 'placemein_roster_version_v7',
   WORKSHEET_VERSION: 'placemein_worksheet_version_v15',
 };
@@ -745,6 +751,32 @@ May I send across 2–3 matching profiles for your current openings? – {Employ
       const PURGE_FLAG = 'placemein_data_purged_for_2_days_v16';
       if (localStorage.getItem(PURGE_FLAG) !== 'true') return [];
       let jds: JD[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.JDS) || '[]');
+
+      // Migrate & merge any existing Non-IT JDs from legacy keys into unified JDS table
+      try {
+        const legacyNonItKeys = ['placemein_mock_non_it_jds', 'placemein_mock_non_tech_jds', 'placemein_non_it_jds'];
+        let migratedAny = false;
+        for (const k of legacyNonItKeys) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const existingIds = new Set(jds.map((j) => j.id));
+              for (const legacyJd of parsed) {
+                if (!existingIds.has(legacyJd.id)) {
+                  jds.push({ ...legacyJd, role_category: legacyJd.role_category || 'non_tech' });
+                  migratedAny = true;
+                }
+              }
+            }
+            localStorage.removeItem(k);
+          }
+        }
+        if (migratedAny) {
+          localStorage.setItem(STORAGE_KEYS.JDS, JSON.stringify(jds));
+        }
+      } catch (_) {}
+
       if (jds.length === 0 && inMemoryJDs.length > 0) {
         jds = inMemoryJDs;
       }
@@ -1155,26 +1187,26 @@ May I send across 2–3 matching profiles for your current openings? – {Employ
     // 1. Total Eligible JDs received this month
     const eligibleJDsThisMonth = jds.filter((j) => (j.is_verified || j.opportunity_type) && isThisMonth(j.date_found || j.created_at)).length;
 
-    // 2. Total drives scheduled this month
+    // 2. Total drives scheduled this month (real count from tasks)
     const drivesScheduledThisMonth = tasks.filter(
       (t) => (t.title?.toLowerCase().includes('drive') || t.description?.toLowerCase().includes('drive')) && isThisMonth(t.created_at || t.due_date)
-    ).length + 3; // + active scheduled drives from outreach
+    ).length;
 
-    // 3. Today's team attendance
-    const totalActiveCras = Math.max(activeCras.length, 1);
-    // CRAs who logged in or are marked active today
-    const presentTodayCount = Math.min(totalActiveCras, Math.max(1, Math.round(totalActiveCras * 0.88)));
-    const attendancePct = Math.round((presentTodayCount / totalActiveCras) * 100);
+    // 3. Today's team attendance (real count from attendance logs)
+    const totalActiveCras = Math.max(activeCras.length, 0);
+    const todayLogs = this.getAttendanceLogs().filter((l) => isToday(l.work_date));
+    const presentTodayCount = todayLogs.filter((l) => l.status === 'present' || l.status === 'half_day' || l.status === 'in_progress').length;
+    const attendancePct = totalActiveCras > 0 ? Math.round((presentTodayCount / totalActiveCras) * 100) : 0;
 
     // 4. Total JDs received today
     const jdsReceivedToday = jds.filter((j) => isToday(j.date_found || j.created_at)).length;
 
-    // 5. Total interviews scheduled for today
+    // 5. Total interviews scheduled for today (real count)
     const interviewsScheduledToday = tasks.filter(
       (t) => (t.title?.toLowerCase().includes('interview') || t.description?.toLowerCase().includes('interview')) && isToday(t.due_date || t.created_at)
-    ).length + 2;
+    ).length;
 
-    // 6. Total interviews on hold for the month
+    // 6. Total interviews on hold for the month (real count)
     const interviewsOnHoldMonth = tasks.filter(
       (t) =>
         (t.title?.toLowerCase().includes('hold') ||
@@ -1182,12 +1214,12 @@ May I send across 2–3 matching profiles for your current openings? – {Employ
          t.title?.toLowerCase().includes('interview')) &&
         t.status === 'pending' &&
         isThisMonth(t.created_at)
-    ).length + 1;
+    ).length;
 
     // 7. % PF (Placement/Performance Fulfillment) Target Achievement
-    const totalGoal = activeCras.reduce((acc, c) => acc + (c.monthly_jd_target || 20), 0) || 160;
+    const totalGoal = activeCras.reduce((acc, c) => acc + (c.monthly_jd_target || 20), 0) || 0;
     const verifiedThisMonth = jds.filter((j) => j.is_verified && isThisMonth(j.date_found || j.created_at)).length;
-    const pfPct = Math.min(100, Math.round((verifiedThisMonth / totalGoal) * 100));
+    const pfPct = totalGoal > 0 ? Math.min(100, Math.round((verifiedThisMonth / totalGoal) * 100)) : 0;
 
     return {
       eligible_jds_this_month: eligibleJDsThisMonth,
@@ -1271,6 +1303,102 @@ May I send across 2–3 matching profiles for your current openings? – {Employ
     return {
       message: `Merged ${source.name} into ${target.name}. Transferred ${reassociatedContacts} contacts and ${reassociatedJds} JDs.`,
     };
+  },
+
+  // --------------------------------------------------------------------------
+  // ATTENDANCE LOGS
+  // --------------------------------------------------------------------------
+  getAttendanceLogs(userId?: string): AttendanceLog[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.ATTENDANCE_LOGS);
+      const logs: AttendanceLog[] = raw ? JSON.parse(raw) : [];
+      if (userId) {
+        return logs.filter((l) => l.user_id === userId);
+      }
+      return logs;
+    } catch {
+      return [];
+    }
+  },
+
+  saveAttendanceLogs(logs: AttendanceLog[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_LOGS, JSON.stringify(logs));
+    } catch (_) {}
+  },
+
+  upsertAttendanceLog(log: AttendanceLog): void {
+    const logs = this.getAttendanceLogs();
+    const idx = logs.findIndex((l) => l.id === log.id);
+    if (idx >= 0) {
+      logs[idx] = log;
+    } else {
+      logs.unshift(log);
+    }
+    this.saveAttendanceLogs(logs);
+  },
+
+  // --------------------------------------------------------------------------
+  // ATTENDANCE SETTINGS
+  // --------------------------------------------------------------------------
+  getAttendanceSettings(): AttendanceSettings {
+    const defaultSettings: AttendanceSettings = {
+      id: 'default',
+      full_day_hours: 6.0,
+      half_day_hours: 3.0,
+      default_logout_time: '19:00',
+      daily_rate: 500,
+      target_contacts: 750,
+      target_jds: 15,
+    };
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.ATTENDANCE_SETTINGS);
+      if (raw) {
+        return { ...defaultSettings, ...JSON.parse(raw) };
+      }
+      return defaultSettings;
+    } catch {
+      return defaultSettings;
+    }
+  },
+
+  saveAttendanceSettings(settings: Partial<AttendanceSettings>): AttendanceSettings {
+    const current = this.getAttendanceSettings();
+    const merged: AttendanceSettings = { ...current, ...settings, id: 'default' };
+    try {
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_SETTINGS, JSON.stringify(merged));
+    } catch (_) {}
+    return merged;
+  },
+
+  // --------------------------------------------------------------------------
+  // LEAVE BALANCES
+  // --------------------------------------------------------------------------
+  getLeaveBalances(): LeaveBalance[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.LEAVE_BALANCES);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  getLeaveBalance(userId: string): LeaveBalance | null {
+    const balances = this.getLeaveBalances();
+    return balances.find((b) => b.user_id === userId) || null;
+  },
+
+  saveLeaveBalance(balance: LeaveBalance): void {
+    const balances = this.getLeaveBalances();
+    const idx = balances.findIndex((b) => b.user_id === balance.user_id);
+    if (idx >= 0) {
+      balances[idx] = balance;
+    } else {
+      balances.push(balance);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.LEAVE_BALANCES, JSON.stringify(balances));
+    } catch (_) {}
   },
 };
 

@@ -43,8 +43,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { id: 'admin-templates', label: 'Message Templates', icon: MessageSquareQuote },
   { id: 'admin-performance', label: 'Team Performance', icon: Award },
   { id: 'admin-settings', label: 'System Settings', icon: Settings },
-  { id: 'jd-bank-tech', label: 'JD Bank — Tech', icon: Cpu, tag: 'Bank' },
-  { id: 'jd-bank-non-tech', label: 'JD Bank — Non-Tech', icon: Layers, tag: 'Bank' },
+  { id: 'admin-jd-bank', label: 'JD Bank', icon: Briefcase, tag: 'Bank' },
 ];
 
 export interface AdminLayoutProps {
@@ -113,10 +112,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         return 'Team Performance';
       case 'admin-settings':
         return 'System Settings';
+      case 'admin-jd-bank':
+      case 'jd-bank':
       case 'jd-bank-tech':
-        return 'JD Bank — Tech';
       case 'jd-bank-non-tech':
-        return 'JD Bank — Non-Tech';
+      case 'admin-jd-bank-tech':
+      case 'admin-jd-bank-non-tech':
+        return 'JD Bank';
       default:
         return activeTab.replace(/^admin-/, '').replace(/-/g, ' ');
     }
@@ -147,7 +149,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         }`}
       >
         {/* Brand Header */}
-        <div className="p-4 border-b border-slate-700/30 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-700/30 flex items-center justify-between shrink-0">
           <button
             onClick={() => handleNavClick('admin-users')}
             className="flex items-center space-x-3 text-left overflow-hidden group cursor-pointer"
@@ -198,7 +200,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin pb-6">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin pb-12 overscroll-contain">
           {ADMIN_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;

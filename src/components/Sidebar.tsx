@@ -50,8 +50,7 @@ const adminItems = [
   { id: 'admin-team-lead-dashboard', label: 'Team Lead Dashboard', icon: LayoutDashboard },
   { id: 'admin-users', label: 'User Management', icon: UserCog },
   { id: 'admin-sheets', label: 'All Worksheets & PDF', icon: FileSpreadsheet },
-  { id: 'admin-jd-bank-tech', label: 'JD Bank — Tech', icon: Cpu },
-  { id: 'admin-jd-bank-non-tech', label: 'JD Bank — Non-Tech', icon: Layers },
+  { id: 'proof-review', label: 'Proof Review & Verification', icon: ShieldCheck, badge: 'Verify' },
   { id: 'admin-jd-list', label: 'JD List & Tracking', icon: Briefcase },
   { id: 'admin-tasks', label: 'Task Management', icon: CheckSquare },
   { id: 'admin-companies', label: 'Company & JD Oversight', icon: Building2 },
@@ -59,6 +58,7 @@ const adminItems = [
   { id: 'admin-templates', label: 'Message Templates', icon: MessageSquareQuote },
   { id: 'admin-performance', label: 'Team Performance', icon: Award },
   { id: 'admin-settings', label: 'System Settings', icon: Settings },
+  { id: 'admin-jd-bank', label: 'JD Bank', icon: Briefcase, badge: 'Bank' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -166,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* In Admin Mode only, allow exiting back to Employee view */}
         {isAdmin && (
-          <div className="px-3 pt-3">
+          <div className="px-3 pt-3 shrink-0">
             <button
               onClick={handlePortalSwitchClick}
               title={collapsed ? 'Exit to Employee View' : undefined}
@@ -180,7 +180,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* In Employee Mode for Admin Users, allow 1-click switch to Admin Portal */}
         {!isAdmin && currentUser?.role === 'admin' && (
-          <div className="px-3 pt-3">
+          <div className="px-3 pt-3 shrink-0">
             <button
               onClick={() => {
                 onCloseMobile?.();
@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 pb-6">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 pb-12 overscroll-contain">
           {!collapsed && (
             <p className={`px-3 mb-2 text-[10px] font-black uppercase tracking-widest ${isAdmin ? 'text-amber-400' : 'text-purple-400'}`}>
               {isAdmin ? 'Administration Oversight' : 'Employee Workspace'}

@@ -61,8 +61,9 @@ const routeToTab = (rawPath: string) => {
     '/pipeline/follow-ups': 'follow-ups',
     '/jd-intake': 'jd-intake',
     '/jd-list': 'jd-list',
-    '/jd-bank/tech': 'jd-bank-tech',
-    '/jd-bank/non-tech': 'jd-bank-non-tech',
+    '/jd-bank': 'admin-jd-bank',
+    '/jd-bank/tech': 'admin-jd-bank',
+    '/jd-bank/non-tech': 'admin-jd-bank',
     '/crm': 'crm',
     '/tasks': 'tasks',
     '/performance': 'performance',
@@ -81,10 +82,11 @@ const routeToTab = (rawPath: string) => {
     '/admin/companies': 'admin-companies',
     '/admin/performance': 'admin-performance',
     '/admin/settings': 'admin-settings',
-    '/admin/jd-bank/tech': 'jd-bank-tech',
-    '/admin/jd-bank-tech': 'jd-bank-tech',
-    '/admin/jd-bank/non-tech': 'jd-bank-non-tech',
-    '/admin/jd-bank-non-tech': 'jd-bank-non-tech',
+    '/admin/jd-bank': 'admin-jd-bank',
+    '/admin/jd-bank/tech': 'admin-jd-bank',
+    '/admin/jd-bank-tech': 'admin-jd-bank',
+    '/admin/jd-bank/non-tech': 'admin-jd-bank',
+    '/admin/jd-bank-non-tech': 'admin-jd-bank',
     '/admin/proof-review': 'proof-review',
   };
 
@@ -119,16 +121,18 @@ const tabToRoute: Record<string, string> = {
   'admin-templates': '/admin/templates',
   'admin-sheets': '/admin/worksheets',
   'admin-jd-list': '/admin/jd-list',
-  'admin-jd-bank-tech': '/admin/jd-bank/tech',
-  'admin-jd-bank-non-tech': '/admin/jd-bank/non-tech',
+  'admin-jd-bank': '/admin/jd-bank',
+  'admin-jd-bank-tech': '/admin/jd-bank',
+  'admin-jd-bank-non-tech': '/admin/jd-bank',
   'admin-proof-review': '/admin/pipeline/proofs',
   'admin-team-lead-dashboard': '/admin/team-lead-dashboard',
   'admin-tasks': '/admin/tasks',
   'admin-companies': '/admin/companies',
   'admin-performance': '/admin/performance',
   'admin-settings': '/admin/settings',
-  'jd-bank-tech': '/admin/jd-bank/tech',
-  'jd-bank-non-tech': '/admin/jd-bank/non-tech',
+  'jd-bank': '/admin/jd-bank',
+  'jd-bank-tech': '/admin/jd-bank',
+  'jd-bank-non-tech': '/admin/jd-bank',
   'proof-review': '/admin/proof-review',
 };
 
@@ -191,7 +195,7 @@ export const App: React.FC = () => {
       else if (tab === 'team-lead-dashboard') effectiveTab = 'admin-team-lead-dashboard';
       else if (tab === 'tasks') effectiveTab = 'admin-tasks';
       else if (tab === 'performance') effectiveTab = 'admin-performance';
-      else if (tab === 'crm') effectiveTab = 'admin-companies';
+      else if (tab === 'crm') effectiveTab = 'admin-crm';
     }
 
     // If user attempts to navigate to admin tab but is not verified as admin, intercept and prompt for login
@@ -339,15 +343,14 @@ export const App: React.FC = () => {
         )}
         {activeTab === 'admin-tasks' && <TaskManagementPage />}
         {activeTab === 'admin-performance' && <PerformancePage />}
-        {activeTab === 'jd-bank-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
-        {activeTab === 'jd-bank-non-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
+        {(activeTab === 'admin-jd-bank' || activeTab === 'jd-bank' || activeTab === 'jd-bank-tech' || activeTab === 'jd-bank-non-tech' || activeTab === 'admin-jd-bank-tech' || activeTab === 'admin-jd-bank-non-tech') && (
+          <JDBankPage currentUser={currentUser} standalone />
+        )}
         {activeTab === 'proof-review' && <ProofReviewPage currentUser={currentUser} setActiveTab={navigate} />}
-        {activeTab === 'admin-jd-bank-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
-        {activeTab === 'admin-jd-bank-non-tech' && <JDListPage currentUser={currentUser} adminMode={true} />}
         {activeTab === 'admin-proof-review' && <ProofOfResponsePage currentUser={currentUser} adminReviewMode />}
 
         {/* Fallback if an unmatched admin tab is encountered */}
-        {!['admin-users', 'admin-companies', 'admin-crm', 'admin-templates', 'admin-settings', 'admin-jd-list', 'admin-team-lead-dashboard', 'admin-sheets', 'admin-worksheets', 'sheets', 'admin-tasks', 'admin-performance', 'jd-bank-tech', 'jd-bank-non-tech', 'proof-review', 'admin-jd-bank-tech', 'admin-jd-bank-non-tech', 'admin-proof-review'].includes(activeTab) && (
+        {!['admin-users', 'admin-companies', 'admin-crm', 'admin-templates', 'admin-settings', 'admin-jd-list', 'admin-team-lead-dashboard', 'admin-sheets', 'admin-worksheets', 'sheets', 'admin-tasks', 'admin-performance', 'admin-jd-bank', 'jd-bank', 'jd-bank-tech', 'jd-bank-non-tech', 'proof-review', 'admin-jd-bank-tech', 'admin-jd-bank-non-tech', 'admin-proof-review'].includes(activeTab) && (
           <TeamSheetsPage currentUser={currentUser} adminMode={true} />
         )}
 
@@ -399,28 +402,27 @@ export const App: React.FC = () => {
         return 'Proof of Response';
       case 'follow-ups':
         return 'Follow-ups';
+      case 'admin-jd-bank':
+      case 'jd-bank':
       case 'jd-bank-tech':
-        return 'JD Bank — Tech';
       case 'jd-bank-non-tech':
-        return 'JD Bank — Non-Tech';
+      case 'admin-jd-bank-tech':
+      case 'admin-jd-bank-non-tech':
+        return 'JD Bank';
       case 'jd-intake':
         return 'JD Intake';
       case 'jd-list':
         return 'JD List';
       case 'admin-jd-list':
         return 'JD List & Oversight';
-      case 'admin-jd-bank-tech':
-        return 'JD Bank — Tech';
-      case 'admin-jd-bank-non-tech':
-        return 'JD Bank — Non-Tech';
       case 'admin-proof-review':
         return 'Proof Review Queue';
       case 'crm':
         return 'CRM Directory';
       case 'admin-crm':
-        return 'CRM Directory & Employer Oversight';
+        return 'CRM Directory';
       case 'admin-templates':
-        return 'Outreach Message Templates';
+        return 'Message Templates';
       case 'tasks':
         return 'My Tasks';
       case 'performance':
@@ -539,8 +541,9 @@ export const App: React.FC = () => {
           {activeTab === 'outreach-drafts' && <OutreachDraftsPage currentUser={currentUser} />}
           {activeTab === 'proof-of-response' && <ProofOfResponsePage currentUser={currentUser} />}
           {activeTab === 'follow-ups' && <FollowUpsPage currentUser={currentUser} />}
-          {activeTab === 'jd-bank-tech' && <JDBankPage currentUser={currentUser} defaultCategory="tech" standalone />}
-          {activeTab === 'jd-bank-non-tech' && <JDBankPage currentUser={currentUser} defaultCategory="non_tech" standalone />}
+          {(activeTab === 'admin-jd-bank' || activeTab === 'jd-bank' || activeTab === 'jd-bank-tech' || activeTab === 'jd-bank-non-tech' || activeTab === 'admin-jd-bank-tech' || activeTab === 'admin-jd-bank-non-tech') && (
+            <JDBankPage currentUser={currentUser} standalone />
+          )}
           {activeTab === 'crm' && (
             <CRMListPage
               currentUser={currentUser}
@@ -567,8 +570,6 @@ export const App: React.FC = () => {
           {activeTab === 'admin-jd-list' && (
             <JDListPage currentUser={currentUser} adminMode={true} />
           )}
-          {activeTab === 'admin-jd-bank-tech' && <JDBankPage currentUser={currentUser} defaultCategory="tech" standalone />}
-          {activeTab === 'admin-jd-bank-non-tech' && <JDBankPage currentUser={currentUser} defaultCategory="non_tech" standalone />}
           {activeTab === 'admin-proof-review' && <ProofOfResponsePage currentUser={currentUser} adminReviewMode />}
           {/* Admin Oversight Views - Kept strictly inside Admin Portal */}
           {activeTab === 'admin-team-lead-dashboard' && (

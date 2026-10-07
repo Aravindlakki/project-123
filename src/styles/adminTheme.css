@@ -81,6 +81,8 @@
   background: linear-gradient(180deg, #0e1524 0%, #070c16 50%, #0a0f1b 100%);
   border-right: 1px solid var(--admin-border-subtle);
   height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   position: sticky;
   top: 0;
   left: 0;

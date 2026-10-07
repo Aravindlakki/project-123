@@ -142,3 +142,72 @@ export function formatISTDateHeading(istDateKey: string): {
   }
 }
 
+/**
+ * Returns current date in Indian Standard Time (IST) as YYYY-MM-DD
+ */
+export function getTodayISTDateString(d: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Formats a timestamp into IST with 12-hour AM/PM format
+ */
+export function formatISTTime(dateInput?: string | number | Date | null, includeSeconds: boolean = false): string {
+  if (!dateInput) return '—';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput);
+    if (isNaN(d.getTime())) return String(dateInput);
+    return (
+      new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: includeSeconds ? '2-digit' : undefined,
+        hour12: true,
+      }).format(d) + ' IST'
+    );
+  } catch {
+    return String(dateInput);
+  }
+}
+
+/**
+ * Formats a date into IST format (e.g. "07 Oct 2026")
+ */
+export function formatISTDate(dateInput?: string | number | Date | null): string {
+  if (!dateInput) return '—';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput);
+    if (isNaN(d.getTime())) return String(dateInput);
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
+  } catch {
+    return String(dateInput);
+  }
+}
+
+/**
+ * Formats total minutes into hours and minutes (e.g. "6h 15m")
+ */
+export function formatMinutesToHours(minutes: number): string {
+  const safeMin = Math.max(0, Math.round(minutes || 0));
+  const hrs = Math.floor(safeMin / 60);
+  const mins = safeMin % 60;
+  if (hrs === 0) return `${mins}m`;
+  if (mins === 0) return `${hrs}h`;
+  return `${hrs}h ${mins}m`;
+}
+
